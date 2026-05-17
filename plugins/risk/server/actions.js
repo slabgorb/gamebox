@@ -37,6 +37,12 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     case 'setup:setup-deploy':
       err = applySetupDeploy(s, actorIdx, action.payload);
       break;
+    case 'attack:attack':
+      err = applyAttack(s, actorIdx, action.payload, rng);
+      break;
+    case 'attack:end-attack':
+      s.phase = 'fortify';
+      break;
     default:
       return { error: `action '${action.type}' not allowed in phase '${s.phase}'` };
   }
@@ -73,6 +79,46 @@ function applySetupDeploy(s, playerIdx, payload) {
     s.currentPlayer = 0;
     s.phase = 'reinforce';
     s.reinforcePool = reinforcementFor(s, 0);
+  }
+  return null;
+}
+
+function ownedCount(s, playerIdx) {
+  return Object.values(s.territories).filter(t => t.owner === playerIdx).length;
+}
+
+function applyAttack(s, playerIdx, payload, rng) {
+  const { from, to, force } = payload ?? {};
+  const verr = validateAttack(s, playerIdx, { from, to, force });
+  if (verr) return verr;
+
+  const src = s.territories[from];
+  const tgt = s.territories[to];
+  src.armies -= force; // the committed force marches out
+
+  const outcome = resolveAttack({ force, defenders: tgt.armies }, rng ?? Math.random);
+
+  if (outcome.captured) {
+    tgt.owner = playerIdx;
+    tgt.armies = outcome.attackerSurvivors;
+  } else {
+    tgt.armies = outcome.defenderSurvivors;
+    src.armies += outcome.attackerSurvivors; // lone survivor retreats
+  }
+
+  s.lastCombat = {
+    from, to, force,
+    rounds: outcome.rounds,
+    captured: outcome.captured,
+    attackerSurvivors: outcome.attackerSurvivors,
+    defenderSurvivors: outcome.defenderSurvivors,
+  };
+  s.log.push({ kind: 'attack', player: playerIdx, from, to, force, captured: outcome.captured });
+
+  const opponent = playerIdx === 0 ? 1 : 0;
+  if (ownedCount(s, opponent) === 0) {
+    s.phase = 'gameover';
+    s.winner = playerIdx;
   }
   return null;
 }
