@@ -5,7 +5,7 @@ import { subscribe } from './sse.js';
 import { writeGameState } from './state.js';
 import { getPlugin } from './plugins.js';
 import { appendTurnEntry, listTurnEntries } from './history.js';
-import { createAiSession, getAiSession, clearStall } from './ai/agent-session.js';
+import { createAiSession, getAiSession, clearStall, appendUserMessage } from './ai/agent-session.js';
 
 export function mountRoutes(app, { db, registry, sse, ai = null }) {
   // Game-scoped middleware: validate id, load game, check membership.
@@ -311,6 +311,27 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     if (sess.stalledAt == null) return res.status(422).json({ error: 'not stalled' });
     clearStall(db, req.game.id);
     ai.orchestrator.scheduleTurn(req.game.id);
+    res.json({ ok: true });
+  });
+
+  // Trash-talk inbox. The user types into the opp-card; the message gets
+  // queued onto the AI session and prepended to the next bot prompt so the
+  // bot can react in its banter. Echoed back over SSE so other tabs of the
+  // same user see their own message land.
+  app.post('/api/games/:gameId/chat', requireIdentity, (req, res) => {
+    if (!ai) return res.status(404).json({ error: 'no AI session' });
+    const sess = getAiSession(db, req.game.id);
+    if (!sess) return res.status(404).json({ error: 'no AI session' });
+    const raw = req.body?.text;
+    if (typeof raw !== 'string') return res.status(400).json({ error: 'text required' });
+    const text = raw.trim().slice(0, 200);
+    if (!text) return res.status(400).json({ error: 'empty message' });
+    const userSide = req.game.state.sides?.a === req.user.id ? 'a' : 'b';
+    appendUserMessage(db, req.game.id, text);
+    sse.broadcast(req.game.id, {
+      type: 'user_chat',
+      payload: { side: userSide, userId: req.user.id, friendlyName: req.user.friendlyName, text, sentAt: Date.now() },
+    });
     res.json({ ok: true });
   });
 

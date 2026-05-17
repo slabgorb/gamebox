@@ -4,7 +4,7 @@ import { InvalidLlmResponse, InvalidLlmMove } from '../../../../src/server/ai/er
 
 export { InvalidLlmResponse, InvalidLlmMove };
 
-export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx }) {
+export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, userMessages = [] }) {
   const botSide = botPlayerIdx === 0 ? 'a' : 'b';
   const shortlist = buildShortlist(state, botSide);
   if (shortlist.length === 0) {
@@ -12,7 +12,7 @@ export async function chooseAction({ llm, persona, sessionId, state, botPlayerId
     throw new Error(`no legal moves for words bot`);
   }
 
-  const prompt = buildTurnPrompt({ state, shortlist, botSide });
+  const prompt = buildTurnPrompt({ state, shortlist, botSide, userMessages });
   const r = await llm.send({
     prompt,
     sessionId,

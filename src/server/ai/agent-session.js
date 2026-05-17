@@ -82,3 +82,27 @@ export function clearPendingSequence(db, gameId) {
   db.prepare("UPDATE ai_sessions SET pending_sequence = NULL, last_used_at = ? WHERE game_id = ?")
     .run(Date.now(), gameId);
 }
+
+// Trash-talk inbox: human → bot. Drained by the orchestrator before each
+// bot turn so the LLM can react in its banter. Cleared only after the bot
+// successfully acts, so a stalled / retried turn doesn't lose the message.
+export function appendUserMessage(db, gameId, text) {
+  const row = db.prepare("SELECT pending_user_messages FROM ai_sessions WHERE game_id = ?").get(gameId);
+  if (!row) return false;
+  const current = row.pending_user_messages ? JSON.parse(row.pending_user_messages) : [];
+  current.push({ text, sentAt: Date.now() });
+  db.prepare("UPDATE ai_sessions SET pending_user_messages = ?, last_used_at = ? WHERE game_id = ?")
+    .run(JSON.stringify(current), Date.now(), gameId);
+  return true;
+}
+
+export function peekUserMessages(db, gameId) {
+  const row = db.prepare("SELECT pending_user_messages FROM ai_sessions WHERE game_id = ?").get(gameId);
+  if (!row || !row.pending_user_messages) return [];
+  try { return JSON.parse(row.pending_user_messages); } catch { return []; }
+}
+
+export function clearUserMessages(db, gameId) {
+  db.prepare("UPDATE ai_sessions SET pending_user_messages = NULL, last_used_at = ? WHERE game_id = ?")
+    .run(Date.now(), gameId);
+}

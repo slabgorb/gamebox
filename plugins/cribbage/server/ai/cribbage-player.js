@@ -5,7 +5,7 @@ import { InvalidLlmResponse, InvalidLlmMove } from '../../../../src/server/ai/er
 
 export { InvalidLlmResponse, InvalidLlmMove };
 
-export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx }) {
+export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, userMessages = [] }) {
   // Phase-specific: discard uses a pre-scored shortlist (15 → top 4) so
   // the LLM picks for style instead of counting fifteens. Other phases
   // pass the raw legal-moves list as before.
@@ -30,7 +30,7 @@ export async function chooseAction({ llm, persona, sessionId, state, botPlayerId
   if (state.phase === 'pegging' && legalMoves.length === 1) {
     return { action: legalMoves[0].action, banter: null, sessionId, usedLlm: false };
   }
-  const prompt = buildTurnPrompt({ state, legalMoves, botPlayerIdx, discardCandidates });
+  const prompt = buildTurnPrompt({ state, legalMoves, botPlayerIdx, discardCandidates, userMessages });
 
   const r = await llm.send({
     prompt,

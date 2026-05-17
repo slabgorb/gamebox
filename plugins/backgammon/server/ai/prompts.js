@@ -158,17 +158,19 @@ function legalMovesBlock(legalMoves) {
   return `${heading}\n${lines.join('\n')}`;
 }
 
-const RESPONSE_FOOTER = 'Respond with a single JSON object (and nothing else): {"moveId": "<one of the legal move ids above>", "banter": "<short in-character line, may be empty>"}';
+const RESPONSE_FOOTER = 'Respond with a single JSON object (and nothing else): {"moveId": "<one of the legal move ids above>", "banter": "<one short in-character line, max ~12 words, never empty — even one syllable counts>"}';
 
-export function buildTurnPrompt({ state, legalMoves, botPlayerIdx }) {
+export function buildTurnPrompt({ state, legalMoves, botPlayerIdx, userMessages = [] }) {
   const botSide = botPlayerIdx === 0 ? 'a' : 'b';
-  return [
-    header(state, botSide),
-    renderBoard(state.board, botSide),
-    phaseBlock(state, botSide),
-    legalMovesBlock(legalMoves),
-    RESPONSE_FOOTER,
-  ].join('\n\n');
+  const blocks = [header(state, botSide), renderBoard(state.board, botSide), phaseBlock(state, botSide)];
+  if (userMessages.length > 0) blocks.push(trashTalkBlock(userMessages));
+  blocks.push(legalMovesBlock(legalMoves), RESPONSE_FOOTER);
+  return blocks.join('\n\n');
+}
+
+function trashTalkBlock(messages) {
+  const lines = messages.map(m => `  - "${m.replace(/"/g, '\\"')}"`).join('\n');
+  return `Your opponent just said to you (since your last turn):\n${lines}\nReact in your banter — stay in character.`;
 }
 
 function extractJson(text) {

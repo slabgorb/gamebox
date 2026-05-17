@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "active": "/pf-dev",
+  "bindings": {
+    "/pf-dev": {
+      "theme": "the-expanse",
+      "character": "amos-burton"
+    },
+    "/pf-theme": {
+      "theme": "the-expanse",
+      "character": "chrisjen-avasarala"
+    },
+    "/superpowers:subagent-driven-development": {
+      "theme": "the-expanse",
+      "character": "naomi-nagata"
+    }
+  }
+}

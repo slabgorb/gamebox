@@ -254,7 +254,7 @@ body[data-theme="inlay-noir"] {
   padding: 8px 24px 16px;
   min-height: 0;
   overflow: hidden;
-  container-type: inline-size;
+  container-type: size;
   container-name: stage;
 }
 #root {
@@ -272,15 +272,17 @@ body[data-theme="inlay-noir"] {
   position: relative;
   aspect-ratio: 16 / 10;
   display: flex;
-  height: 100%;
-  width: auto;
-  max-width: 100%;
+  /* Fit-in-box: bounded by stage width AND stage height × 1.6, whichever
+     is smaller. Pairs with #stage container-type: size so cqh works. */
+  width: min(100cqw, calc(100cqh * 1.6));
+  height: auto;
   margin: 0 auto;
   min-height: 0;
   min-width: 0;
-}
-@container stage (max-aspect-ratio: 16/10) {
-  .board-wrap { height: auto; width: 100%; }
+  /* Establish a container so descendants (checkers, dice) can size in cqi
+     relative to the board width instead of the viewport. */
+  container-type: inline-size;
+  container-name: board;
 }
 
 /* Board grid uses fr units that mirror the rendered PNG's region
@@ -305,6 +307,8 @@ body[data-theme="inlay-noir"] {
     inset 0 -2px 6px rgba(0,0,0,0.40),
     0 24px 48px rgba(0,0,0,0.45);
   gap: 0;
+  min-height: 0;
+  min-width: 0;
 }
 
 /* Quadrants of the board — transparent so the rendered-PNG board surface
@@ -314,6 +318,8 @@ body[data-theme="inlay-noir"] {
   display: grid;
   grid-template-columns: repeat(6, 1fr);
   background: transparent;
+  min-height: 0;
+  min-width: 0;
 }
 .quad.tl { grid-column: 2; grid-row: 2; }
 .quad.tr { grid-column: 4; grid-row: 2; }
@@ -511,7 +517,7 @@ body[data-theme^="inlay-"] .point-tri { display: none; }
 
 /* Checkers (concentric rings, classic clay/bakelite) */
 .checker {
-  width: clamp(24px, 4.4vw, 56px);
+  width: clamp(16px, 4.5cqi, 48px);
   aspect-ratio: 1;
   border-radius: 50%;
   position: relative;
@@ -631,7 +637,7 @@ body[data-checker-style="photo"] .checker::after {
 }
 
 /* Bar checker on the spine */
-.bar .checker { width: clamp(22px, 3.2vw, 42px); }
+.bar .checker { width: clamp(14px, 3.2cqi, 36px); }
 .bar-label {
   font-family: var(--type-mono);
   font-size: 9px;
@@ -666,8 +672,8 @@ body[data-checker-style="photo"] .checker::after {
 /* Fallback when no modifier is applied — keeps dice on the board, not at (0,0). */
 .dice-area:not(.top):not(.bottom) { top: 50%; }
 .die-placeholder {
-  width: clamp(36px, 4.4vw, 54px);
-  height: clamp(36px, 4.4vw, 54px);
+  width: clamp(24px, 4cqi, 44px);
+  height: clamp(24px, 4cqi, 44px);
   border-radius: 8px;
   background:
     linear-gradient(155deg, var(--c-a-hi) 0%, var(--c-a-mid) 60%, var(--c-a-lo) 100%);
@@ -690,8 +696,8 @@ body[data-checker-style="photo"] .checker::after {
   align-self: center;
   justify-self: center;
   box-shadow: inset 0 1px 1px rgba(0,0,0,0.6), 0 -1px 0 rgba(255,255,255,0.4);
-  width: clamp(5px, 0.8vw, 9px);
-  height: clamp(5px, 0.8vw, 9px);
+  width: clamp(3px, 0.7cqi, 8px);
+  height: clamp(3px, 0.7cqi, 8px);
 }
 /* die placeholder marker label */
 .dice-area-label {
@@ -716,7 +722,7 @@ body[data-checker-style="photo"] .checker::after {
 
 .cube {
   position: absolute;
-  width: clamp(38px, 4.4vw, 56px);
+  width: clamp(24px, 4cqi, 44px);
   aspect-ratio: 1;
   left: 50%;
   top: 50%;
@@ -733,7 +739,7 @@ body[data-checker-style="photo"] .checker::after {
   justify-content: center;
   font-family: var(--type-serif);
   font-weight: 600;
-  font-size: clamp(18px, 2.4vw, 28px);
+  font-size: clamp(14px, 2.8cqi, 26px);
   color: var(--c-a-ink);
   z-index: 5;
 }

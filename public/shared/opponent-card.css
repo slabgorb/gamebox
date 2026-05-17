@@ -122,6 +122,45 @@
 }
 .opp-card__stall button:hover { background: #fffbeb; }
 
+.opp-card__chat {
+  margin-top: 6px;
+  pointer-events: auto;
+}
+.opp-card__chat input {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.92);
+  color: #111827;
+  font-size: 12px;
+  font-family: system-ui, -apple-system, sans-serif;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+.opp-card__chat input:focus {
+  outline: none;
+  border-color: #2563eb;
+  background: white;
+}
+.opp-card__chat input:disabled {
+  opacity: 0.6;
+}
+
+.opp-card__my-bubble {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: #2563eb;
+  color: white;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.3;
+  align-self: flex-end;
+  max-width: 100%;
+  transition: opacity 0.4s;
+  pointer-events: none;
+}
+.opp-card__my-bubble[hidden] { display: none; }
+
 @media (max-width: 720px) {
   .opp-card {
     bottom: 12px;

@@ -76,8 +76,62 @@ function mount() {
   stallActions.append(retryBtn, abandonBtn);
   stall.append(stallText, stallActions);
 
-  card.append(portrait, name, bubble, stall);
+  // Trash-talk input — user types here, message gets POSTed and queued
+  // for the next bot prompt. Always enabled so the user can prep a zinger
+  // even between turns; backend rejects when the game has no AI session.
+  const chatForm = document.createElement('form');
+  chatForm.className = 'opp-card__chat';
+  const chatInput = document.createElement('input');
+  chatInput.type = 'text';
+  chatInput.maxLength = 200;
+  chatInput.placeholder = 'Talk smack…';
+  chatInput.autocomplete = 'off';
+  chatForm.append(chatInput);
+
+  card.append(portrait, name, bubble, stall, chatForm);
   document.body.appendChild(card);
+
+  // Own-message bubble — appears briefly so the user sees their line land
+  // before the bot replies. Distinct from the bot bubble visually.
+  const myBubble = document.createElement('div');
+  myBubble.className = 'opp-card__my-bubble';
+  myBubble.hidden = true;
+  card.appendChild(myBubble);
+  let myBubbleTimer = null;
+  function flashMyBubble(text) {
+    myBubble.textContent = text;
+    myBubble.hidden = false;
+    myBubble.style.opacity = '1';
+    clearTimeout(myBubbleTimer);
+    myBubbleTimer = setTimeout(() => {
+      myBubble.style.opacity = '0';
+      setTimeout(() => { myBubble.hidden = true; }, 400);
+    }, 4000);
+  }
+
+  chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text) return;
+    chatInput.value = '';
+    chatInput.disabled = true;
+    try {
+      const r = await fetch(`/api/games/${ctx.gameId}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!r.ok) {
+        const detail = (await r.json().catch(() => ({}))).error || r.status;
+        flashMyBubble(`(failed: ${detail})`);
+      }
+      // Successful echo lands via the SSE 'user_chat' event below — don't
+      // double-render here.
+    } finally {
+      chatInput.disabled = false;
+      chatInput.focus();
+    }
+  });
 
   // ---------- Bubble queue ----------
   let bubbleTimer = null;
@@ -146,6 +200,10 @@ function mount() {
     showStall(p.displayName, p.reason);
   });
   es.addEventListener('update', () => clearThinking());
+  es.addEventListener('user_chat', e => {
+    const p = JSON.parse(e.data);
+    if (p.userId === ctx.userId && p.text) flashMyBubble(p.text);
+  });
 
   retryBtn.addEventListener('click', async () => {
     const r = await fetch(`/api/games/${ctx.gameId}/ai/retry`, { method: 'POST' });

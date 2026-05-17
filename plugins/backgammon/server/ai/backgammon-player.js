@@ -7,7 +7,7 @@ export { InvalidLlmResponse, InvalidLlmMove };
 
 const MAX_SHORTLIST = 4;
 
-export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, rng }) {
+export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, rng, userMessages = [] }) {
   const legalMoves = enumerateLegalMoves(state, botPlayerIdx);
   if (legalMoves.length === 0) {
     throw new Error(`no legal moves for phase '${state.turn?.phase}'`);
@@ -30,7 +30,7 @@ export async function chooseAction({ llm, persona, sessionId, state, botPlayerId
       .slice(0, MAX_SHORTLIST);
   }
 
-  const prompt = buildTurnPrompt({ state, legalMoves: shortlist, botPlayerIdx });
+  const prompt = buildTurnPrompt({ state, legalMoves: shortlist, botPlayerIdx, userMessages });
 
   const r = await llm.send({
     prompt,

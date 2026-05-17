@@ -1,4 +1,4 @@
-import { getAiSession, markStalled, clearStall, setPendingSequence, clearPendingSequence, setClaudeSessionId, bumpResumeCount, rotateClaudeSession } from './agent-session.js';
+import { getAiSession, markStalled, clearStall, setPendingSequence, clearPendingSequence, setClaudeSessionId, bumpResumeCount, rotateClaudeSession, peekUserMessages, clearUserMessages } from './agent-session.js';
 
 // Resume the same claude CLI session this many times before rotating to a
 // fresh one. Resumes hit the prompt cache (huge latency win) but each one
@@ -251,6 +251,11 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
       payload: { side: botSide, personaId: persona.id, displayName: persona.displayName },
     });
 
+    // Drain user trash talk into the upcoming prompt. Peek (don't clear)
+    // so a retried/stalled turn doesn't lose the message — it's only
+    // cleared after the bot successfully acts.
+    const userMessages = peekUserMessages(db, gameId).map(m => m.text);
+
     let lastError;
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
@@ -263,6 +268,7 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
         const r = await adapter.chooseAction({
           llm, persona, sessionId: resuming ? session.claudeSessionId : null,
           state, botPlayerIdx, rng: rngFor(gameId),
+          userMessages,
         });
         if (r.usedLlm === false) {
           // Adapter short-circuited (e.g., cribbage pegging with one legal
@@ -313,6 +319,9 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
         if (Array.isArray(r.sequenceTail) && r.sequenceTail.length > 0) {
           setPendingSequence(db, gameId, r.sequenceTail);
         }
+        // Bot consumed any pending trash talk in its prompt — clear so we
+        // don't double-feed the same message on the next turn.
+        if (userMessages.length > 0) clearUserMessages(db, gameId);
 
         if (r.banter != null) {
           sse.broadcast(gameId, {
@@ -320,6 +329,10 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
             payload: { side: botSide, personaId: persona.id, displayName: persona.displayName, text: r.banter },
           });
         }
+        // TEMP DIAGNOSTIC (banter-not-chatting investigation): always log
+        // r.banter so we can tell empty-vs-missing-vs-content. Remove once
+        // backgammon banter root cause is known.
+        logger.info?.(`[ai] game ${gameId} ${persona.id} banter=${JSON.stringify(r.banter ?? null)} subs=${sse.subscriberCount?.(gameId) ?? '?'}`);
         sse.broadcast(gameId, { type: 'update', payload: {} });
         if (turnRow) {
           sse.broadcast(gameId, {

@@ -170,6 +170,9 @@ export function openDb(filePath = 'game.db') {
   if (!aiCols.includes('resume_count')) {
     db.exec("ALTER TABLE ai_sessions ADD COLUMN resume_count INTEGER NOT NULL DEFAULT 0");
   }
+  if (!aiCols.includes('pending_user_messages')) {
+    db.exec("ALTER TABLE ai_sessions ADD COLUMN pending_user_messages TEXT");
+  }
 
   // --- Plugin host schema delta ---
   const gameCols = db.prepare("PRAGMA table_info(games)").all().map(c => c.name);

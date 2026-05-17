@@ -18,6 +18,12 @@ import {
 // plays; the top 50 by score is more than enough to populate the 7 slots
 // and bounds per-call CPU.
 const TOP_RESULTS_KEEP = 50;
+// Difficulty knob: caps the points of non-bingo plays offered to the LLM.
+// The solver can routinely find 40–60 pt lane plays that no casual human
+// hits; capping the menu at 30 keeps the bot competitive without crushing.
+// Bingos are exempt (rare, rewarding to see). Raise toward Infinity for
+// full-strength expert play; lower to weaken further.
+const POINTS_CAP = 30;
 const SWAP_TRIGGER_TOP_SCORE = 12;
 // Even when a decent score is available, the bot will offer a swap if its
 // best play leaves a rack with very negative retention (heavy/awkward
@@ -174,7 +180,7 @@ export function buildShortlist(state, botSide) {
   const top = results.slice(0, TOP_RESULTS_KEEP);
 
   const premiums = buildExposureLookup(config);
-  const enriched = top.map((r) => {
+  const enrichedAll = top.map((r) => {
     const newCells = newlyPlacedCells(state, r);
     const leave = remainingAfter(rack, newCells);
     return {
@@ -187,6 +193,13 @@ export function buildShortlist(state, botSide) {
       isBingo: newCells.length === 7,
     };
   });
+
+  // Apply the difficulty cap. Bingos always pass (50+ pts is the whole
+  // point of saving for a bingo). If the cap nukes everything (e.g.,
+  // pathological rack where every legal play is huge), fall back to the
+  // unfiltered list so the bot can still act.
+  const enriched = enrichedAll.filter(e => e.isBingo || e.result.points <= POINTS_CAP);
+  if (enriched.length === 0) enriched.push(...enrichedAll);
 
   const slots = [];
   const used = new Set();

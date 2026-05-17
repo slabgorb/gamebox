@@ -46,14 +46,16 @@ function shortlistBlock(shortlist) {
 
 const RESPONSE_FOOTER = 'Respond with a single JSON object (and nothing else): {"moveId": "<one of the candidate ids above>", "banter": "<short in-character line, may be empty>"}';
 
-export function buildTurnPrompt({ state, shortlist, botSide }) {
-  return [
-    header(state, botSide),
-    renderBoard(state, botSide),
-    rackLine(state, botSide),
-    shortlistBlock(shortlist),
-    RESPONSE_FOOTER,
-  ].join('\n\n');
+export function buildTurnPrompt({ state, shortlist, botSide, userMessages = [] }) {
+  const blocks = [header(state, botSide), renderBoard(state, botSide), rackLine(state, botSide)];
+  if (userMessages.length > 0) blocks.push(trashTalkBlock(userMessages));
+  blocks.push(shortlistBlock(shortlist), RESPONSE_FOOTER);
+  return blocks.join('\n\n');
+}
+
+function trashTalkBlock(messages) {
+  const lines = messages.map(m => `  - "${m.replace(/"/g, '\\"')}"`).join('\n');
+  return `Your opponent just said to you (since your last turn):\n${lines}\nReact in your banter — stay in character.`;
 }
 
 function extractJson(text) {

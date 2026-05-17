@@ -32,8 +32,14 @@ function discardShortlistBlock(candidates) {
 
 const RESPONSE_FOOTER = 'Respond with a single JSON object (and nothing else): {"moveId": "<one of the legal move ids above>", "banter": "<short in-character line, may be empty>"}';
 
-export function buildTurnPrompt({ state, legalMoves, botPlayerIdx, discardCandidates = null }) {
+function trashTalkBlock(messages) {
+  const lines = messages.map(m => `  - "${m.replace(/"/g, '\\"')}"`).join('\n');
+  return `Your opponent just said to you (since your last turn):\n${lines}\nReact in your banter — stay in character.`;
+}
+
+export function buildTurnPrompt({ state, legalMoves, botPlayerIdx, discardCandidates = null, userMessages = [] }) {
   const blocks = [commonHeader(state, botPlayerIdx)];
+  if (userMessages.length > 0) blocks.push(trashTalkBlock(userMessages));
   const hand = state.hands[botPlayerIdx];
 
   if (state.phase === 'discard') {
