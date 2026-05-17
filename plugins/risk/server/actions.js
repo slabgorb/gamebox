@@ -34,6 +34,9 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     case 'reinforce:deploy':
       err = applyDeploy(s, actorIdx, action.payload, 'reinforce');
       break;
+    case 'setup:setup-deploy':
+      err = applySetupDeploy(s, actorIdx, action.payload);
+      break;
     default:
       return { error: `action '${action.type}' not allowed in phase '${s.phase}'` };
   }
@@ -51,6 +54,25 @@ function applyDeploy(s, playerIdx, payload, mode) {
     s.reinforcePool = 0;
     s.phase = 'attack';
     s.log.push({ kind: 'deploy', player: playerIdx, placements });
+  }
+  return null;
+}
+
+function applySetupDeploy(s, playerIdx, payload) {
+  const placements = payload?.placements ?? {};
+  const verr = validateDeploy(s, playerIdx, placements, s.setupPools[playerIdx]);
+  if (verr) return verr;
+  for (const [id, n] of Object.entries(placements)) s.territories[id].armies += n;
+  s.setupPools[playerIdx] = 0;
+  s.log.push({ kind: 'setup-deploy', player: playerIdx, placements });
+
+  const other = playerIdx === 0 ? 1 : 0;
+  if (s.setupPools[other] > 0) {
+    s.currentPlayer = other;
+  } else {
+    s.currentPlayer = 0;
+    s.phase = 'reinforce';
+    s.reinforcePool = reinforcementFor(s, 0);
   }
   return null;
 }
