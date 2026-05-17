@@ -43,6 +43,13 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     case 'attack:end-attack':
       s.phase = 'fortify';
       break;
+    case 'fortify:fortify':
+      err = applyFortify(s, actorIdx, action.payload);
+      if (!err) endTurn(s);
+      break;
+    case 'fortify:end-turn':
+      endTurn(s);
+      break;
     default:
       return { error: `action '${action.type}' not allowed in phase '${s.phase}'` };
   }
@@ -121,4 +128,23 @@ function applyAttack(s, playerIdx, payload, rng) {
     s.winner = playerIdx;
   }
   return null;
+}
+
+function applyFortify(s, playerIdx, payload) {
+  const { from, to, count } = payload ?? {};
+  const verr = validateFortify(s, playerIdx, { from, to, count });
+  if (verr) return verr;
+  s.territories[from].armies -= count;
+  s.territories[to].armies += count;
+  s.fortifyUsed = true;
+  s.log.push({ kind: 'fortify', player: playerIdx, from, to, count });
+  return null;
+}
+
+function endTurn(s) {
+  s.fortifyUsed = false;
+  s.currentPlayer = s.currentPlayer === 0 ? 1 : 0;
+  s.phase = 'reinforce';
+  s.reinforcePool = reinforcementFor(s, s.currentPlayer);
+  s.log.push({ kind: 'end-turn', next: s.currentPlayer });
 }
