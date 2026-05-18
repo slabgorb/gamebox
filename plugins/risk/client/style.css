@@ -1,0 +1,18 @@
+/* plugins/risk/client/style.css */
+:root { --p0: #c0392b; --p1: #2980b9; --neutral: #7f8c8d; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #1b1b1f; color: #eee; }
+#risk-root { max-width: 720px; margin: 0 auto; padding: 1rem; }
+.continent { margin: .5rem 0; }
+.continent h3 { margin: .25rem 0; font-size: .9rem; opacity: .8; }
+.terr { display: inline-block; min-width: 4.5rem; margin: .15rem; padding: .4rem .5rem;
+        border-radius: .4rem; text-align: center; cursor: pointer; border: 2px solid transparent; }
+.terr.p0 { background: var(--p0); } .terr.p1 { background: var(--p1); }
+.terr.sel { border-color: #f1c40f; }
+.bar { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+button { font: inherit; padding: .5rem .8rem; border-radius: .4rem; border: 0;
+         background: #444; color: #eee; cursor: pointer; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+.log { font-size: .8rem; opacity: .75; max-height: 9rem; overflow: auto; }
+.banner { padding: .5rem; background: #333; border-radius: .4rem; margin-bottom: .5rem; }
+.end { text-align: center; padding: 2rem; }
