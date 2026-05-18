@@ -1,18 +1,63 @@
-/* plugins/risk/client/style.css */
-:root { --p0: #c0392b; --p1: #2980b9; --neutral: #7f8c8d; }
+/* plugins/risk/client/style.css — antique campaign-map theme.
+   Game styling is scoped under #risk-root. The only intentional globals are
+   a box-sizing reset and the page backdrop on <body>; typography and colours
+   live on #risk-root so the shared opponent-card keeps its own styling. */
 * { box-sizing: border-box; }
-body { margin: 0; font-family: system-ui, sans-serif; background: #1b1b1f; color: #eee; }
-#risk-root { max-width: 720px; margin: 0 auto; padding: 1rem; }
-.continent { margin: .5rem 0; }
-.continent h3 { margin: .25rem 0; font-size: .9rem; opacity: .8; }
-.terr { display: inline-block; min-width: 4.5rem; margin: .15rem; padding: .4rem .5rem;
-        border-radius: .4rem; text-align: center; cursor: pointer; border: 2px solid transparent; }
-.terr.p0 { background: var(--p0); } .terr.p1 { background: var(--p1); }
-.terr.sel { border-color: #f1c40f; }
-.bar { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
-button { font: inherit; padding: .5rem .8rem; border-radius: .4rem; border: 0;
-         background: #444; color: #eee; cursor: pointer; }
-button:disabled { opacity: .4; cursor: not-allowed; }
-.log { font-size: .8rem; opacity: .75; max-height: 9rem; overflow: auto; }
-.banner { padding: .5rem; background: #333; border-radius: .4rem; margin-bottom: .5rem; }
-.end { text-align: center; padding: 2rem; }
+body { margin: 0; background: #2b2417; }
+
+#risk-root { font-family: Georgia, 'Times New Roman', serif; color: #f3e8c8;
+  --p0: #a8432b; --p1: #2c647f; --neutral: #8a7c5c;
+  --ink: #5e4a28; --brass: #d4a93a; --parch: #e3d4ad;
+  max-width: 860px; margin: 0 auto; padding: 1rem; }
+
+#risk-root .banner { padding: .5rem .75rem; background: #3a2f1c;
+  border: 1px solid var(--ink); border-radius: .3rem; margin-bottom: .5rem;
+  letter-spacing: .03em; }
+
+#risk-root .continent-rail { display: flex; flex-wrap: wrap; gap: .4rem;
+  margin: .25rem 0 .75rem; }
+#risk-root .cont-chip { font-size: .75rem; text-transform: capitalize;
+  padding: .25rem .5rem; border: 1px solid var(--ink); border-radius: .3rem;
+  background: #3a2f1c; opacity: .7; }
+#risk-root .cont-chip.held { opacity: 1; border-color: var(--brass);
+  color: var(--brass); }
+
+#risk-root .risk-map { width: 100%; height: auto; display: block;
+  background: var(--parch);
+  border: 3px solid var(--ink); border-radius: .4rem; }
+#risk-root .risk-map .edge { stroke: #b59a63; stroke-width: 2; }
+#risk-root .risk-map .edge.strait { stroke: #8a7c5c; stroke-width: 2;
+  stroke-dasharray: 6 5; }
+#risk-root .risk-map .region { fill: var(--neutral);
+  stroke: #3a2c12; stroke-width: 2; cursor: pointer; }
+#risk-root .risk-map .region.p0 { fill: var(--p0); }
+#risk-root .risk-map .region.p1 { fill: var(--p1); }
+#risk-root .risk-map .region.sel { stroke: var(--brass); stroke-width: 4; }
+#risk-root .risk-map .region-label { fill: #f3e8c8; font: 600 16px Georgia;
+  paint-order: stroke; stroke: #2b1d0c; stroke-width: 3px; cursor: pointer; }
+
+#risk-root .combat-reveal { margin: .75rem 0; padding: .6rem;
+  background: #3a2f1c; border: 1px solid var(--ink); border-radius: .3rem;
+  text-align: center; }
+#risk-root .combat-reveal__head { font-size: .8rem; opacity: .8; }
+#risk-root .combat-reveal__dice { font-size: 1.8rem; letter-spacing: .15rem;
+  margin: .3rem 0; }
+#risk-root .combat-reveal__dice .atk { color: var(--p0); }
+#risk-root .combat-reveal__dice .def { color: var(--p1); }
+#risk-root .combat-reveal__dice .vs { font-size: .9rem; opacity: .6;
+  margin: 0 .5rem; }
+#risk-root .combat-reveal__result { font-weight: bold; letter-spacing: .05em; }
+#risk-root .combat-reveal__result.won { color: var(--brass); }
+#risk-root .combat-reveal__result.lost { color: #8a7c5c; }
+
+#risk-root .bar { display: flex; flex-wrap: wrap; gap: .5rem;
+  margin: 1rem 0; align-items: center; }
+#risk-root button { font: inherit; padding: .5rem .8rem; border-radius: .3rem;
+  border: 1px solid var(--ink); background: #4a3a1e; color: #f3e8c8;
+  cursor: pointer; }
+#risk-root button:hover:not(:disabled) { border-color: var(--brass); }
+#risk-root button:disabled { opacity: .4; cursor: not-allowed; }
+#risk-root .log { font-size: .8rem; opacity: .8; max-height: 9rem;
+  overflow: auto; border-top: 1px solid var(--ink); padding-top: .4rem; }
+#risk-root .end { text-align: center; padding: 2rem; }
+#risk-root .end h1 { color: var(--brass); letter-spacing: .08em; }
