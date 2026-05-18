@@ -23,8 +23,8 @@ export function validateAttack(state, playerIdx, { from, to, force }) {
   if (f.owner !== playerIdx) return `source ${from} not owned`;
   if (t.owner === playerIdx) return `target ${to} is not an enemy territory`;
   if (!areAdjacent(from, to)) return `${from} and ${to} are not adjacent`;
-  if (!Number.isInteger(force) || force < 1 || force >= f.armies) {
-    return `force must be an integer in 1..${f.armies - 1}`;
+  if (!Number.isInteger(force) || force < 2 || force >= f.armies) {
+    return `force must be an integer in 2..${f.armies - 1}`;
   }
   return null;
 }

@@ -56,7 +56,7 @@ export function enumerateLegalMoves(state, p) {
       const moves = [];
       for (const from of ownedIds(state, p)) {
         const armies = state.territories[from].armies;
-        if (armies < 2) continue;
+        if (armies < 3) continue;
         for (const to of neighborsOf(from)) {
           if (state.territories[to].owner === p) continue;
           moves.push({
