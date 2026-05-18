@@ -28,6 +28,12 @@ test('replay on a fresh transition', () => {
   assert.equal(r.signature, combatSignature(combat));
 });
 
+test('replay treats undefined prevSignature like a fresh transition (seeding path)', () => {
+  const r = shouldReplay(undefined, combat);
+  assert.equal(r.replay, true);
+  assert.equal(r.signature, combatSignature(combat));
+});
+
 test('no replay when the signature is unchanged', () => {
   const sig = combatSignature(combat);
   assert.deepEqual(shouldReplay(sig, combat), { signature: sig, replay: false });

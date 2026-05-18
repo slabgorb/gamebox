@@ -1,11 +1,12 @@
 /* plugins/risk/client/style.css — antique campaign-map theme.
-   All rules scoped under #risk-root so nothing leaks into the shared
-   opponent-card (it keeps its neutral Gamebox styling). */
+   Game styling is scoped under #risk-root. The only intentional globals are
+   a box-sizing reset and the page backdrop on <body>; typography and colours
+   live on #risk-root so the shared opponent-card keeps its own styling. */
 * { box-sizing: border-box; }
-body { margin: 0; font-family: Georgia, 'Times New Roman', serif;
-       background: #2b2417; color: #f3e8c8; }
+body { margin: 0; background: #2b2417; }
 
-#risk-root { --p0: #a8432b; --p1: #2c647f; --neutral: #8a7c5c;
+#risk-root { font-family: Georgia, 'Times New Roman', serif; color: #f3e8c8;
+  --p0: #a8432b; --p1: #2c647f; --neutral: #8a7c5c;
   --ink: #5e4a28; --brass: #d4a93a; --parch: #e3d4ad;
   max-width: 860px; margin: 0 auto; padding: 1rem; }
 

@@ -5,6 +5,10 @@
 export function combatSignature(lastCombat) {
   if (!lastCombat) return null;
   const { from, to, force, captured, rounds } = lastCombat;
+  // Known limitation: two back-to-back resolved attacks with identical
+  // from/to/force/captured/round-count collide, so the second would not
+  // re-animate. Rare in practice — a capture flips `to`'s ownership, making
+  // an exact repeat impossible; only an identical repulse can collide.
   return `${from}|${to}|${force}|${captured}|${rounds ? rounds.length : 0}`;
 }
 
