@@ -2,12 +2,21 @@
    Game styling is scoped under #risk-root. The only intentional globals are
    a box-sizing reset and the page backdrop on <body>; typography and colours
    live on #risk-root so the shared opponent-card keeps its own styling. */
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap");
 * { box-sizing: border-box; }
 body { margin: 0; background: #2b2417; }
 
 #risk-root { font-family: Georgia, 'Times New Roman', serif; color: #f3e8c8;
   --p0: #a8432b; --p1: #2c647f; --neutral: #8a7c5c;
   --ink: #5e4a28; --brass: #d4a93a; --parch: #e3d4ad;
+  /* Antique campaign-map palette (board renderer). */
+  --paper-2: #ecd9a8;
+  --p0-1: #b04030; --p0-ink: #4a1108;
+  --p1-1: #2a5d80; --p1-ink: #0a2438;
+  --brass-1: #fbe79a; --brass-2: #c9a14e; --brass-3: #6a4a14;
+  --serif-display: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --serif-map: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --serif-map-sc: "IM Fell English SC", "Iowan Old Style", Georgia, serif;
   max-width: 860px; margin: 0 auto; padding: 1rem; }
 
 #risk-root .banner { padding: .5rem .75rem; background: #3a2f1c;
@@ -22,19 +31,35 @@ body { margin: 0; background: #2b2417; }
 #risk-root .cont-chip.held { opacity: 1; border-color: var(--brass);
   color: var(--brass); }
 
+/* Map mat — leather frame with brass corner screws around the SVG. */
+#risk-root .map-frame { position: relative; border-radius: 8px; padding: 14px;
+  background: linear-gradient(180deg, #c89556 0%, #8a5a2c 100%);
+  box-shadow: inset 0 1px 0 rgba(255,228,180,.35),
+    inset 0 -2px 6px rgba(40,20,5,.5), 0 4px 0 rgba(40,20,5,.45),
+    0 18px 36px rgba(40,20,5,.30); overflow: hidden; }
+#risk-root .map-corner-screw { position: absolute; width: 12px; height: 12px;
+  border-radius: 50%; z-index: 4;
+  background: radial-gradient(circle at 35% 30%, #f3e6a5 0%, #c9a14e 45%, #6a4a14 100%);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.5); }
+#risk-root .map-corner-screw.tl { top: 6px; left: 6px; }
+#risk-root .map-corner-screw.tr { top: 6px; right: 6px; }
+#risk-root .map-corner-screw.bl { bottom: 6px; left: 6px; }
+#risk-root .map-corner-screw.br { bottom: 6px; right: 6px; }
+
 #risk-root .risk-map { width: 100%; height: auto; display: block;
-  background: var(--parch);
-  border: 3px solid var(--ink); border-radius: .4rem; }
-#risk-root .risk-map .edge { stroke: #b59a63; stroke-width: 2; }
-#risk-root .risk-map .edge.strait { stroke: #8a7c5c; stroke-width: 2;
-  stroke-dasharray: 6 5; }
-#risk-root .risk-map .region { fill: var(--neutral);
-  stroke: #3a2c12; stroke-width: 2; cursor: pointer; }
-#risk-root .risk-map .region.p0 { fill: var(--p0); }
-#risk-root .risk-map .region.p1 { fill: var(--p1); }
-#risk-root .risk-map .region.sel { stroke: var(--brass); stroke-width: 4; }
-#risk-root .risk-map .region-label { fill: #f3e8c8; font: 600 16px Georgia;
-  paint-order: stroke; stroke: #2b1d0c; stroke-width: 3px; cursor: pointer; }
+  border-radius: 4px; background: var(--paper-2);
+  box-shadow: inset 0 0 0 1px rgba(40,20,5,.4),
+    inset 0 0 30px rgba(120,80,30,.45), inset 0 0 80px rgba(80,40,10,.25); }
+#risk-root .risk-map .region.clickable { cursor: pointer; }
+#risk-root .risk-map .region.clickable:hover .coast {
+  stroke: var(--ink); stroke-width: 2.6; }
+#risk-root .risk-map .region.sel .coast {
+  stroke: var(--brass-3); stroke-width: 3.5; }
+#risk-root .risk-map .region.sel .glow { opacity: 1; }
+#risk-root .risk-map .region.targetable .coast {
+  stroke: var(--brass-3); stroke-dasharray: 4 3;
+  animation: risk-marching 1s linear infinite; }
+@keyframes risk-marching { to { stroke-dashoffset: -14; } }
 
 #risk-root .combat-reveal { margin: .75rem 0; padding: .6rem;
   background: #3a2f1c; border: 1px solid var(--ink); border-radius: .3rem;
