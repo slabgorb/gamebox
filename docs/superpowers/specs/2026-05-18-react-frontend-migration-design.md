@@ -1,11 +1,144 @@
 # React Frontend Migration — Design
 
 **Date:** 2026-05-18
-**Status:** Approved (design); Cycle 1 ready for planning
+**Status:** Approved (design); **Amended 2026-05-18** — see Amendment A;
+Cycle 1 ready for planning
 **Scope of this document:** The full target architecture for moving the
 gamebox frontend to React, plus the complete specification of **Cycle 1**
 (shared foundation + Risk pilot). Cycles 2–7 inherit this architecture and
 get their own short specs referencing this one.
+
+---
+
+## Amendment A (2026-05-18) — Risk combat becomes client-resolved + visible
+
+This amendment supersedes the conflicting clauses noted below. It exists
+because the original spec treated Risk as a faithful paradigm port; the
+user has since redefined the Risk pilot to also fix a gameplay-legibility
+problem and add auto-rolling 3D dice.
+
+**Problem being solved:** a whole multi-round Risk attack collapses into a
+single server result. The player commits an attack, loses N armies, and
+never sees the round-by-round attrition that produced it. Combat is
+opaque and undramatic.
+
+**Decisions (user-directed, override the spec where they conflict):**
+
+1. **Client-side trust is explicitly a non-concern.** Risk is a casual
+   game played among friends/family; combat integrity is not defended.
+2. **Risk combat becomes client-resolved for human-initiated attacks.**
+   The `attack` action no longer means "server rolls everything and
+   returns a summary." The attacker's client **auto-rolls each combat
+   round** with the real 3D dice (`<dice-tray>` driven programmatically
+   via its `.throw()` method — physics, but no drag gesture; the player
+   watches), applies standard Risk per-round attrition **visibly, round
+   by round**, and when the attack ends POSTs the resolved outcome. The
+   server **validates and applies** that outcome.
+3. **Bot-initiated attacks stay server-resolved** (a bot has no client to
+   roll). The client animates the server's recorded `lastCombat.rounds`
+   in the **same round-by-round reveal UI**. These dice are server-picked
+   (physics cannot be forced to a predetermined value, and the dice-lib
+   is intentionally not modified — see Amendment rationale); per
+   decision 1 this asymmetry is acceptable. The visual structure
+   (attacker vs defender, per round, attrition shown) is identical to the
+   physics path; only the die rendering differs (3D tumble for the
+   player's own attacks vs styled per-round display for replayed bot
+   results).
+4. **The dice-lib (`@local/dice-lib`) is NOT modified.** It is used
+   exactly as built (`<dice-tray>` + programmatic `.throw()`). The
+   earlier idea of adding a forced-outcome mode is rejected.
+
+**Clauses superseded by this amendment:**
+
+- **§4.3 / §11 "no server changes" / "no server or protocol change":**
+  superseded *only* for the Risk `attack` action. The Risk combat
+  protocol changes (client posts a resolved combat outcome; server
+  validates + applies; existing server-side resolution retained for bot
+  attacks and as the validator). All *other* server surfaces
+  (`plugin-clients.js`, `window.__GAME__`, SSE transport, `express.static`)
+  remain unchanged.
+- **§5.4:** `<DiceTray>` is **in scope for Cycle 1** (Risk now uses it).
+  Add `<CombatReveal>` — the round-by-round combat theatre component.
+- **§7 / §8 / §10 / §11:** extended by Amendment A.4 below.
+
+**A.1 — Combat protocol (Risk `attack`)**
+
+- Client (human attacker) computes the combat round-by-round:
+  - Determine attacker/defender dice counts per standard Risk rules from
+    the current territory armies and chosen force.
+  - For each round: auto-roll attacker dice and defender dice via two
+    `<dice-tray>` instances (programmatic `.throw()`); on settle, read
+    the physics values; apply attrition (sort desc, compare highest
+    pairs, loser(s) lose one army per compared pair, defender wins ties).
+  - Continue rounds until the attack terminates per rules (attacker
+    chooses to stop, attacker can no longer attack, or the territory is
+    captured).
+- Client POSTs the resolved outcome to the existing action URL:
+  `{ type: 'attack', payload: { from, to, resolved: { rounds:
+  [{ aDice, dDice }], attackerLosses, defenderLosses, captured } } }`.
+- Server (Risk `attack` handler) **validates** the posted outcome
+  (territory ownership/adjacency, dice counts legal for the declared
+  force, attrition math consistent with the posted dice) and **applies**
+  the army/territory deltas. On validation failure the server rejects the
+  action (no state change) and the client surfaces the error and resyncs.
+- Server retains its existing authoritative resolver for **bot attacks**
+  (orchestrator-driven) and reuses the same validation math.
+
+**A.2 — Components (Cycle 1, revised)**
+
+Shared layer adds:
+
+- `<DiceTray>` — typed React wrapper over the prebuilt `<dice-tray>`
+  custom element from `public/shared/dice.js`. Exposes a `roll(count)`
+  imperative handle that calls the element's `.throw()` and resolves with
+  the settled values; surfaces `dice-settle` / `dice-error`.
+
+Risk client adds:
+
+- `<CombatReveal>` — drives the round-by-round theatre. Two modes:
+  `live` (human attack: feeds rounds from sequential `<DiceTray>` rolls,
+  applying attrition as each round settles) and `replay` (bot attack:
+  steps through server-recorded `rounds` on a timer). Both render two
+  trays/areas side by side (attacker tinted to attacker color, defender
+  to defender color), a running army count, and a final
+  Captured/Repulsed banner.
+
+Risk client adds a pure module:
+
+- `combat-rules.ts` — pure Risk attrition: dice counts for a force, and
+  `resolveRound(aDice, dDice) → { attackerLoss, defenderLoss }`,
+  `resolveCombat(...)`. Shared by the client resolver and the server
+  validator (the server imports the same rules module to validate).
+
+**A.3 — Combat resolution location**
+
+`plugins/risk/server/` gains a `combat-rules` equivalent (or the existing
+combat module is refactored so the *rule math* is a pure function the
+client and server both call). The client *drives* resolution via dice;
+the server *validates* via the same pure rules. Exact server file targets
+are determined during planning by reading `plugins/risk/server/`.
+
+**A.4 — Testing / AC / scope deltas**
+
+- Testing: add Vitest coverage for `combat-rules` (attrition math, dice
+  counts, tie-to-defender), `<DiceTray>` (mock custom element: `.throw()`
+  called, settle propagated), and `<CombatReveal>` live + replay modes
+  (fixture-driven, fake timers). Add server tests for the new `attack`
+  validation path (accept a valid resolved outcome; reject inconsistent
+  dice/attrition; bot path still server-resolved).
+- AC additions (Cycle 1): a human attack plays out round-by-round with
+  auto-rolling 3D dice and visible attrition; the posted outcome is
+  applied by the server; an inconsistent posted outcome is rejected;
+  a bot attack is shown round-by-round from server data; all server
+  (`node --test`) and client (Vitest) suites green.
+- Out-of-scope unchanged except: the Risk `attack` protocol change is now
+  **in** scope; the dice-lib remains out of scope (unmodified).
+
+**Cycle 1 size note:** this amendment enlarges Cycle 1 to: (1) shared
+React layer, (2) Risk React port, (3) Risk combat protocol change, (4)
+auto-rolling visible combat theatre. The plan keeps these as distinct
+phases; (3)+(4) may be split into Cycle 1b during planning if the task
+graph is too large for one execution pass.
 
 ---
 
