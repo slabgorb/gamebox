@@ -5,6 +5,15 @@ import { getAiSession, markStalled, clearStall, setPendingSequence, clearPending
 // appends the prior turn to the conversation, so input cost grows with
 // every resume. Rotating periodically caps the bloat.
 const MAX_RESUMES_PER_SESSION = 10;
+
+// Hard cap on how many consecutive LLM-driven actions the orchestrator will
+// chain in a single wake-up before yielding. A bot turn can be a long run of
+// actions — several in the same phase (e.g. Risk: deploy → attack* →
+// end-attack → fortify/end-turn). We keep driving the bot for as long as it
+// is still the active player; this cap is only a backstop so a phase that
+// never relinquishes the bot (LLM looping, an accepted no-op) can't recurse
+// without bound. Sized well above a worst-case Risk turn.
+const MAX_TURN_DEPTH = 40;
 import { InvalidLlmResponse, InvalidLlmMove } from './errors.js';
 import { TimeoutError, SubprocessFailed, ParseError, EmptyResponse } from './llm-client.js';
 import { appendTurnEntry } from '../history.js';
@@ -347,26 +356,20 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
           });
         }
 
-        // If the bot is STILL active after this action (e.g., advancing
-        // through 'cut' as non-dealer, or multi-step show acks), recurse
-        // once more so the bot can act immediately. Depth is capped at 1 to
-        // prevent an unbounded chain (e.g., pegging → show → next-deal).
-        // Guard: phase must have changed so we don't loop on a partial-
-        // discard state where activeUserId is inherited unchanged.
-        const prevPhase = freshState.phase ?? freshState.turn?.phase ?? null;
-        const nextPhase = newState.phase ?? newState.turn?.phase ?? null;
-        const phaseChanged = nextPhase !== prevPhase;
+        // Keep driving the bot while it is STILL the active player and the
+        // game is live. A bot turn can be a run of consecutive actions, some
+        // in the same phase (Risk: deploy → attack* → end-attack →
+        // fortify/end-turn; cribbage: pegging → show acks). Recurse rather
+        // than waiting for an external wake-up (SSE reconnect / page refresh)
+        // to advance each step — that's what made the Risk bot need a manual
+        // refresh per action. A cached sequence tail drains with no extra cap
+        // (already bounded by its own length); the LLM-driven continue is
+        // bounded by MAX_TURN_DEPTH so a phase that never yields the bot
+        // can't recurse forever.
         const hasCachedTail = Array.isArray(r.sequenceTail) && r.sequenceTail.length > 0;
-        // Two recurse triggers: (a) a cached sequence tail to drain — bounded
-        // by tail length, no depth cap; (b) a phase change that still has the
-        // bot active — depth-capped at 1 to avoid runaway chains in games
-        // like cribbage (pegging → show → next-deal).
-        if (!result.ended && newState.activeUserId === session.botUserId) {
-          if (hasCachedTail) {
-            await _runOnce(gameId, depth + 1);
-          } else if (phaseChanged && depth === 0) {
-            await _runOnce(gameId, 1);
-          }
+        if (!result.ended && newState.activeUserId === session.botUserId &&
+            (hasCachedTail || depth < MAX_TURN_DEPTH)) {
+          await _runOnce(gameId, depth + 1);
         }
         return;
       } catch (err) {

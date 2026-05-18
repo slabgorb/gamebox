@@ -25,7 +25,11 @@ function setup(llm) {
   const aId = Math.min(humanId, botId), bId = Math.max(humanId, botId);
   const participants = [{ userId: aId, side: 'a' }, { userId: bId, side: 'b' }];
   const state = buildInitialState({ participants, rng: det(42) });
-  state.activeUserId = botId;
+  // Cribbage opens in the concurrent `discard` phase: production
+  // buildInitialState sets activeUserId = null (the orchestrator's
+  // botMustActConcurrently gate is what lets the bot act). Forcing it to
+  // botId modelled a state cribbage never produces.
+  state.activeUserId = null;
   const gameId = db.prepare(`
     INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
     VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
@@ -326,7 +330,11 @@ test('orchestrator: unknown persona stalls instead of throwing', async () => {
   const aId = Math.min(humanId, botId), bId = Math.max(humanId, botId);
   const participants = [{ userId: aId, side: 'a' }, { userId: bId, side: 'b' }];
   const state = buildInitialState({ participants, rng: det(42) });
-  state.activeUserId = botId;
+  // Cribbage opens in the concurrent `discard` phase: production
+  // buildInitialState sets activeUserId = null (the orchestrator's
+  // botMustActConcurrently gate is what lets the bot act). Forcing it to
+  // botId modelled a state cribbage never produces.
+  state.activeUserId = null;
   const gameId = db.prepare(`
     INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
     VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
