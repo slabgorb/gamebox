@@ -58,6 +58,18 @@ body { margin: 0; background: #2b2417; }
 #risk-root .risk-map .region.clickable:hover .hit {
   fill: rgba(251,232,160,.12); }
 
+/* Last-resort error boundary (app.js render() catch). */
+#risk-root .render-error { margin: 1rem 0; padding: 1rem 1.25rem;
+  background: #3a2f1c; border: 1px solid var(--brass-3);
+  border-left: 3px solid var(--p0-1); border-radius: .3rem; }
+#risk-root .render-error__msg { font-weight: bold; letter-spacing: .03em;
+  color: var(--brass-1); margin: 0 0 .35rem; }
+#risk-root .render-error__detail { font-size: .8rem; opacity: .75;
+  font-family: var(--mono, monospace); margin: 0 0 .75rem;
+  word-break: break-word; }
+#risk-root .render-error__actions { display: flex; gap: .5rem;
+  align-items: center; }
+
 #risk-root .combat-reveal { margin: .75rem 0; padding: .6rem;
   background: #3a2f1c; border: 1px solid var(--ink); border-radius: .3rem;
   text-align: center; }
