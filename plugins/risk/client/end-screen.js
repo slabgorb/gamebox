@@ -5,5 +5,10 @@ export function renderEnd(root, view) {
   const el = document.createElement('div');
   el.className = 'end';
   el.innerHTML = `<h1>${won ? 'Victory' : 'Defeat'}</h1><p>${SIDE_LABEL[view.winner]} controls the world.</p>`;
+  const lobby = document.createElement('a');
+  lobby.className = 'end-lobby';
+  lobby.href = '/';
+  lobby.textContent = 'Back to lobby';
+  el.appendChild(lobby);
   root.appendChild(el);
 }

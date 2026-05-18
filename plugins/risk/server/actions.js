@@ -26,6 +26,18 @@ export function applyRiskAction({ state, action, actorId, rng }) {
   const actorIdx = playerIndex(state, actorId);
   if (actorIdx === null) return { error: 'unknown participant' };
   if (state.phase === 'gameover') return { error: 'game is over' };
+
+  // Resign / leave: a forfeit by either participant, allowed on ANY turn
+  // (the whole point of "leave" is bailing out of a game you can't act in
+  // — e.g. while the bot is thinking or stalled). Handled before the
+  // turn-ownership guard for that reason.
+  if (action.type === 'resign') {
+    const r = clone(state);
+    r.winner = actorIdx === 0 ? 1 : 0;
+    r.phase = 'gameover';
+    return finishGame(r, 'resign');
+  }
+
   if (actorIdx !== state.currentPlayer) return { error: 'not your turn' };
 
   const s = clone(state);
@@ -54,7 +66,24 @@ export function applyRiskAction({ state, action, actorId, rng }) {
       return { error: `action '${action.type}' not allowed in phase '${s.phase}'` };
   }
   if (err) return { error: err };
+  // A capture that wiped out the opponent set phase='gameover' inside
+  // applyAttack. Signal `ended` so routes.js calls endGame() and the host
+  // registry flips status to 'ended' (stops the bot, frees the lobby).
+  if (s.phase === 'gameover') return finishGame(s, 'conquest');
   return { state: syncActiveUser(s) };
+}
+
+// Finalize a game-over state: derive the winning side from the winner
+// index, stamp the reason, and signal `ended` + a summary so the host
+// records a turn row and marks the game ended.
+function finishGame(s, reason) {
+  s.winnerSide = s.winner === 0 ? 'a' : 'b';
+  s.endedReason = reason;
+  return {
+    state: syncActiveUser(s),
+    ended: true,
+    summary: { kind: reason === 'resign' ? 'resign' : 'game-over' },
+  };
 }
 
 function applyDeploy(s, playerIdx, payload, mode) {
