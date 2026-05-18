@@ -1,17 +1,18 @@
 // plugins/risk/client/app.js
 // Host integration: all transport URLs and context come from window.__GAME__,
-// which the host injects into index.html before serving it (plugin-clients.js).
-//   ctx.stateUrl  → GET  /api/games/:id          returns { state: <view> }
-//   ctx.actionUrl → POST /api/games/:id/action    body: { type, payload? }
-//   ctx.sseUrl    → SSE  /api/games/:id/events    events: 'update', 'ended'
+// injected into index.html by the host (plugin-clients.js).
 import { renderBoard } from './board.js';
 import { renderActionBar } from './action-bar.js';
 import { renderHistory } from './history.js';
 import { renderEnd } from './end-screen.js';
+import { CONTINENT_BONUS, TERRITORIES } from './map-geometry.js';
+import { shouldReplay, renderCombatReveal } from './combat-reveal.js';
 
 const ctx = window.__GAME__;
 const root = document.getElementById('risk-root');
 let pending = {};
+let lastSeenSig;        // undefined until the first view seeds it
+let seeded = false;
 
 async function fetchView() {
   const res = await fetch(ctx.stateUrl);
@@ -41,17 +42,50 @@ function pick(view, id) {
   render();
 }
 
+function renderContinentRail(view) {
+  const rail = document.createElement('div');
+  rail.className = 'continent-rail';
+  for (const [key, bonus] of Object.entries(CONTINENT_BONUS)) {
+    const ids = Object.keys(TERRITORIES).filter(t => TERRITORIES[t].continent === key);
+    const held = ids.every(t => view.territories[t].owner === view.youAre);
+    const chip = document.createElement('span');
+    chip.className = `cont-chip${held ? ' held' : ''}`;
+    chip.textContent = `${key} +${bonus}`;
+    rail.appendChild(chip);
+  }
+  return rail;
+}
+
 async function render() {
   let view;
   try { view = await fetchView(); }
   catch { root.textContent = 'Unable to load game.'; return; }
+
+  // Seed the combat signature on first load so a pre-existing result does
+  // not animate on page open (spec: instant on reload of a stale result).
+  if (!seeded) {
+    const seed = shouldReplay(undefined, view.lastCombat);
+    lastSeenSig = seed.signature;
+    seeded = true;
+  }
+
   root.innerHTML = '';
   if (view.phase === 'gameover') { renderEnd(root, view); return; }
+
   const banner = document.createElement('div');
   banner.className = 'banner';
   banner.textContent = `Phase: ${view.phase} · ${view.youAre === view.currentPlayer ? 'Your move' : 'Opponent'}`;
   root.appendChild(banner);
+
+  root.appendChild(renderContinentRail(view));
   renderBoard(root, view, { onPick: id => pick(view, id), selected: pending.from ?? pending.deployTarget });
+
+  const { signature, replay } = shouldReplay(lastSeenSig, view.lastCombat);
+  lastSeenSig = signature;
+  if (view.lastCombat) {
+    renderCombatReveal(root, view.lastCombat, { animate: replay, onDone: () => {} });
+  }
+
   renderActionBar(root, view, { post, pending, setPending: p => { pending = p; render(); } });
   renderHistory(root, view.log);
 }
