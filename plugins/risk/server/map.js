@@ -1,23 +1,35 @@
+// Risk on the antique "Chart of the World" engraving: four continents,
+// thirteen territories. Territory ids are semantic place names so the AI
+// prompts and logs read geographically. The client mirrors this graph in
+// client/map-geometry.js, drift-guarded by test/risk-map-geometry.test.js.
+
 export const CONTINENTS = {
-  norland:  { name: 'Norland',  bonus: 2, territories: ['N1', 'N2', 'N3'] },
-  ostmark:  { name: 'Ostmark',  bonus: 3, territories: ['E1', 'E2', 'E3', 'E4'] },
-  sudreach: { name: 'Sudreach', bonus: 2, territories: ['S1', 'S2', 'S3'] },
-  westfen:  { name: 'Westfen',  bonus: 2, territories: ['W1', 'W2', 'W3'] },
+  namerica:  { name: 'North America', bonus: 2, territories: ['northern_reach', 'cordillera', 'atlantic_shore'] },
+  eurasia:   { name: 'Eurasia',       bonus: 3, territories: ['britannia', 'europa', 'persia', 'cathay'] },
+  africa:    { name: 'Africa',        bonus: 2, territories: ['north_africa', 'equatorial', 'cape'] },
+  antipodes: { name: 'Antipodes',     bonus: 2, territories: ['amazonia', 'patagonia', 'australia'] },
 };
 
 const EDGES = [
-  ['N1', 'N2'], ['N2', 'N3'], ['N1', 'N3'],
-  ['E1', 'E2'], ['E2', 'E3'], ['E3', 'E4'], ['E1', 'E4'],
-  ['S1', 'S2'], ['S2', 'S3'],
-  ['W1', 'W2'], ['W2', 'W3'], ['W1', 'W3'],
-  ['N3', 'E1'], ['E4', 'S1'], ['S3', 'W1'], ['W3', 'N1'], ['E2', 'W2'],
+  // North America (internal)
+  ['northern_reach', 'cordillera'], ['northern_reach', 'atlantic_shore'], ['cordillera', 'atlantic_shore'],
+  // Eurasia (internal — Europa is the hub)
+  ['britannia', 'europa'], ['europa', 'persia'], ['europa', 'cathay'], ['persia', 'cathay'],
+  // Africa (internal)
+  ['north_africa', 'equatorial'], ['equatorial', 'cape'],
+  // Antipodes (internal — South America to Australia chain)
+  ['amazonia', 'patagonia'], ['patagonia', 'australia'],
+  // Cross-continent straits & land bridges
+  ['northern_reach', 'britannia'], ['atlantic_shore', 'europa'],
+  ['cordillera', 'amazonia'], ['atlantic_shore', 'amazonia'],
+  ['europa', 'north_africa'], ['persia', 'north_africa'], ['persia', 'equatorial'],
+  ['north_africa', 'amazonia'], ['cathay', 'australia'],
 ];
 
 const ADJ = (() => {
   const m = {};
-  for (const t of [...CONTINENTS.norland.territories, ...CONTINENTS.ostmark.territories,
-    ...CONTINENTS.sudreach.territories, ...CONTINENTS.westfen.territories]) {
-    m[t] = [];
+  for (const c of Object.values(CONTINENTS)) {
+    for (const t of c.territories) m[t] = [];
   }
   for (const [a, b] of EDGES) { m[a].push(b); m[b].push(a); }
   return m;

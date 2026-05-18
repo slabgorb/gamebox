@@ -6,7 +6,7 @@ import { renderActionBar } from './action-bar.js';
 import { adjust } from './deploy-plan.js';
 import { renderHistory } from './history.js';
 import { renderEnd } from './end-screen.js';
-import { CONTINENT_BONUS, TERRITORIES } from './map-geometry.js';
+import { CONTINENT_BONUS, CONTINENTS_META, TERRITORIES } from './map-geometry.js';
 import { shouldReplay, renderCombatReveal } from './combat-reveal.js';
 import { renderExitControls } from './leave-button.js';
 
@@ -58,7 +58,7 @@ function renderContinentRail(view) {
     const held = ids.every(t => view.territories[t].owner === view.youAre);
     const chip = document.createElement('span');
     chip.className = `cont-chip${held ? ' held' : ''}`;
-    chip.textContent = `${key} +${bonus}`;
+    chip.textContent = `${CONTINENTS_META[key]?.name ?? key} +${bonus}`;
     rail.appendChild(chip);
   }
   return rail;
@@ -100,6 +100,7 @@ async function render() {
     onPick: id => pick(view, id),
     selected: pending.from ?? pending.deployTarget,
     plan: pending.plan,
+    to: pending.to,
   });
 
   const { signature, replay } = shouldReplay(lastSeenSig, view.lastCombat);

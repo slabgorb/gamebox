@@ -1,11 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { TERRITORIES, CONTINENT_BONUS } from '../plugins/risk/client/map-geometry.js';
+import {
+  TERRITORIES, CONTINENT_BONUS, MAP_SIZE,
+} from '../plugins/risk/client/map-geometry.js';
 import {
   allTerritories, neighborsOf, continentOf, continentBonus, CONTINENTS,
 } from '../plugins/risk/server/map.js';
-
-const VW = 800, VH = 600;
 
 test('geometry covers exactly the engine territories', () => {
   assert.deepEqual(Object.keys(TERRITORIES).sort(), allTerritories().sort());
@@ -33,12 +33,20 @@ test('continent bonuses match the engine', () => {
   }
 });
 
-test('every territory has a drawable path and an in-bounds label', () => {
+test('every territory has a polygon, a drawable path, and an in-bounds label', () => {
+  const { w, h } = MAP_SIZE;
+  assert.ok(Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0, 'map size sane');
   for (const id of allTerritories()) {
     const g = TERRITORIES[id];
+    assert.ok(Array.isArray(g.poly) && g.poly.length >= 3, `${id} poly is a ring`);
+    for (const pt of g.poly) {
+      assert.ok(Array.isArray(pt) && pt.length === 2
+        && Number.isFinite(pt[0]) && Number.isFinite(pt[1]), `${id} bad poly point`);
+    }
     assert.equal(typeof g.path, 'string');
-    assert.ok(g.path.trim().length > 0, `${id} empty path`);
-    assert.ok(Number.isFinite(g.label.x) && g.label.x >= 0 && g.label.x <= VW, `${id} label.x oob`);
-    assert.ok(Number.isFinite(g.label.y) && g.label.y >= 0 && g.label.y <= VH, `${id} label.y oob`);
+    assert.match(g.path, /^M /, `${id} path starts with M`);
+    assert.match(g.path, / Z$/, `${id} path is closed`);
+    assert.ok(Number.isFinite(g.label.x) && g.label.x >= 0 && g.label.x <= w, `${id} label.x oob`);
+    assert.ok(Number.isFinite(g.label.y) && g.label.y >= 0 && g.label.y <= h, `${id} label.y oob`);
   }
 });
