@@ -61,3 +61,13 @@ body { margin: 0; background: #2b2417; }
   overflow: auto; border-top: 1px solid var(--ink); padding-top: .4rem; }
 #risk-root .end { text-align: center; padding: 2rem; }
 #risk-root .end h1 { color: var(--brass); letter-spacing: .08em; }
+
+/* Leave / exit affordances */
+#risk-root .banner { display: flex; align-items: center; justify-content: space-between; }
+#risk-root .leave-btn { font-size: .8rem; padding: .3rem .6rem; opacity: .8;
+  margin-left: 1rem; flex: none; }
+#risk-root .leave-btn:hover { opacity: 1; }
+#risk-root .end-lobby { display: inline-block; margin-top: 1.5rem; padding: .5rem 1rem;
+  border: 1px solid var(--ink); border-radius: .3rem; color: var(--brass);
+  text-decoration: none; }
+#risk-root .end-lobby:hover { border-color: var(--brass); }

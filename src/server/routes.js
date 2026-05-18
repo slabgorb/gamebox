@@ -217,9 +217,12 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     try { plugin = getPlugin(registry, req.game.gameType); }
     catch { return res.status(500).json({ error: 'plugin unavailable' }); }
 
-    // Turn ownership check (only if state declares activeUserId)
+    // Turn ownership check (only if state declares activeUserId).
+    // `resign` is exempt: leaving a game must work even when it is not
+    // your turn (e.g. while the opponent/bot is the active player).
     const activeUserId = req.game.state.activeUserId;
-    if (typeof activeUserId === 'number' && activeUserId !== req.user.id) {
+    if (action.type !== 'resign'
+        && typeof activeUserId === 'number' && activeUserId !== req.user.id) {
       return res.status(422).json({ error: 'not your turn' });
     }
 
