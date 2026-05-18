@@ -9,6 +9,7 @@ import { renderEnd } from './end-screen.js';
 import { CONTINENT_BONUS, CONTINENTS_META, TERRITORIES } from './map-geometry.js';
 import { shouldReplay, renderCombatReveal } from './combat-reveal.js';
 import { renderExitControls } from './leave-button.js';
+import { renderError } from './error-boundary.js';
 
 const ctx = window.__GAME__;
 const root = document.getElementById('risk-root');
@@ -69,48 +70,57 @@ async function render() {
   try { view = await fetchView(); }
   catch { root.textContent = 'Unable to load game.'; return; }
 
-  // Seed the combat signature on first load so a pre-existing result does
-  // not animate on page open (spec: instant on reload of a stale result).
-  if (!seeded) {
-    const seed = shouldReplay(undefined, view.lastCombat);
-    lastSeenSig = seed.signature;
-    seeded = true;
+  // Error boundary: render() previously only guarded fetchView, so any throw
+  // from a render* helper (e.g. a state/territory-id mismatch) wiped the UI
+  // to a silent blank with no message and no escape. Surface the error and
+  // keep a Lobby exit instead.
+  try {
+    // Seed the combat signature on first load so a pre-existing result does
+    // not animate on page open (spec: instant on reload of a stale result).
+    if (!seeded) {
+      const seed = shouldReplay(undefined, view.lastCombat);
+      lastSeenSig = seed.signature;
+      seeded = true;
+    }
+
+    root.innerHTML = '';
+    if (view.phase === 'gameover') { renderEnd(root, view); return; }
+
+    const banner = document.createElement('div');
+    banner.className = 'banner';
+    banner.textContent = `Phase: ${view.phase} · ${view.youAre === view.currentPlayer ? 'Your move' : 'Opponent'}`;
+    // Persistent exits — present every non-gameover render, so you can leave
+    // even when it's the opponent/bot's turn or the bot has stalled. Lobby is
+    // a plain link (game persists); Resign forfeits and needs confirmation.
+    renderExitControls(banner, {
+      onResign: () => {
+        if (window.confirm('Resign this game? You forfeit — your opponent wins.')) {
+          post({ type: 'resign' });
+        }
+      },
+    });
+    root.appendChild(banner);
+
+    root.appendChild(renderContinentRail(view));
+    renderBoard(root, view, {
+      onPick: id => pick(view, id),
+      selected: pending.from ?? pending.deployTarget,
+      plan: pending.plan,
+      to: pending.to,
+    });
+
+    const { signature, replay } = shouldReplay(lastSeenSig, view.lastCombat);
+    lastSeenSig = signature;
+    if (view.lastCombat) {
+      renderCombatReveal(root, view.lastCombat, { animate: replay, onDone: () => {} });
+    }
+
+    renderActionBar(root, view, { post, pending, setPending: p => { pending = p; render(); } });
+    renderHistory(root, view.log);
+  } catch (e) {
+    console.error('[risk] render failed', e);
+    renderError(root, { error: e });
   }
-
-  root.innerHTML = '';
-  if (view.phase === 'gameover') { renderEnd(root, view); return; }
-
-  const banner = document.createElement('div');
-  banner.className = 'banner';
-  banner.textContent = `Phase: ${view.phase} · ${view.youAre === view.currentPlayer ? 'Your move' : 'Opponent'}`;
-  // Persistent exits — present every non-gameover render, so you can leave
-  // even when it's the opponent/bot's turn or the bot has stalled. Lobby is
-  // a plain link (game persists); Resign forfeits and needs confirmation.
-  renderExitControls(banner, {
-    onResign: () => {
-      if (window.confirm('Resign this game? You forfeit — your opponent wins.')) {
-        post({ type: 'resign' });
-      }
-    },
-  });
-  root.appendChild(banner);
-
-  root.appendChild(renderContinentRail(view));
-  renderBoard(root, view, {
-    onPick: id => pick(view, id),
-    selected: pending.from ?? pending.deployTarget,
-    plan: pending.plan,
-    to: pending.to,
-  });
-
-  const { signature, replay } = shouldReplay(lastSeenSig, view.lastCombat);
-  lastSeenSig = signature;
-  if (view.lastCombat) {
-    renderCombatReveal(root, view.lastCombat, { animate: replay, onDone: () => {} });
-  }
-
-  renderActionBar(root, view, { post, pending, setPending: p => { pending = p; render(); } });
-  renderHistory(root, view.log);
 }
 
 const es = new EventSource(ctx.sseUrl);
