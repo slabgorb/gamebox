@@ -8,7 +8,7 @@ const SVG = 'http://www.w3.org/2000/svg';
 // edges get the `strait` class), a region polygon per territory coloured by
 // owner, and the army count at the territory's label anchor. Tapping a region
 // calls onPick(id); `selected` rings one region.
-export function renderBoard(root, view, { onPick, selected }) {
+export function renderBoard(root, view, { onPick, selected, plan = {} }) {
   const svg = document.createElementNS(SVG, 'svg');
   svg.setAttribute('viewBox', '0 0 800 600');
   svg.setAttribute('class', 'risk-map');
@@ -44,7 +44,10 @@ export function renderBoard(root, view, { onPick, selected }) {
     label.setAttribute('y', g.label.y);
     label.setAttribute('class', 'region-label');
     label.setAttribute('text-anchor', 'middle');
-    label.textContent = `${id} · ${t.armies}`;
+    // Pending deploy armies (not yet posted) ride along as "+k" so you can
+    // see the distribution take shape on the map as you tap.
+    const queued = plan[id] ? ` (+${plan[id]})` : '';
+    label.textContent = `${id} · ${t.armies}${queued}`;
     label.addEventListener('click', () => onPick(id));
     svg.appendChild(label);
   }
