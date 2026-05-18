@@ -6,7 +6,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 
-for (const f of ['index.html', 'style.css', 'app.js', 'board.js', 'action-bar.js', 'history.js', 'end-screen.js', 'themes.js']) {
+for (const f of ['index.html', 'style.css', 'app.js', 'board.js', 'action-bar.js', 'history.js', 'end-screen.js', 'themes.js', 'map-geometry.js', 'combat-reveal.js']) {
   test(`risk client has ${f}`, () => {
     assert.ok(existsSync(resolve(root, 'plugins/risk/client', f)), `missing ${f}`);
   });
