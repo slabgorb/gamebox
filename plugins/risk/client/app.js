@@ -7,7 +7,7 @@ import { renderHistory } from './history.js';
 import { renderEnd } from './end-screen.js';
 import { CONTINENT_BONUS, TERRITORIES } from './map-geometry.js';
 import { shouldReplay, renderCombatReveal } from './combat-reveal.js';
-import { renderLeaveButton } from './leave-button.js';
+import { renderExitControls } from './leave-button.js';
 
 const ctx = window.__GAME__;
 const root = document.getElementById('risk-root');
@@ -76,11 +76,12 @@ async function render() {
   const banner = document.createElement('div');
   banner.className = 'banner';
   banner.textContent = `Phase: ${view.phase} · ${view.youAre === view.currentPlayer ? 'Your move' : 'Opponent'}`;
-  // Persistent escape hatch — present every non-gameover render, so you can
-  // bail even when it's the opponent/bot's turn or the bot has stalled.
-  renderLeaveButton(banner, {
-    onLeave: () => {
-      if (window.confirm('Leave this game? You forfeit — your opponent wins.')) {
+  // Persistent exits — present every non-gameover render, so you can leave
+  // even when it's the opponent/bot's turn or the bot has stalled. Lobby is
+  // a plain link (game persists); Resign forfeits and needs confirmation.
+  renderExitControls(banner, {
+    onResign: () => {
+      if (window.confirm('Resign this game? You forfeit — your opponent wins.')) {
         post({ type: 'resign' });
       }
     },

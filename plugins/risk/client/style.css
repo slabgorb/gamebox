@@ -64,9 +64,14 @@ body { margin: 0; background: #2b2417; }
 
 /* Leave / exit affordances */
 #risk-root .banner { display: flex; align-items: center; justify-content: space-between; }
-#risk-root .leave-btn { font-size: .8rem; padding: .3rem .6rem; opacity: .8;
+#risk-root .exit-controls { display: flex; align-items: center; gap: .5rem;
   margin-left: 1rem; flex: none; }
-#risk-root .leave-btn:hover { opacity: 1; }
+#risk-root .lobby-link { font-size: .8rem; padding: .3rem .6rem;
+  border: 1px solid var(--ink); border-radius: .3rem; color: var(--brass);
+  text-decoration: none; opacity: .85; }
+#risk-root .lobby-link:hover { opacity: 1; border-color: var(--brass); }
+#risk-root .resign-btn { font-size: .8rem; padding: .3rem .6rem; opacity: .85; }
+#risk-root .resign-btn:hover { opacity: 1; }
 #risk-root .end-lobby { display: inline-block; margin-top: 1.5rem; padding: .5rem 1rem;
   border: 1px solid var(--ink); border-radius: .3rem; color: var(--brass);
   text-decoration: none; }
