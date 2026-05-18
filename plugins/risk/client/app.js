@@ -3,6 +3,7 @@
 // injected into index.html by the host (plugin-clients.js).
 import { renderBoard } from './board.js';
 import { renderActionBar } from './action-bar.js';
+import { adjust } from './deploy-plan.js';
 import { renderHistory } from './history.js';
 import { renderEnd } from './end-screen.js';
 import { CONTINENT_BONUS, TERRITORIES } from './map-geometry.js';
@@ -34,7 +35,13 @@ async function post(action) {
 function pick(view, id) {
   const ph = view.phase;
   if (ph === 'setup' || ph === 'reinforce') {
-    if (view.territories[id].owner === view.youAre) pending = { deployTarget: id };
+    // Each tap on an owned territory drops one more army there, building up
+    // a multi-territory plan. deployTarget tracks the last-tapped region for
+    // the ring and the "Deploy all here" express path.
+    if (view.territories[id].owner === view.youAre) {
+      const pool = ph === 'setup' ? view.setupPools[view.youAre] : view.reinforcePool;
+      pending = { plan: adjust(pending.plan ?? {}, id, 1, pool), deployTarget: id };
+    }
   } else if (ph === 'attack' || ph === 'fortify') {
     if (!pending.from) pending = { from: id };
     else if (!pending.to) pending = { ...pending, to: id };
@@ -89,7 +96,11 @@ async function render() {
   root.appendChild(banner);
 
   root.appendChild(renderContinentRail(view));
-  renderBoard(root, view, { onPick: id => pick(view, id), selected: pending.from ?? pending.deployTarget });
+  renderBoard(root, view, {
+    onPick: id => pick(view, id),
+    selected: pending.from ?? pending.deployTarget,
+    plan: pending.plan,
+  });
 
   const { signature, replay } = shouldReplay(lastSeenSig, view.lastCombat);
   lastSeenSig = signature;

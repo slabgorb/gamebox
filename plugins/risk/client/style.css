@@ -57,6 +57,11 @@ body { margin: 0; background: #2b2417; }
   cursor: pointer; }
 #risk-root button:hover:not(:disabled) { border-color: var(--brass); }
 #risk-root button:disabled { opacity: .4; cursor: not-allowed; }
+#risk-root .deploy-row { display: inline-flex; align-items: center;
+  gap: .3rem; padding: .15rem .4rem; border: 1px solid var(--ink);
+  border-radius: .3rem; background: rgba(74, 58, 30, .4); }
+#risk-root button.step { padding: .15rem .5rem; line-height: 1;
+  min-width: 1.8rem; }
 #risk-root .log { font-size: .8rem; opacity: .8; max-height: 9rem;
   overflow: auto; border-top: 1px solid var(--ink); padding-top: .4rem; }
 #risk-root .end { text-align: center; padding: 2rem; }
