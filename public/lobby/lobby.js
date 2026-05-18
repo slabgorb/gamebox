@@ -487,7 +487,7 @@ function wireNewGame(me, plugins) {
       btn.onclick = () => {
         if (PLUGIN_VARIANTS[p.id]) {
           showVariantStep(opponent, p, plugins);
-        } else if (opponent.isBot && (p.id === 'cribbage' || p.id === 'backgammon')) {
+        } else if (opponent.isBot) {
           showPersonaStep(opponent, p.id, null);
         } else {
           startGame(opponent, p.id, null);
@@ -517,7 +517,7 @@ function wireNewGame(me, plugins) {
         <span class="ng-body" style="padding-left:0"><span class="ng-name">${escapeHtml(v.label)}</span></span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
       btn.onclick = () => {
-        if (opponent.isBot && (plugin.id === 'cribbage' || plugin.id === 'words')) {
+        if (opponent.isBot) {
           showPersonaStep(opponent, plugin.id, v.variant);
         } else {
           startGame(opponent, plugin.id, v.variant);
