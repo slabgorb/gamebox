@@ -6,12 +6,13 @@ import assert from 'node:assert/strict';
 import { applyRiskAction } from '../plugins/risk/server/actions.js';
 import { enumerateLegalMoves } from '../plugins/risk/server/ai/legal-moves.js';
 
+// northern_reach is adjacent to cordillera.
 function midGame(overrides = {}) {
   return {
     phase: 'attack', currentPlayer: 0,
     territories: {
-      N1: { owner: 0, armies: 5 }, N2: { owner: 1, armies: 3 },
-      N3: { owner: 1, armies: 1 }, E1: { owner: 0, armies: 1 },
+      northern_reach: { owner: 0, armies: 5 }, cordillera: { owner: 1, armies: 3 },
+      atlantic_shore: { owner: 1, armies: 1 }, britannia: { owner: 0, armies: 1 },
     },
     reinforcePool: 0, setupPools: [0, 0], fortifyUsed: false,
     lastCombat: null, winner: null, log: [], sides: { a: 7, b: 8 }, activeUserId: 7,
@@ -50,15 +51,17 @@ test('resign on an already-finished game is rejected', () => {
 });
 
 test('natural win (opponent wiped out) signals ended + winnerSide + reason', () => {
-  // Player 0 holds N1 with overwhelming force; player 1 owns only N2 (1 army).
-  // Steamroll it and player 1 has zero territories -> game over.
+  // Player 0 holds northern_reach with overwhelming force; player 1 owns only
+  // cordillera (1 army). Steamroll it and player 1 has zero territories.
   const s = midGame({
-    territories: { N1: { owner: 0, armies: 20 }, N2: { owner: 1, armies: 1 } },
+    territories: {
+      northern_reach: { owner: 0, armies: 20 }, cordillera: { owner: 1, armies: 1 },
+    },
   });
   let rc = 0;
   const rng = () => (rc++ < 3 ? 0.99 : 0.0); // attacker max, defender min -> capture
   const r = applyRiskAction({ state: s, actorId: 7, rng,
-    action: { type: 'attack', payload: { from: 'N1', to: 'N2', force: 10 } } });
+    action: { type: 'attack', payload: { from: 'northern_reach', to: 'cordillera', force: 10 } } });
   assert.equal(r.error, undefined);
   assert.equal(r.state.phase, 'gameover');
   assert.equal(r.state.winner, 0);
@@ -74,11 +77,13 @@ test('resign is never offered as a legal AI move', () => {
   const fullBoard = () => ({
     currentPlayer: 0,
     territories: {
-      N1: { owner: 0, armies: 6 }, N2: { owner: 0, armies: 2 }, N3: { owner: 1, armies: 2 },
-      E1: { owner: 1, armies: 1 }, E2: { owner: 1, armies: 1 }, E3: { owner: 1, armies: 1 },
-      E4: { owner: 1, armies: 1 }, S1: { owner: 1, armies: 1 }, S2: { owner: 1, armies: 1 },
-      S3: { owner: 1, armies: 1 }, W1: { owner: 1, armies: 1 }, W2: { owner: 1, armies: 1 },
-      W3: { owner: 1, armies: 1 },
+      northern_reach: { owner: 0, armies: 6 }, cordillera: { owner: 0, armies: 2 },
+      atlantic_shore: { owner: 1, armies: 2 }, britannia: { owner: 1, armies: 1 },
+      europa: { owner: 1, armies: 1 }, persia: { owner: 1, armies: 1 },
+      cathay: { owner: 1, armies: 1 }, north_africa: { owner: 1, armies: 1 },
+      equatorial: { owner: 1, armies: 1 }, cape: { owner: 1, armies: 1 },
+      amazonia: { owner: 1, armies: 1 }, patagonia: { owner: 1, armies: 1 },
+      australia: { owner: 1, armies: 1 },
     },
     reinforcePool: 3, setupPools: [5, 5], fortifyUsed: false,
   });

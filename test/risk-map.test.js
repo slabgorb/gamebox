@@ -7,7 +7,7 @@ import {
 
 test('13 territories across 4 continents', () => {
   assert.equal(allTerritories().length, 13);
-  assert.deepEqual(Object.keys(CONTINENTS).sort(), ['norland', 'ostmark', 'sudreach', 'westfen']);
+  assert.deepEqual(Object.keys(CONTINENTS).sort(), ['africa', 'antipodes', 'eurasia', 'namerica']);
 });
 
 test('every territory belongs to exactly one continent', () => {
@@ -24,7 +24,7 @@ test('adjacency is symmetric', () => {
   }
 });
 
-test('chokepoints are the only cross-continent edges', () => {
+test('cross-continent straits are the only inter-continent edges', () => {
   const crossEdges = [];
   for (const id of allTerritories()) {
     for (const n of neighborsOf(id)) {
@@ -33,14 +33,18 @@ test('chokepoints are the only cross-continent edges', () => {
   }
   assert.deepEqual(
     crossEdges.sort(),
-    ['E1-N3', 'E2-W2', 'E4-S1', 'N1-W3', 'S3-W1'].sort(),
+    [
+      'amazonia-atlantic_shore', 'amazonia-cordillera', 'amazonia-north_africa',
+      'atlantic_shore-europa', 'australia-cathay', 'britannia-northern_reach',
+      'equatorial-persia', 'europa-north_africa', 'north_africa-persia',
+    ].sort(),
   );
 });
 
 test('continent helpers', () => {
-  assert.equal(continentBonus('ostmark'), 3);
-  assert.equal(continentBonus('norland'), 2);
-  assert.deepEqual(continentTerritories('sudreach').sort(), ['S1', 'S2', 'S3']);
-  assert.equal(areAdjacent('N1', 'N2'), true);
-  assert.equal(areAdjacent('N1', 'S1'), false);
+  assert.equal(continentBonus('eurasia'), 3);
+  assert.equal(continentBonus('namerica'), 2);
+  assert.deepEqual(continentTerritories('africa').sort(), ['cape', 'equatorial', 'north_africa']);
+  assert.equal(areAdjacent('northern_reach', 'cordillera'), true);
+  assert.equal(areAdjacent('northern_reach', 'north_africa'), false);
 });

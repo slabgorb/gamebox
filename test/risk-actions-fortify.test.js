@@ -2,12 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyRiskAction } from '../plugins/risk/server/actions.js';
 
+const ALL = ['northern_reach', 'cordillera', 'atlantic_shore', 'britannia', 'europa',
+  'persia', 'cathay', 'north_africa', 'equatorial', 'cape', 'amazonia', 'patagonia', 'australia'];
+
 function fortifyState() {
   const territories = {};
-  const all = ['N1','N2','N3','E1','E2','E3','E4','S1','S2','S3','W1','W2','W3'];
-  for (const id of all) {
-    if (id === 'N1') territories[id] = { owner: 0, armies: 5 };
-    else if (id === 'N2') territories[id] = { owner: 0, armies: 1 };
+  for (const id of ALL) {
+    if (id === 'northern_reach') territories[id] = { owner: 0, armies: 5 };
+    else if (id === 'cordillera') territories[id] = { owner: 0, armies: 1 };
     else territories[id] = { owner: 1, armies: 1 };
   }
   return {
@@ -21,11 +23,11 @@ function fortifyState() {
 test('fortify moves armies between adjacent owned territories and ends the turn', () => {
   const r = applyRiskAction({
     state: fortifyState(), actorId: 7,
-    action: { type: 'fortify', payload: { from: 'N1', to: 'N2', count: 3 } },
+    action: { type: 'fortify', payload: { from: 'northern_reach', to: 'cordillera', count: 3 } },
   });
   assert.equal(r.error, undefined);
-  assert.equal(r.state.territories.N1.armies, 2);
-  assert.equal(r.state.territories.N2.armies, 4);
+  assert.equal(r.state.territories.northern_reach.armies, 2);
+  assert.equal(r.state.territories.cordillera.armies, 4);
   assert.equal(r.state.phase, 'reinforce'); // turn passed
   assert.equal(r.state.currentPlayer, 1);
   assert.equal(r.state.activeUserId, 8);
@@ -43,7 +45,7 @@ test('end-turn skips fortify and passes the turn', () => {
 test('illegal fortify (non-adjacent) is rejected', () => {
   const r = applyRiskAction({
     state: fortifyState(), actorId: 7,
-    action: { type: 'fortify', payload: { from: 'N1', to: 'E1', count: 1 } },
+    action: { type: 'fortify', payload: { from: 'northern_reach', to: 'persia', count: 1 } },
   });
   assert.match(r.error, /adjacent|owned/);
 });
