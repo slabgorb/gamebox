@@ -6,12 +6,19 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 
-for (const f of ['index.html', 'style.css', 'themes.js', 'error-boundary.js', 'assets/chart-of-the-world.png']) {
+// Post-React-migration deliverable: a built bundle + static shell + assets.
+// Component sources live in src/clients/risk/ and are covered by vitest.
+for (const f of ['index.html', 'style.css', 'app.js', 'assets/chart-of-the-world.png']) {
   test(`risk client has ${f}`, () => {
     assert.ok(existsSync(resolve(root, 'plugins/risk/client', f)), `missing ${f}`);
   });
 }
 
-test('risk client has map-geometry.js', () => {
-  assert.ok(existsSync(resolve(root, 'src/clients/risk/map-geometry.js')), 'missing map-geometry.js');
+test('risk React sources exist in src/clients', () => {
+  for (const f of ['main.tsx', 'RiskApp.tsx', 'Board.tsx']) {
+    assert.ok(
+      existsSync(resolve(root, 'src/clients/risk', f)),
+      `missing src/clients/risk/${f}`,
+    );
+  }
 });
