@@ -27,8 +27,23 @@ interface State {
   count: number;
   mode: Mode;
   themeKey: string;
-  throwParams: ThrowParams | null;
+  /**
+   * Per-die throw params. `null` = pickup row. Single object = applied to
+   * every die (user-drag path; physics provides variation via die-die
+   * contact). Array = die `i` uses `throwParams[i]` (auto-roll path —
+   * required to avoid identical-trajectory doubles).
+   */
+  throwParams: ThrowParams | ThrowParams[] | null;
   rollKey: number;
+}
+
+/** Convert a single scene ThrowParams to wire-format DiceThrowParams. */
+function toWireParams(p: ThrowParams): DiceThrowParams {
+  return {
+    velocity: p.linearVelocity,
+    angular: p.angularVelocity,
+    position: [p.position[0] + 0.5, (p.position[2] + 0.8) / 1.6],
+  };
 }
 
 class DiceTrayElement extends HTMLElement {
@@ -61,10 +76,22 @@ class DiceTrayElement extends HTMLElement {
     this._render();
   }
 
-  /** Programmatic API: trigger a throw with the provided params (active mode). */
+  /** Programmatic API: trigger a throw with the provided params (active mode).
+   *  The same params apply to every die in the tray — physics + die-die
+   *  contact provide the variation. For auto-rolls (no user gesture), use
+   *  {@link throwAll} instead, otherwise all dice settle to the same face. */
   throw(params: ThrowParams) {
     this.state = { ...this.state, throwParams: params, rollKey: this.state.rollKey + 1 };
     this.dispatchEvent(new CustomEvent("dice-throw", { detail: { throwParams: [params] } }));
+    this._render();
+  }
+
+  /** Programmatic API: trigger an N-die throw where each die gets its own
+   *  ThrowParams. Required for auto-rolls — identical kinematics on dice
+   *  that don't collide settle to identical faces (doubles every time). */
+  throwAll(paramsList: ThrowParams[]) {
+    this.state = { ...this.state, throwParams: paramsList, rollKey: this.state.rollKey + 1 };
+    this.dispatchEvent(new CustomEvent("dice-throw", { detail: { throwParams: paramsList } }));
     this._render();
   }
 
@@ -94,7 +121,10 @@ class DiceTrayElement extends HTMLElement {
       try {
         const parsed = JSON.parse(replayAttr) as { throwParams: ThrowParams[]; values?: number[] };
         if (parsed.throwParams && parsed.throwParams.length > 0) {
-          this.state.throwParams = parsed.throwParams[0];
+          // Preserve the full per-die array so multi-die replays reproduce
+          // each die's trajectory. (Pre-batch builds used parsed.throwParams[0]
+          // for every die — the source of the "always doubles" bug.)
+          this.state.throwParams = parsed.throwParams;
           this.state.rollKey = this.state.rollKey + 1;
         }
       } catch (err) {
@@ -115,14 +145,12 @@ class DiceTrayElement extends HTMLElement {
     if (this.state.mode === "replay") {
       this.dispatchEvent(new CustomEvent("dice-replay-settle", { detail: { values } }));
     } else {
-      const wire: DiceThrowParams[] = this.state.throwParams ? [{
-        velocity: this.state.throwParams.linearVelocity,
-        angular: this.state.throwParams.angularVelocity,
-        position: [
-          this.state.throwParams.position[0] + 0.5,
-          (this.state.throwParams.position[2] + 0.8) / 1.6,
-        ],
-      }] : [];
+      const tp = this.state.throwParams;
+      const wire: DiceThrowParams[] = tp
+        ? Array.isArray(tp)
+          ? tp.map(toWireParams)
+          : [toWireParams(tp)]
+        : [];
       this.dispatchEvent(new CustomEvent("dice-settle", { detail: { values, throwParams: wire } }));
     }
   };
