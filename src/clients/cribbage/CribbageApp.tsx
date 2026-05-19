@@ -42,9 +42,8 @@ function bannerText(view: CribbageView, mySide: 0 | 1, myUserId: number): string
 }
 
 export function CribbageApp() {
-  const { view, ctx } = useGameState<CribbageView, CribbageAction>();
+  const { view, post, ctx } = useGameState<CribbageView, CribbageAction>();
   const [pendingDiscard, setPendingDiscard] = useState<CardType[]>([]);
-  void pendingDiscard; // Wired in Task 3.7
 
   if (!view) return <div className="banner">Loading…</div>;
 
@@ -57,6 +56,21 @@ export function CribbageApp() {
   const oppCount = !Array.isArray(view.hands[oppSide])
     ? (view.hands[oppSide] as { count: number }).count
     : (view.hands[oppSide] as CardType[]).length;
+
+  async function onDiscard() {
+    if (pendingDiscard.length !== 2) return;
+    await post({ type: "discard", payload: { cards: pendingDiscard } });
+    setPendingDiscard([]);
+  }
+  async function onCut() {
+    await post({ type: "cut" });
+  }
+  async function onPlay(card: CardType) {
+    await post({ type: "play", payload: { card } });
+  }
+  async function onAcknowledge() {
+    await post({ type: "next" });
+  }
 
   const opponent = (
     <OpponentCard
@@ -74,8 +88,37 @@ export function CribbageApp() {
     </OpponentCard>
   );
 
+  const mySubmittedDiscard =
+    view.phase === "discard" && view.pendingDiscards[mySide] != null;
+  const showDiscardButton =
+    view.phase === "discard" && !mySubmittedDiscard;
+  const showCutButton = view.phase === "cut" && mySide !== view.dealer;
+
   return (
-    <GameChrome title="Cribbage" status={<span>{bannerText(view, mySide, myUserId)}</span>} controls={opponent}>
+    <GameChrome
+      title="Cribbage"
+      status={
+        <span>
+          {bannerText(view, mySide, myUserId)}
+          {showDiscardButton && (
+            <button
+              type="button"
+              className="btn-discard"
+              disabled={pendingDiscard.length !== 2}
+              onClick={onDiscard}
+            >
+              Send to crib
+            </button>
+          )}
+          {showCutButton && (
+            <button type="button" className="btn-cut" onClick={onCut}>
+              Cut
+            </button>
+          )}
+        </span>
+      }
+      controls={opponent}
+    >
       <PegBoard
         scores={view.scores}
         prevScores={view.prevScores}
@@ -101,14 +144,10 @@ export function CribbageApp() {
       </section>
 
       <section className="hand-row hand-row--me">
-        {view.phase === "discard" && view.pendingDiscards[mySide] == null && (
-          <Hand
-            mode="discard"
-            cards={myHand}
-            onSelectionChange={setPendingDiscard}
-          />
+        {view.phase === "discard" && !mySubmittedDiscard && (
+          <Hand mode="discard" cards={myHand} onSelectionChange={setPendingDiscard} />
         )}
-        {view.phase === "discard" && view.pendingDiscards[mySide] != null && (
+        {view.phase === "discard" && mySubmittedDiscard && (
           <Hand mode="view" cards={myHand} />
         )}
         {view.phase === "cut" && <Hand mode="view" cards={myHand} />}
@@ -118,7 +157,7 @@ export function CribbageApp() {
             cards={myHand}
             pegging={view.pegging}
             isMyTurn={view.activeUserId === myUserId}
-            onPlay={() => {}}
+            onPlay={onPlay}
           />
         )}
         {(view.phase === "show" || isMatchEnd) && <Hand mode="view" cards={myHand} />}
@@ -134,7 +173,7 @@ export function CribbageApp() {
             scoresMe={view.scores[mySide]}
             scoresOpp={view.scores[oppSide]}
             wonMatch={view.winnerSide === (mySide === 0 ? "a" : "b")}
-            onAcknowledge={() => {}}
+            onAcknowledge={onAcknowledge}
           />
         </div>
       )}

@@ -1,6 +1,6 @@
 // test/client/CribbageApp.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, act } from "@testing-library/react";
+import { render, act, fireEvent } from "@testing-library/react";
 
 vi.mock("../../src/clients/shared/card-assets", () => ({
   cardImageUrl: (c: { suit: string; rank: string }) => `/cards/${c.suit}-${c.rank}.jpg`,
@@ -89,5 +89,56 @@ describe("CribbageApp skeleton", () => {
     // Wait one microtask for the resync fetch.
     await new Promise((r) => setTimeout(r, 0));
     expect(container.querySelector("svg.peg-board-svg")).not.toBeNull();
+  });
+});
+
+describe("CribbageApp action posting", () => {
+  it("Send-to-crib POSTs { type: 'discard', payload: { cards } }", async () => {
+    const { container } = render(<CribbageApp />);
+    await new Promise((r) => setTimeout(r, 0));
+    const handCards = container.querySelectorAll(".hand-row--me img.card");
+    fireEvent.click(handCards[0]);
+    fireEvent.click(handCards[1]);
+    const btn = container.querySelector("button.btn-discard") as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    await act(async () => {
+      btn.click();
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/games/7/actions",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"type":"discard"'),
+      }),
+    );
+  });
+
+  it("Cut button POSTs { type: 'cut' } when the user is non-dealer", async () => {
+    // Override fetch to return a cut-phase state, non-dealer
+    (fetch as any).mockImplementation(async (url: string) => {
+      if (url === "/api/games/7/state") {
+        const v = fixtureView("discard");
+        v.phase = "cut" as any;
+        v.dealer = 1; // I'm side 0, dealer is side 1 → I'm non-dealer → I can cut
+        return new Response(JSON.stringify({ state: v }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(null, { status: 200 });
+    });
+    const { container } = render(<CribbageApp />);
+    await new Promise((r) => setTimeout(r, 0));
+    const btn = container.querySelector("button.btn-cut") as HTMLButtonElement;
+    await act(async () => {
+      btn.click();
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/games/7/actions",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"type":"cut"'),
+      }),
+    );
   });
 });
