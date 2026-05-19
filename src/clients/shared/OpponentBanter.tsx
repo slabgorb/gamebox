@@ -1,3 +1,4 @@
+// src/clients/shared/OpponentBanter.tsx
 import { useEffect, useRef, useState } from "react";
 
 interface Props {
@@ -12,8 +13,14 @@ interface BubbleState {
   thinking: boolean;
 }
 
-export function OpponentBanter({ gameId: _gameId, userId: _userId, sseUrl, friendlyName }: Props) {
+interface StallState {
+  reason: string;
+  displayName: string;
+}
+
+export function OpponentBanter({ gameId, userId: _userId, sseUrl, friendlyName }: Props) {
   const [bubble, setBubble] = useState<BubbleState | null>(null);
+  const [stall, setStall] = useState<StallState | null>(null);
   const queueRef = useRef<string[]>([]);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -30,7 +37,6 @@ export function OpponentBanter({ gameId: _gameId, userId: _userId, sseUrl, frien
     setBubble({ text: next, thinking: false });
     clearHideTimer();
     hideTimerRef.current = setTimeout(() => {
-      // 5s display, then fade for 400ms before unmount.
       hideTimerRef.current = setTimeout(() => {
         setBubble(null);
         hideTimerRef.current = null;
@@ -46,34 +52,70 @@ export function OpponentBanter({ gameId: _gameId, userId: _userId, sseUrl, frien
       const data = JSON.parse((ev as MessageEvent).data ?? "{}");
       if (!data.text) return;
       queueRef.current.push(data.text);
-      // banter clears any in-flight thinking state
       setBubble((b) => (b?.thinking ? null : b));
       if (!hideTimerRef.current) showNext();
     };
-
     const onThinking = (ev: Event) => {
       const data = JSON.parse((ev as MessageEvent).data ?? "{}");
-      const name = data.displayName ?? friendlyName;
-      setBubble({ text: `${name} is thinking`, thinking: true });
+      setStall(null);
+      setBubble({ text: `${data.displayName ?? friendlyName} is thinking`, thinking: true });
       clearHideTimer();
     };
-
+    const onStalled = (ev: Event) => {
+      const data = JSON.parse((ev as MessageEvent).data ?? "{}");
+      setStall({ reason: data.reason ?? "unknown", displayName: data.displayName ?? friendlyName });
+      setBubble((b) => (b?.thinking ? null : b));
+    };
     const onUpdate = () => {
       setBubble((b) => (b?.thinking ? null : b));
     };
 
     es.addEventListener("banter", onBanter);
     es.addEventListener("bot_thinking", onThinking);
+    es.addEventListener("bot_stalled", onStalled);
     es.addEventListener("update", onUpdate);
 
     return () => {
       es.removeEventListener("banter", onBanter);
       es.removeEventListener("bot_thinking", onThinking);
+      es.removeEventListener("bot_stalled", onStalled);
       es.removeEventListener("update", onUpdate);
       es.close();
       clearHideTimer();
     };
   }, [sseUrl, friendlyName]);
+
+  async function onRetry() {
+    try {
+      const r = await fetch(`/api/games/${gameId}/ai/retry`, { method: "POST" });
+      if (r.ok) {
+        setStall(null);
+      } else {
+        const detail =
+          (await r.json().catch(() => ({}))).error || String(r.status);
+        alert(`retry failed: ${detail}`);
+      }
+    } catch (e) {
+      alert(`retry failed: ${(e as Error).message}`);
+    }
+  }
+
+  async function onAbandon() {
+    if (!confirm("End this game?")) return;
+    try {
+      const r = await fetch(`/api/games/${gameId}/ai/abandon`, { method: "POST" });
+      if (r.ok) {
+        setStall(null);
+        window.location.reload();
+      } else {
+        const detail =
+          (await r.json().catch(() => ({}))).error || String(r.status);
+        alert(`abandon failed: ${detail}`);
+      }
+    } catch (e) {
+      alert(`abandon failed: ${(e as Error).message}`);
+    }
+  }
 
   return (
     <>
@@ -87,6 +129,19 @@ export function OpponentBanter({ gameId: _gameId, userId: _userId, sseUrl, frien
               <span />
             </span>
           )}
+        </div>
+      )}
+      {stall && (
+        <div className="opp-card__stall">
+          <span>{stall.displayName} froze up ({stall.reason}).</span>
+          <div className="opp-card__stall-actions">
+            <button type="button" className="opp-card__retry" onClick={onRetry}>
+              Retry
+            </button>
+            <button type="button" className="opp-card__abandon" onClick={onAbandon}>
+              Abandon
+            </button>
+          </div>
         </div>
       )}
     </>

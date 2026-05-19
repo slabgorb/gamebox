@@ -72,3 +72,63 @@ describe("OpponentBanter — bubble + thinking", () => {
     expect(__lastEventSource.get()).toBeNull();
   });
 });
+
+describe("OpponentBanter — stall surface", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200 })),
+    );
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    // location.reload tampering: replace just .reload
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload: vi.fn() },
+    });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    __lastEventSource.set(null);
+  });
+
+  it("shows stall banner with reason on bot_stalled", () => {
+    const { container } = render(
+      <OpponentBanter gameId={7} userId={42} sseUrl="/sse/g/7" friendlyName="Amos" />,
+    );
+    act(() => emit("bot_stalled", { displayName: "Amos", reason: "timeout" }));
+    const stall = container.querySelector(".opp-card__stall");
+    expect(stall).not.toBeNull();
+    expect(stall!.textContent).toContain("Amos froze up (timeout)");
+    expect(container.querySelector("button.opp-card__retry")).not.toBeNull();
+    expect(container.querySelector("button.opp-card__abandon")).not.toBeNull();
+  });
+
+  it("retry button POSTs to /api/games/:id/ai/retry and clears the stall on OK", async () => {
+    const { container } = render(
+      <OpponentBanter gameId={7} userId={42} sseUrl="/sse/g/7" friendlyName="Amos" />,
+    );
+    act(() => emit("bot_stalled", { displayName: "Amos", reason: "timeout" }));
+    const btn = container.querySelector("button.opp-card__retry") as HTMLButtonElement;
+    await act(async () => {
+      btn.click();
+    });
+    expect(fetch).toHaveBeenCalledWith("/api/games/7/ai/retry", { method: "POST" });
+    expect(container.querySelector(".opp-card__stall")).toBeNull();
+  });
+
+  it("abandon button confirms, POSTs to /ai/abandon, then reloads on OK", async () => {
+    const { container } = render(
+      <OpponentBanter gameId={7} userId={42} sseUrl="/sse/g/7" friendlyName="Amos" />,
+    );
+    act(() => emit("bot_stalled", { displayName: "Amos", reason: "timeout" }));
+    const btn = container.querySelector("button.opp-card__abandon") as HTMLButtonElement;
+    await act(async () => {
+      btn.click();
+    });
+    expect(confirm).toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledWith("/api/games/7/ai/abandon", { method: "POST" });
+    expect(window.location.reload).toHaveBeenCalled();
+  });
+});
