@@ -73,16 +73,41 @@ export function applyTransition(
   }
 }
 
+export function formatDealSummary(
+  prev: CribbageView,
+  next: CribbageView,
+  myName: string,
+  oppName: string,
+): string {
+  void next;
+  return `Deal ${prev.dealNumber} → ${next.dealNumber}. ${myName} ${prev.scores[0]}, ${oppName} ${prev.scores[1]}.`;
+}
+
 export function CribbageApp() {
   const { view, post, ctx } = useGameState<CribbageView, CribbageAction>();
   const [pendingDiscard, setPendingDiscard] = useState<CardType[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
 
   const prevViewRef = useRef<CribbageView | null>(null);
 
   useEffect(() => {
     if (!view) return;
-    const _myUserId = ctx.userId;
-    applyTransition(prevViewRef.current, view, _myUserId);
+    applyTransition(prevViewRef.current, view, ctx.userId);
+    if (
+      prevViewRef.current &&
+      prevViewRef.current.phase === "show" &&
+      view.phase === "discard" &&
+      prevViewRef.current.showBreakdown
+    ) {
+      const summary = formatDealSummary(
+        prevViewRef.current,
+        view,
+        ctx.yourFriendlyName ?? "You",
+        ctx.opponentFriendlyName ?? "Opponent",
+      );
+      setToast(summary);
+      setTimeout(() => setToast(null), 4500);
+    }
     prevViewRef.current = view;
   });
 
@@ -166,6 +191,12 @@ export function CribbageApp() {
       }
       controls={opponent}
     >
+      {toast && <div className="cribbage-toast">{toast}</div>}
+      {isMatchEnd && view.scores[oppSide] < 91 && (
+        <div id="skunk-banner" className="skunk-banner">
+          Skunked!
+        </div>
+      )}
       <PegBoard
         scores={view.scores}
         prevScores={view.prevScores}

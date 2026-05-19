@@ -211,4 +211,25 @@ describe("CribbageApp transitions (applyTransition)", () => {
     expect(playMock).not.toHaveBeenCalled();
     expect(playForScoreMock).not.toHaveBeenCalled();
   });
+
+  it("formatDealSummary returns text including deal numbers and names + scores", async () => {
+    const { formatDealSummary } = await import("../../src/clients/cribbage/CribbageApp");
+    const prev = {
+      ...(fixtureView("discard") as unknown as CribbageView),
+      phase: "show" as const,
+      showBreakdown: { nonDealer: { total: 0, items: [] }, dealer: { total: 0, items: [] }, crib: { total: 0, items: [] } },
+      dealNumber: 3,
+      scores: [12, 14] as [number, number],
+      prevScores: [12, 10] as [number, number],
+    };
+    const next = {
+      ...(fixtureView("discard") as unknown as CribbageView),
+      dealNumber: 4,
+      scores: [12, 14] as [number, number],
+    };
+    const text = formatDealSummary(prev, next, "You", "Bot");
+    expect(text).toMatch(/Deal 3 → 4/);
+    expect(text).toContain("You 12");
+    expect(text).toContain("Bot 14");
+  });
 });
