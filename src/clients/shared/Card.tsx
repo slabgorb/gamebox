@@ -33,6 +33,7 @@ interface Props {
   card: CardData;
   faceDown?: boolean;
   className?: string;
+  onClick?: () => void;
 }
 
 function altText(card: CardData, faceDown: boolean | undefined): string {
@@ -43,8 +44,16 @@ function altText(card: CardData, faceDown: boolean | undefined): string {
   return `${rank} of ${suit}`;
 }
 
-export function Card({ card, faceDown, className }: Props) {
+export function Card({ card, faceDown, className, onClick }: Props) {
   const src = faceDown ? backImageUrl() : cardImageUrl(card);
   const cls = ["card", className].filter(Boolean).join(" ");
-  return <img src={src} alt={altText(card, faceDown)} className={cls} />;
+  return (
+    <img
+      src={src}
+      alt={altText(card, faceDown)}
+      className={cls}
+      onClick={onClick}
+      style={onClick ? { cursor: "pointer" } : undefined}
+    />
+  );
 }
