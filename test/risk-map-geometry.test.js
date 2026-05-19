@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   TERRITORIES, CONTINENT_BONUS, MAP_SIZE,
-} from '../plugins/risk/client/map-geometry.js';
+} from '../src/clients/risk/map-geometry.js';
 import {
   allTerritories, neighborsOf, continentOf, continentBonus, CONTINENTS,
 } from '../plugins/risk/server/map.js';

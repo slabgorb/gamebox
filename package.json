@@ -11,7 +11,10 @@
     "test": "node --test 'test/**/*.test.js'",
     "build:dice": "vite build --config vite.config.dice.js",
     "dev:dice": "vite build --config vite.config.dice.js --watch",
-    "prepare": "npm run build:dice",
+    "test:client": "vitest run --passWithNoTests",
+    "build:client": "node scripts/build-clients.mjs",
+    "dev:client": "vite build --config vite.config.client.js --watch",
+    "prepare": "npm run build:dice && npm run build:client",
     "fetch-dict": "node bin/fetch-dictionary.js"
   },
   "dependencies": {

@@ -27,6 +27,7 @@ dev: down-server
 # Run the test suite
 test:
     npm test
+    npm run test:client
 
 # --- Service control ---
 

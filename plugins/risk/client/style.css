@@ -84,6 +84,27 @@ body { margin: 0; background: #2b2417; }
 #risk-root .combat-reveal__result.won { color: var(--brass); }
 #risk-root .combat-reveal__result.lost { color: #8a7c5c; }
 
+/* Round-by-round CombatReveal (React) — trays + pip readouts beside each
+   3D dice tray. The 3D tray itself is themed by the <dice-tray> bundle; the
+   wrapper here gives each side a color-tinted frame and a textual pip
+   summary, matching the parchment/brass idiom of the rest of the panel. */
+#risk-root .combat-reveal__trays { display: flex; align-items: center;
+  justify-content: center; gap: .6rem; margin: .4rem 0; flex-wrap: wrap; }
+#risk-root .combat-reveal__trays .tray { flex: 1 1 200px; min-width: 180px;
+  border: 1px solid var(--ink); border-radius: .3rem; padding: .35rem;
+  background: rgba(74, 58, 30, .25); }
+#risk-root .combat-reveal__trays .tray.atk { --die: var(--p0);
+  border-color: var(--p0); }
+#risk-root .combat-reveal__trays .tray.def { --die: var(--p1);
+  border-color: var(--p1); }
+#risk-root .combat-reveal__trays .pips { display: block;
+  font-family: var(--serif-map-sc, Georgia, serif);
+  font-size: 1.1rem; color: var(--die, var(--brass));
+  text-align: center; margin-top: .25rem; letter-spacing: .25rem;
+  min-height: 1.2em; }
+#risk-root .combat-reveal__trays .vs { font-family: var(--serif-map-sc, serif);
+  font-size: 1.1rem; opacity: .6; align-self: center; }
+
 #risk-root .bar { display: flex; flex-wrap: wrap; gap: .5rem;
   margin: 1rem 0; align-items: center; }
 #risk-root button { font: inherit; padding: .5rem .8rem; border-radius: .3rem;

@@ -1,6 +1,6 @@
-import { CONTINENTS, continentBonus } from './map.js';
+import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
 import { validateDeploy, validateAttack, validateFortify } from './validate.js';
-import { resolveAttack } from './combat.js';
+import { resolveAttack, replayAttack } from './combat.js';
 import { playerIndex, userIdOf } from './state.js';
 
 export function reinforcementFor(state, playerIdx) {
@@ -124,7 +124,58 @@ function ownedCount(s, playerIdx) {
 }
 
 function applyAttack(s, playerIdx, payload, rng) {
-  const { from, to, force } = payload ?? {};
+  const { from, to, force, resolved } = payload ?? {};
+
+  // Client-resolved path (human attacker, spec Amendment A.1): the client
+  // rolled the dice and posts the round sequence; we validate + apply it.
+  // The committed force is implicit — the maximum (armies-1) — matching the
+  // round-by-round driver on the client.
+  if (resolved) {
+    const src = s.territories[from];
+    const tgt = s.territories[to];
+    if (!src || !tgt) return 'unknown territory';
+    if (src.owner !== playerIdx) return `source ${from} not owned`;
+    if (tgt.owner === playerIdx) return `target ${to} is not an enemy territory`;
+    if (!areAdjacent(from, to)) return `${from} and ${to} are not adjacent`;
+    if (!Number.isInteger(src.armies) || src.armies < 2) {
+      return `force must be an integer in 2..${src.armies - 1}`;
+    }
+    const forceCommitted = src.armies - 1;
+    const eff = replayAttack({
+      force: forceCommitted,
+      defenders: tgt.armies,
+      rounds: resolved.rounds,
+    });
+    if (eff.error) return eff.error;
+    // Mirror the rolled path's bookkeeping exactly: the committed force
+    // marches out of src; on capture survivors occupy tgt (src stays at
+    // armies-force = 1), on repulse survivors retreat home (src ends at
+    // 1 + attackerSurvivors).
+    src.armies -= forceCommitted;
+    if (eff.captured) {
+      tgt.owner = playerIdx;
+      tgt.armies = eff.attackerSurvivors;
+    } else {
+      tgt.armies = eff.defenderSurvivors;
+      src.armies += eff.attackerSurvivors;
+    }
+    s.lastCombat = {
+      from, to, force: forceCommitted,
+      rounds: eff.rounds,
+      captured: eff.captured,
+      attackerSurvivors: eff.attackerSurvivors,
+      defenderSurvivors: eff.defenderSurvivors,
+    };
+    s.log.push({ kind: 'attack', player: playerIdx, from, to, force: forceCommitted, captured: eff.captured });
+    const opponent = playerIdx === 0 ? 1 : 0;
+    if (ownedCount(s, opponent) === 0) {
+      s.phase = 'gameover';
+      s.winner = playerIdx;
+    }
+    return null;
+  }
+
+  // Server-resolved path (bot attacker / legacy): unchanged.
   const verr = validateAttack(s, playerIdx, { from, to, force });
   if (verr) return verr;
 
