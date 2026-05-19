@@ -7,7 +7,21 @@ vi.mock("../../src/clients/shared/card-assets", () => ({
   backImageUrl: () => "/cards/back.png",
 }));
 
+const { playMock, playForScoreMock, primeAudioMock } = vi.hoisted(() => ({
+  playMock: vi.fn(),
+  playForScoreMock: vi.fn(),
+  primeAudioMock: vi.fn(),
+}));
+vi.mock("../../src/clients/cribbage/sounds", () => ({
+  play: playMock,
+  playForScore: playForScoreMock,
+  primeAudio: primeAudioMock,
+  isMuted: () => false,
+  toggleMuted: () => false,
+}));
+
 import { CribbageApp } from "../../src/clients/cribbage/CribbageApp";
+import type { CribbageView } from "../../src/clients/shared/contracts/cribbage";
 
 const fixtureView = (phase: "discard" | "pegging" = "discard") => ({
   matchTarget: 121,
@@ -140,5 +154,61 @@ describe("CribbageApp action posting", () => {
         body: expect.stringContaining('"type":"cut"'),
       }),
     );
+  });
+});
+
+describe("CribbageApp transitions (applyTransition)", () => {
+  beforeEach(() => {
+    playMock.mockReset();
+    playForScoreMock.mockReset();
+  });
+
+  it("plays 'cheer-100' on transition into match-end", async () => {
+    const { applyTransition } = await import("../../src/clients/cribbage/CribbageApp");
+    const prev = fixtureView("pegging") as unknown as CribbageView;
+    const next = {
+      ...(fixtureView("pegging") as unknown as CribbageView),
+      phase: "match-end" as const,
+      winnerSide: "a" as const,
+      scores: [121, 75] as [number, number],
+    };
+    applyTransition(prev, next, 42);
+    expect(playMock).toHaveBeenCalledWith("cheer-100");
+  });
+
+  it("plays 'your-turn' when activeUserId flips to me at pegging", async () => {
+    const { applyTransition } = await import("../../src/clients/cribbage/CribbageApp");
+    const prev = {
+      ...(fixtureView("pegging") as unknown as CribbageView),
+      activeUserId: 99,
+    };
+    const next = {
+      ...(fixtureView("pegging") as unknown as CribbageView),
+      activeUserId: 42,
+    };
+    applyTransition(prev, next, 42);
+    expect(playMock).toHaveBeenCalledWith("your-turn");
+  });
+
+  it("calls playForScore on a positive score delta in non-match-end", async () => {
+    const { applyTransition } = await import("../../src/clients/cribbage/CribbageApp");
+    const prev = {
+      ...(fixtureView("pegging") as unknown as CribbageView),
+      scores: [0, 0] as [number, number],
+    };
+    const next = {
+      ...(fixtureView("pegging") as unknown as CribbageView),
+      scores: [4, 0] as [number, number],
+    };
+    applyTransition(prev, next, 42);
+    expect(playForScoreMock).toHaveBeenCalledWith(4);
+  });
+
+  it("does NOT play anything when prev is null (first view)", async () => {
+    const { applyTransition } = await import("../../src/clients/cribbage/CribbageApp");
+    const next = fixtureView("discard") as unknown as CribbageView;
+    applyTransition(null, next, 42);
+    expect(playMock).not.toHaveBeenCalled();
+    expect(playForScoreMock).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useGameState } from "../shared/useGameState";
 import { GameChrome } from "../shared/GameChrome";
 import { OpponentCard } from "../shared/OpponentCard";
@@ -13,6 +13,7 @@ import type {
   CribbageAction,
   Card as CardType,
 } from "../shared/contracts/cribbage";
+import { play, playForScore, primeAudio } from "./sounds";
 
 function bannerText(view: CribbageView, mySide: 0 | 1, myUserId: number): string {
   const myTurn = view.activeUserId === myUserId;
@@ -41,9 +42,55 @@ function bannerText(view: CribbageView, mySide: 0 | 1, myUserId: number): string
   }
 }
 
+export function applyTransition(
+  prev: CribbageView | null,
+  next: CribbageView,
+  myUserId: number,
+): void {
+  if (!prev) return;
+  // Activated turn boundary: not-my-turn → my-turn at pegging phase
+  const wasMine = prev.activeUserId === myUserId;
+  const isMine = next.activeUserId === myUserId;
+  if (!wasMine && isMine && next.phase === "pegging") play("your-turn");
+
+  // Match end transition
+  if (prev.phase !== "match-end" && next.phase === "match-end") {
+    const mySide = next.sides.a === myUserId ? 0 : 1;
+    const won = next.winnerSide === (mySide === 0 ? "a" : "b");
+    const loserScore = won ? next.scores[1 - mySide] : next.scores[mySide];
+    play("cheer-100");
+    if (loserScore < 91) {
+      setTimeout(() => play("cheer-50"), 600);
+    }
+  }
+
+  // Score motion → tiered cheer (avoid double-up with match-end)
+  for (const side of [0, 1] as const) {
+    const delta = (next.scores?.[side] ?? 0) - (prev.scores?.[side] ?? 0);
+    if (delta > 0 && next.phase !== "match-end") {
+      playForScore(delta);
+    }
+  }
+}
+
 export function CribbageApp() {
   const { view, post, ctx } = useGameState<CribbageView, CribbageAction>();
   const [pendingDiscard, setPendingDiscard] = useState<CardType[]>([]);
+
+  const prevViewRef = useRef<CribbageView | null>(null);
+
+  useEffect(() => {
+    if (!view) return;
+    const _myUserId = ctx.userId;
+    applyTransition(prevViewRef.current, view, _myUserId);
+    prevViewRef.current = view;
+  });
+
+  useEffect(() => {
+    const handler = () => primeAudio();
+    document.addEventListener("click", handler, { once: true });
+    return () => document.removeEventListener("click", handler);
+  }, []);
 
   if (!view) return <div className="banner">Loading…</div>;
 
