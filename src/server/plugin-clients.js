@@ -71,13 +71,15 @@ function serveIndex(clientDir, db, req, res, ai = null) {
   };
   const inject = `<script>window.__GAME__ = ${JSON.stringify(ctx)};</script>`;
 
+  const cacheBusted = bustAssetUrls(html, clientDir);
+
   let injected;
-  if (/<\/head>/i.test(html)) {
-    injected = html.replace(/<\/head>/i, inject + '</head>');
-  } else if (/<body[^>]*>/i.test(html)) {
-    injected = html.replace(/<body[^>]*>/i, m => inject + m);
+  if (/<\/head>/i.test(cacheBusted)) {
+    injected = cacheBusted.replace(/<\/head>/i, inject + '</head>');
+  } else if (/<body[^>]*>/i.test(cacheBusted)) {
+    injected = cacheBusted.replace(/<body[^>]*>/i, m => inject + m);
   } else {
-    injected = inject + html;
+    injected = inject + cacheBusted;
   }
   // Per-game HTML carries an injected window.__GAME__ context (game id,
   // user id, urls). Caching it would let a stale gameId surface in a
@@ -85,4 +87,30 @@ function serveIndex(clientDir, db, req, res, ai = null) {
   // change would persist for cached tabs until manual hard-reload.
   res.set('Cache-Control', 'no-store');
   res.type('html').send(injected);
+}
+
+// Rewrite <script src="…"> and <link href="…"> to ?v=<mtime-ms> for
+// same-origin relative assets that live in the plugin's client dir.
+// Stale module caches (browser or CDN) silently strand users on the
+// pre-React app.js after a bundle swap — versioning the URL forces a
+// fresh fetch on every rebuild.
+function bustAssetUrls(html, clientDir) {
+  const stamp = (url) => {
+    if (!url || /^(?:[a-z]+:|\/\/|data:|#)/i.test(url)) return url;
+    const qIdx = url.indexOf('?');
+    const pathPart = qIdx === -1 ? url : url.slice(0, qIdx);
+    // Only stamp paths that resolve inside the plugin's client dir.
+    if (pathPart.startsWith('/')) return url;
+    const fullPath = path.join(clientDir, pathPart);
+    let mtime;
+    try { mtime = fs.statSync(fullPath).mtimeMs; }
+    catch { return url; }
+    const v = `v=${Math.floor(mtime)}`;
+    return qIdx === -1 ? `${url}?${v}` : `${url}&${v}`;
+  };
+  return html
+    .replace(/(<script\b[^>]*\bsrc=)(["'])([^"']+)\2/gi,
+      (_, pre, q, url) => `${pre}${q}${stamp(url)}${q}`)
+    .replace(/(<link\b[^>]*\bhref=)(["'])([^"']+)\2/gi,
+      (_, pre, q, url) => `${pre}${q}${stamp(url)}${q}`);
 }
