@@ -11,6 +11,8 @@ import { History } from "./History";
 import { EndScreen } from "./EndScreen";
 import { ExitControls } from "./ExitControls";
 import { CombatReveal } from "./CombatReveal";
+import { OpponentCard } from "../shared/OpponentCard";
+import { OpponentBanter } from "../shared/OpponentBanter";
 
 export function RiskApp() {
   const { view, post, ctx } = useGameState<RiskView, RiskAction>();
@@ -70,6 +72,20 @@ export function RiskApp() {
       </div>
 
       <ContinentRail view={view} />
+
+      <OpponentCard
+        personaId={ctx.opponentPersonaId ?? null}
+        friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
+        color={ctx.opponentColor}
+        glyph={ctx.opponentGlyph}
+      >
+        <OpponentBanter
+          gameId={ctx.gameId}
+          userId={ctx.userId}
+          sseUrl={ctx.sseUrl}
+          friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
+        />
+      </OpponentCard>
 
       <Board
         view={view}
