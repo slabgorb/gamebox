@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  TERRITORIES, CONTINENT_BONUS, MAP_SIZE,
+  TERRITORIES, CONTINENT_BONUS, MAP_SIZE, LEGEND_LAYOUT,
 } from '../src/clients/risk/map-geometry.js';
 import {
   allTerritories, neighborsOf, continentOf, continentBonus, CONTINENTS,
@@ -33,20 +33,24 @@ test('continent bonuses match the engine', () => {
   }
 });
 
-test('every territory has a polygon, a drawable path, and an in-bounds label', () => {
+test('every territory has an in-bounds label point and a positive hit radius', () => {
   const { w, h } = MAP_SIZE;
   assert.ok(Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0, 'map size sane');
   for (const id of allTerritories()) {
     const g = TERRITORIES[id];
-    assert.ok(Array.isArray(g.poly) && g.poly.length >= 3, `${id} poly is a ring`);
-    for (const pt of g.poly) {
-      assert.ok(Array.isArray(pt) && pt.length === 2
-        && Number.isFinite(pt[0]) && Number.isFinite(pt[1]), `${id} bad poly point`);
-    }
-    assert.equal(typeof g.path, 'string');
-    assert.match(g.path, /^M /, `${id} path starts with M`);
-    assert.match(g.path, / Z$/, `${id} path is closed`);
     assert.ok(Number.isFinite(g.label.x) && g.label.x >= 0 && g.label.x <= w, `${id} label.x oob`);
     assert.ok(Number.isFinite(g.label.y) && g.label.y >= 0 && g.label.y <= h, `${id} label.y oob`);
+    assert.ok(Number.isFinite(g.r) && g.r > 0, `${id} hit radius`);
+    assert.equal(typeof g.name, 'string');
+  }
+});
+
+test('legend layout covers every continent and the rectangles are in-bounds', () => {
+  const { w, h } = MAP_SIZE;
+  assert.deepEqual(Object.keys(LEGEND_LAYOUT).sort(), Object.keys(CONTINENTS).sort());
+  for (const [key, box] of Object.entries(LEGEND_LAYOUT)) {
+    assert.ok(box.x >= 0 && box.x + box.w <= w, `${key} legend x oob`);
+    assert.ok(box.y >= 0 && box.y + box.h <= h, `${key} legend y oob`);
+    assert.ok(box.w > 0 && box.h > 0, `${key} legend size`);
   }
 });

@@ -1,215 +1,100 @@
-// plugins/risk/client/map-geometry.js
-// Client-side mirror of the Risk map, rendered on the antique "Chart of the
-// World" engraving. The browser cannot import server/map.js (outside the
-// served clientDir), so the graph is duplicated here and drift-guarded by
-// test/risk-map-geometry.test.js. Coordinates are in the engraving's native
-// pixel space (1499 x 1003); territory `poly` rings are hand-traced over it.
-// Coastlines are already drawn by the engraving — only internal LAND_SEAMS
-// are inked by the renderer.
+// src/clients/risk/map-geometry.js
+// Client-side mirror of the Risk map, rendered on the parchment world
+// engraving in plugins/risk/client/assets/risk-map.jpg. The base image
+// already has inked territory borders, placenames, continent banners,
+// and an "ARMIES OF RISK" legend strip; the SVG overlay only draws
+// owner tints, army tokens, sea-route arcs, the active march arrow,
+// and the held-status overlay on each continent legend strip.
+//
+// Coordinates are in image pixel space (1600 × 800). Each territory
+// carries a `label` point (token anchor + click center), a hit radius
+// `r`, its continent, and its neighbors. The graph is drift-guarded
+// against plugins/risk/server/map.js by test/risk-map-geometry.test.js.
 
-export const MAP_IMAGE = 'assets/chart-of-the-world.png';
-export const MAP_SIZE = { w: 1499, h: 1003 };
+export const MAP_IMAGE = 'assets/risk-map.jpg';
+export const MAP_SIZE = { w: 1600, h: 800 };
 
-// Continent display metadata. `scroll` places the italic small-caps banner
-// engraved into the sea/empty land. Keys match the engine continent keys.
+// Continent display metadata. Colors mirror the printed legend strips
+// on the base map so the overlay rectangles paint over them in the same
+// hue when fully held.
 export const CONTINENTS_META = {
-  namerica:  { name: 'North America', bonus: 2, color: '#2e6e3a', scroll: { x: 290,  y: 200, size: 24, tracking: 8,  text: 'NORTH  AMERICA' } },
-  eurasia:   { name: 'Eurasia',       bonus: 3, color: '#a13b2a', scroll: { x: 1180, y: 175, size: 28, tracking: 12, text: 'EURASIA'        } },
-  africa:    { name: 'Africa',        bonus: 2, color: '#1f4e6e', scroll: { x: 880,  y: 900, size: 22, tracking: 10, text: 'AFRICA'         } },
-  antipodes: { name: 'Antipodes',     bonus: 2, color: '#7a4218', scroll: { x: 1130, y: 920, size: 20, tracking: 8,  text: 'ANTIPODES'      } },
+  namerica:  { name: 'North America', bonus: 5, color: '#a87838' },
+  samerica:  { name: 'South America', bonus: 2, color: '#c8674a' },
+  europe:    { name: 'Europe',        bonus: 5, color: '#8a6ea8' },
+  africa:    { name: 'Africa',        bonus: 3, color: '#996644' },
+  asia:      { name: 'Asia',          bonus: 7, color: '#a5a754' },
+  australia: { name: 'Australia',     bonus: 2, color: '#c25c7a' },
 };
 
 export const CONTINENT_BONUS = Object.fromEntries(
   Object.entries(CONTINENTS_META).map(([k, c]) => [k, c.bonus]),
 );
 
-// `path` is filled in below from `poly`.
 export const TERRITORIES = {
-  // ===== NORTH AMERICA (3, +2) =====
-  northern_reach: {
-    name: 'Northern Reach', continent: 'namerica',
-    label: { x: 360, y: 230 },
-    neighbors: ['atlantic_shore', 'cordillera', 'britannia'],
-    poly: [
-      [50, 230], [60, 145], [240, 138], [445, 132], [580, 115],
-      [615, 175], [625, 235], [605, 290], [555, 300], [495, 300],
-      [445, 320], [442, 380], [200, 380], [175, 345], [115, 330], [55, 295],
-    ],
-  },
-  cordillera: {
-    name: 'Cordillera', continent: 'namerica',
-    label: { x: 280, y: 490 },
-    neighbors: ['northern_reach', 'atlantic_shore', 'amazonia'],
-    poly: [
-      [55, 295], [115, 330], [175, 345], [200, 380],
-      [340, 380], [340, 540],
-      [380, 580], [425, 595],
-      [400, 615], [320, 600], [200, 600], [125, 595], [55, 580],
-    ],
-  },
-  atlantic_shore: {
-    name: 'Atlantic Shore', continent: 'namerica',
-    label: { x: 415, y: 460 },
-    neighbors: ['northern_reach', 'cordillera', 'europa', 'amazonia'],
-    poly: [
-      [340, 380], [442, 380],
-      [475, 410], [495, 460], [490, 510],
-      [470, 540], [445, 565], [425, 595], [380, 580], [340, 540],
-    ],
-  },
+  // ===== NORTH AMERICA (9, +5) =====
+  alaska:        { name: 'Alaska',                continent: 'namerica', label: { x: 220,  y: 215 }, r: 56, neighbors: ['nwt', 'alberta', 'kamchatka'] },
+  nwt:           { name: 'Northwest Territory',   continent: 'namerica', label: { x: 360,  y: 220 }, r: 64, neighbors: ['alaska', 'alberta', 'ontario', 'greenland'] },
+  greenland:     { name: 'Greenland',             continent: 'namerica', label: { x: 590,  y: 130 }, r: 70, neighbors: ['nwt', 'ontario', 'quebec', 'iceland'] },
+  alberta:       { name: 'Alberta',               continent: 'namerica', label: { x: 355,  y: 295 }, r: 42, neighbors: ['alaska', 'nwt', 'ontario', 'western_us'] },
+  ontario:       { name: 'Ontario',               continent: 'namerica', label: { x: 430,  y: 295 }, r: 42, neighbors: ['nwt', 'alberta', 'greenland', 'quebec', 'western_us', 'eastern_us'] },
+  quebec:        { name: 'Quebec',                continent: 'namerica', label: { x: 510,  y: 290 }, r: 42, neighbors: ['greenland', 'ontario', 'eastern_us'] },
+  western_us:    { name: 'Western United States', continent: 'namerica', label: { x: 355,  y: 355 }, r: 46, neighbors: ['alberta', 'ontario', 'eastern_us', 'cent_am'] },
+  eastern_us:    { name: 'Eastern United States', continent: 'namerica', label: { x: 460,  y: 370 }, r: 50, neighbors: ['western_us', 'ontario', 'quebec', 'cent_am'] },
+  cent_am:       { name: 'Central America',       continent: 'namerica', label: { x: 375,  y: 425 }, r: 38, neighbors: ['western_us', 'eastern_us', 'venezuela'] },
 
-  // ===== EURASIA (4, +3) =====
-  britannia: {
-    name: 'Britannia', continent: 'eurasia',
-    label: { x: 778, y: 332 },
-    neighbors: ['northern_reach', 'europa'],
-    poly: [
-      [740, 290], [760, 275], [800, 275], [820, 295],
-      [822, 335], [810, 375], [780, 388], [752, 378], [738, 340],
-    ],
-  },
-  europa: {
-    name: 'Europa', continent: 'eurasia',
-    label: { x: 1100, y: 270 },
-    neighbors: ['britannia', 'atlantic_shore', 'persia', 'cathay', 'north_africa'],
-    poly: [
-      [830, 195], [880, 175], [955, 162], [1080, 158],
-      [1300, 150], [1450, 155],
-      [1450, 348], [1380, 360], [1280, 358], [1200, 355], [1100, 378],
-      [1030, 410], [990, 438],
-      [930, 448], [855, 452], [785, 442],
-      [770, 405], [770, 378],
-      [762, 350], [800, 290], [810, 235], [820, 200],
-    ],
-  },
-  persia: {
-    name: 'Persia', continent: 'eurasia',
-    label: { x: 1075, y: 500 },
-    neighbors: ['europa', 'cathay', 'north_africa', 'equatorial'],
-    poly: [
-      [990, 438], [1030, 410], [1100, 378],
-      [1170, 410], [1195, 455], [1180, 500], [1170, 545],
-      [1145, 580], [1090, 575], [1040, 558], [990, 530], [968, 478],
-    ],
-  },
-  cathay: {
-    name: 'Cathay', continent: 'eurasia',
-    label: { x: 1290, y: 460 },
-    neighbors: ['europa', 'persia', 'australia'],
-    poly: [
-      [1100, 378], [1200, 355], [1280, 358], [1380, 360], [1450, 348],
-      [1450, 460], [1410, 490], [1395, 530], [1340, 580],
-      [1250, 610], [1190, 590], [1180, 540], [1180, 500],
-      [1195, 455], [1170, 410],
-    ],
-  },
+  // ===== SOUTH AMERICA (4, +2) =====
+  venezuela:     { name: 'Venezuela', continent: 'samerica', label: { x: 500, y: 520 }, r: 44, neighbors: ['cent_am', 'brazil', 'peru'] },
+  brazil:        { name: 'Brazil',    continent: 'samerica', label: { x: 575, y: 580 }, r: 56, neighbors: ['venezuela', 'peru', 'argentina', 'north_africa'] },
+  peru:          { name: 'Peru',      continent: 'samerica', label: { x: 520, y: 625 }, r: 46, neighbors: ['venezuela', 'brazil', 'argentina'] },
+  argentina:     { name: 'Argentina', continent: 'samerica', label: { x: 530, y: 710 }, r: 48, neighbors: ['peru', 'brazil'] },
 
-  // ===== AFRICA (3, +2) =====
-  north_africa: {
-    name: 'North Africa', continent: 'africa',
-    label: { x: 870, y: 525 },
-    neighbors: ['europa', 'persia', 'equatorial', 'amazonia'],
-    poly: [
-      [770, 458], [785, 442], [855, 452], [930, 448], [990, 438], [968, 478],
-      [990, 530], [1010, 555], [980, 580],
-      [920, 615], [855, 625],
-      [820, 620], [790, 595], [768, 558], [762, 510],
-    ],
-  },
-  equatorial: {
-    name: 'Equatorial', continent: 'africa',
-    label: { x: 905, y: 680 },
-    neighbors: ['north_africa', 'persia', 'cape'],
-    poly: [
-      [820, 620], [855, 625], [920, 615], [980, 580], [1010, 555],
-      [1015, 605], [1010, 660], [998, 700],
-      [970, 720], [945, 740], [905, 745],
-      [855, 735], [822, 705], [808, 670], [815, 640],
-    ],
-  },
-  cape: {
-    name: 'Cape', continent: 'africa',
-    label: { x: 935, y: 800 },
-    neighbors: ['equatorial'],
-    poly: [
-      [855, 735], [905, 745], [945, 740], [970, 720], [998, 700],
-      [1005, 760], [1000, 815], [970, 850],
-      [930, 862], [895, 850],
-      [870, 815], [870, 780], [858, 760],
-    ],
-  },
+  // ===== EUROPE (7, +5) =====
+  iceland:         { name: 'Iceland',         continent: 'europe', label: { x: 693, y: 214 }, r: 30, neighbors: ['greenland', 'scandinavia', 'great_britain'] },
+  scandinavia:     { name: 'Scandinavia',     continent: 'europe', label: { x: 834, y: 219 }, r: 48, neighbors: ['iceland', 'great_britain', 'northern_europe', 'ukraine'] },
+  great_britain:   { name: 'Great Britain',   continent: 'europe', label: { x: 752, y: 285 }, r: 36, neighbors: ['iceland', 'scandinavia', 'northern_europe', 'western_europe'] },
+  northern_europe: { name: 'Northern Europe', continent: 'europe', label: { x: 815, y: 285 }, r: 36, neighbors: ['great_britain', 'scandinavia', 'ukraine', 'southern_europe', 'western_europe'] },
+  western_europe:  { name: 'Western Europe',  continent: 'europe', label: { x: 770, y: 339 }, r: 38, neighbors: ['great_britain', 'northern_europe', 'southern_europe', 'north_africa'] },
+  southern_europe: { name: 'Southern Europe', continent: 'europe', label: { x: 843, y: 364 }, r: 36, neighbors: ['western_europe', 'northern_europe', 'ukraine', 'egypt', 'north_africa', 'middle_east'] },
+  ukraine:         { name: 'Ukraine',         continent: 'europe', label: { x: 910, y: 244 }, r: 58, neighbors: ['scandinavia', 'northern_europe', 'southern_europe', 'ural', 'afghanistan', 'middle_east'] },
 
-  // ===== ANTIPODES — South America + Australia (3, +2) =====
-  amazonia: {
-    name: 'Amazonia', continent: 'antipodes',
-    label: { x: 530, y: 660 },
-    neighbors: ['cordillera', 'atlantic_shore', 'patagonia', 'north_africa'],
-    poly: [
-      [430, 580], [475, 555], [530, 575], [575, 605], [615, 650],
-      [625, 700], [605, 740],
-      [555, 760], [510, 760], [480, 745],
-      [455, 710], [438, 670], [428, 625],
-    ],
-  },
-  patagonia: {
-    name: 'Patagonia', continent: 'antipodes',
-    label: { x: 525, y: 830 },
-    neighbors: ['amazonia', 'australia'],
-    poly: [
-      [480, 745], [510, 760], [555, 760], [605, 740],
-      [585, 800], [560, 855],
-      [525, 895], [488, 905], [460, 880],
-      [453, 830], [462, 790],
-    ],
-  },
-  australia: {
-    name: 'Australia', continent: 'antipodes',
-    label: { x: 1310, y: 740 },
-    neighbors: ['cathay', 'patagonia'],
-    poly: [
-      [1180, 645], [1240, 615], [1330, 625], [1410, 660], [1432, 705],
-      [1432, 795], [1395, 830],
-      [1340, 845], [1280, 848], [1230, 825],
-      [1200, 790], [1180, 740], [1175, 690],
-    ],
-  },
+  // ===== AFRICA (6, +3) =====
+  north_africa: { name: 'North Africa', continent: 'africa', label: { x: 772, y: 456 }, r: 60, neighbors: ['brazil', 'western_europe', 'southern_europe', 'egypt', 'east_africa', 'congo'] },
+  egypt:        { name: 'Egypt',        continent: 'africa', label: { x: 849, y: 434 }, r: 38, neighbors: ['southern_europe', 'middle_east', 'north_africa', 'east_africa'] },
+  east_africa:  { name: 'East Africa',  continent: 'africa', label: { x: 903, y: 505 }, r: 46, neighbors: ['egypt', 'north_africa', 'middle_east', 'congo', 'south_africa', 'madagascar'] },
+  congo:        { name: 'Congo',        continent: 'africa', label: { x: 839, y: 548 }, r: 38, neighbors: ['north_africa', 'east_africa', 'south_africa'] },
+  south_africa: { name: 'South Africa', continent: 'africa', label: { x: 865, y: 624 }, r: 44, neighbors: ['congo', 'east_africa', 'madagascar'] },
+  madagascar:   { name: 'Madagascar',   continent: 'africa', label: { x: 936, y: 601 }, r: 30, neighbors: ['east_africa', 'south_africa'] },
+
+  // ===== ASIA (12, +7) =====
+  ural:        { name: 'Ural',        continent: 'asia', label: { x: 1018, y: 227 }, r: 44, neighbors: ['ukraine', 'siberia', 'china', 'afghanistan'] },
+  siberia:     { name: 'Siberia',     continent: 'asia', label: { x: 1124, y: 184 }, r: 50, neighbors: ['ural', 'yakutsk', 'irkutsk', 'mongolia', 'china'] },
+  yakutsk:     { name: 'Yakutsk',     continent: 'asia', label: { x: 1251, y: 218 }, r: 42, neighbors: ['siberia', 'kamchatka', 'irkutsk'] },
+  kamchatka:   { name: 'Kamchatka',   continent: 'asia', label: { x: 1337, y: 239 }, r: 54, neighbors: ['yakutsk', 'irkutsk', 'mongolia', 'japan', 'alaska'] },
+  irkutsk:     { name: 'Irkutsk',     continent: 'asia', label: { x: 1216, y: 257 }, r: 40, neighbors: ['siberia', 'yakutsk', 'kamchatka', 'mongolia'] },
+  mongolia:    { name: 'Mongolia',    continent: 'asia', label: { x: 1190, y: 350 }, r: 46, neighbors: ['siberia', 'irkutsk', 'kamchatka', 'japan', 'china'] },
+  japan:       { name: 'Japan',       continent: 'asia', label: { x: 1305, y: 370 }, r: 32, neighbors: ['mongolia', 'kamchatka'] },
+  afghanistan: { name: 'Afghanistan', continent: 'asia', label: { x: 1027, y: 360 }, r: 44, neighbors: ['ukraine', 'ural', 'china', 'india', 'middle_east'] },
+  china:       { name: 'China',       continent: 'asia', label: { x: 1176, y: 415 }, r: 50, neighbors: ['mongolia', 'siberia', 'ural', 'afghanistan', 'india', 'siam'] },
+  middle_east: { name: 'Middle East', continent: 'asia', label: { x: 933,  y: 427 }, r: 48, neighbors: ['southern_europe', 'ukraine', 'afghanistan', 'india', 'east_africa', 'egypt'] },
+  india:       { name: 'India',       continent: 'asia', label: { x: 1058, y: 459 }, r: 44, neighbors: ['afghanistan', 'china', 'middle_east', 'siam'] },
+  siam:        { name: 'Siam',        continent: 'asia', label: { x: 1146, y: 480 }, r: 38, neighbors: ['china', 'india', 'indonesia'] },
+
+  // ===== AUSTRALIA (4, +2) =====
+  indonesia:         { name: 'Indonesia',         continent: 'australia', label: { x: 1171, y: 540 }, r: 36, neighbors: ['siam', 'new_guinea', 'western_australia'] },
+  new_guinea:        { name: 'New Guinea',        continent: 'australia', label: { x: 1370, y: 565 }, r: 36, neighbors: ['indonesia', 'western_australia', 'eastern_australia'] },
+  western_australia: { name: 'Western Australia', continent: 'australia', label: { x: 1238, y: 630 }, r: 48, neighbors: ['indonesia', 'new_guinea', 'eastern_australia'] },
+  eastern_australia: { name: 'Eastern Australia', continent: 'australia', label: { x: 1298, y: 640 }, r: 48, neighbors: ['western_australia', 'new_guinea'] },
 };
 
-// Build a straight-segment closed polygon path. Sharp inked corners read like
-// antique territory borders; smoothing would make the boundary feel unstable.
-export function polyPath(points) {
-  if (!points || points.length < 3) return '';
-  let d = `M ${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`;
-  for (let i = 1; i < points.length; i++) {
-    d += ` L ${points[i][0].toFixed(1)} ${points[i][1].toFixed(1)}`;
-  }
-  return `${d} Z`;
-}
-
-for (const g of Object.values(TERRITORIES)) g.path = polyPath(g.poly);
-
-// Italic ocean annotations — engraved over empty water.
-export const SEA_LABELS = [
-  { x: 670,  y: 470, text: 'Mare Atlanticum',  size: 18, tracking: 0.16, rot: 0  },
-  { x: 1465, y: 530, text: 'Mare ad Orientis', size: 16, tracking: 0.18, rot: 90 },
-];
-
-// Internal LAND seams between sibling territories. These are the only
-// boundaries we ink — coastlines are already drawn by the engraving itself.
-// Each seam is rendered once and lit up when either side is selected.
-export const LAND_SEAMS = [
-  // North America
-  { between: ['northern_reach', 'cordillera'],     path: [[200, 380], [270, 382], [340, 380]] },
-  { between: ['northern_reach', 'atlantic_shore'], path: [[340, 380], [395, 382], [442, 380]] },
-  { between: ['cordillera', 'atlantic_shore'],     path: [[340, 380], [340, 440], [345, 490]] },
-  // Eurasia
-  { between: ['europa', 'cathay'],   path: [[1450, 348], [1380, 360], [1280, 358], [1200, 355], [1100, 378]] },
-  { between: ['europa', 'persia'],   path: [[1100, 378], [1030, 410], [990, 438]] },
-  { between: ['persia', 'cathay'],   path: [[1100, 378], [1170, 410], [1195, 455], [1180, 500], [1170, 545]] },
-  { between: ['persia', 'north_africa'], path: [[990, 438], [968, 478], [990, 530]] },
-  // Africa
-  { between: ['north_africa', 'equatorial'], path: [[1010, 555], [980, 580], [920, 615], [855, 625], [820, 620]] },
-  { between: ['equatorial', 'cape'],         path: [[998, 700], [970, 720], [945, 740], [905, 745], [855, 735]] },
-  // Antipodes
-  { between: ['amazonia', 'patagonia'], path: [[480, 745], [510, 760], [555, 760], [605, 740]] },
-];
+// Continent legend overlays — flat colored strips drawn on top of the
+// printed "ARMIES OF RISK" key in the lower-left of the map. The
+// rectangles match the printed bar layout pixel-for-pixel so the
+// overlay paints cleanly over them.
+export const LEGEND_LAYOUT = {
+  samerica:  { x: 56,  y: 632, w: 171, h: 22 },
+  europe:    { x: 236, y: 632, w: 170, h: 22 },
+  namerica:  { x: 56,  y: 655, w: 171, h: 22 },
+  asia:      { x: 236, y: 655, w: 170, h: 22 },
+  africa:    { x: 56,  y: 677, w: 171, h: 22 },
+  australia: { x: 236, y: 677, w: 170, h: 22 },
+};

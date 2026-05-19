@@ -11,10 +11,10 @@ test('builds setup state with even-ish split and 1 army each', () => {
   });
   assert.equal(s.phase, 'setup');
   assert.equal(s.currentPlayer, 0);
-  assert.equal(Object.keys(s.territories).length, 13);
+  assert.equal(Object.keys(s.territories).length, 42);
   const owned0 = Object.values(s.territories).filter(t => t.owner === 0).length;
   const owned1 = Object.values(s.territories).filter(t => t.owner === 1).length;
-  assert.equal(owned0 + owned1, 13);
+  assert.equal(owned0 + owned1, 42);
   assert.ok(Math.abs(owned0 - owned1) <= 1, `uneven split ${owned0}/${owned1}`);
   assert.ok(Object.values(s.territories).every(t => t.armies === 1));
   assert.deepEqual(s.setupPools, [SETUP_ARMIES, SETUP_ARMIES]);
