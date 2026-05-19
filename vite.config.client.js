@@ -34,6 +34,7 @@ export default defineConfig({
       fileName: () => "app.js",
     },
     rollupOptions: {
+      external: ["/shared/cards/card-element.js"],
       output: { codeSplitting: false },
     },
   },
