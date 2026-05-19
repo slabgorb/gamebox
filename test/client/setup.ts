@@ -1,6 +1,28 @@
 // test/client/setup.ts
 import "@testing-library/jest-dom/vitest";
 
+// Ensure localStorage works properly in jsdom environment.
+const store: Record<string, string> = {};
+(globalThis as any).localStorage = {
+  getItem: (key: string) => store[key] || null,
+  setItem: (key: string, value: string) => {
+    store[key] = value;
+  },
+  removeItem: (key: string) => {
+    delete store[key];
+  },
+  clear: () => {
+    for (const key in store) delete store[key];
+  },
+  key: (index: number) => {
+    const keys = Object.keys(store);
+    return keys[index] || null;
+  },
+  get length() {
+    return Object.keys(store).length;
+  },
+};
+
 // jsdom does not ship an EventSource — provide a tiny test-only stub.
 // Tests grab the most-recent instance via __lastEventSource and call
 // instance._emit(name, data) to dispatch synthetic SSE events.
