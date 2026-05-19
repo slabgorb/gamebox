@@ -136,3 +136,26 @@ body { margin: 0; background: #2b2417; }
   border: 1px solid var(--ink); border-radius: .3rem; color: var(--brass);
   text-decoration: none; }
 #risk-root .end-lobby:hover { border-color: var(--brass); }
+
+/* Opponent persona card — shared CSS pins .opp-card to bottom-right of the
+   viewport. In Risk the bottom edge holds the action bar / history log, so
+   lift the card to the top-right instead. Scoped to #risk-root so cribbage
+   keeps its original positioning. */
+#risk-root .opp-card {
+  top: 16px;
+  right: 12px;
+  bottom: auto;
+}
+
+/* Narrow viewports: drop the card into normal block flow under the continent
+   rail so it doesn't crowd Asia/Australia territory pins on mobile. */
+@media (max-width: 959px) {
+  #risk-root .opp-card {
+    position: static;
+    top: auto;
+    right: auto;
+    width: 100%;
+    max-width: 280px;
+    margin: 0.5rem auto;
+  }
+}
