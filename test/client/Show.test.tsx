@@ -40,8 +40,9 @@ describe("Show", () => {
     );
     const cards = container.querySelectorAll(".breakdown-card");
     expect(cards.length).toBe(3);
-    expect(cards[0].querySelector("h3")!.textContent).toContain("— 8");
-    expect(cards[2].querySelector("h3")!.textContent).toContain("Crib — 2");
+    expect(cards[0].querySelector(".bd__total")!.textContent).toBe("8");
+    expect(cards[2].querySelector(".bd__who")!.textContent).toContain("Crib");
+    expect(cards[2].querySelector(".bd__total")!.textContent).toBe("2");
   });
 
   it("Continue button fires onAcknowledge when not acknowledged", () => {
@@ -98,7 +99,7 @@ describe("Show", () => {
   });
 
   it("at match-end with skunk shows the skunk wording", () => {
-    const { getByText } = render(
+    render(
       <Show
         breakdown={BREAKDOWN}
         isDealer={false}
@@ -110,7 +111,8 @@ describe("Show", () => {
         onAcknowledge={() => {}}
       />,
     );
-    expect(getByText(/Game! You skunked them, 121 to 88\./)).not.toBeNull();
+    const head = document.querySelector(".show__head")!;
+    expect(head.textContent).toBe("Game! You skunked them, 121 to 88.");
   });
 
   it("at match-end at exactly 91 loser score is NOT a skunk", () => {

@@ -11,9 +11,12 @@ import { Pegging, isPlayable } from "../../src/clients/cribbage/Pegging";
 const PEG_BASE = { running: 12, history: [{ rank: "5" as const, suit: "H" as const, id: 1 }], lastTrick: null };
 
 describe("Pegging", () => {
-  it("renders the running total", () => {
-    const { getByText } = render(<Pegging pegging={PEG_BASE} />);
-    expect(getByText(/Running: 12/)).not.toBeNull();
+  it("renders the running total in the totem", () => {
+    const { container } = render(<Pegging pegging={PEG_BASE} />);
+    const totem = container.querySelector(".pegging__totem");
+    expect(totem).not.toBeNull();
+    expect(totem!.querySelector(".pegging__label")!.textContent).toBe("Running");
+    expect(totem!.querySelector(".pegging__running")!.textContent).toBe("12");
   });
 
   it("renders history cards in order", () => {

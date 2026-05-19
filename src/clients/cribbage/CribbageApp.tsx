@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { useGameState } from "../shared/useGameState";
-import { GameChrome } from "../shared/GameChrome";
 import { OpponentCard } from "../shared/OpponentCard";
 import { OpponentBanter } from "../shared/OpponentBanter";
 import { PegBoard } from "./PegBoard";
@@ -13,32 +12,60 @@ import type {
   CribbageAction,
   Card as CardType,
 } from "../shared/contracts/cribbage";
-import { play, playForScore, primeAudio } from "./sounds";
+import { play, playForScore, primeAudio, isMuted, toggleMuted } from "./sounds";
 
-function bannerText(view: CribbageView, mySide: 0 | 1, myUserId: number): string {
-  const myTurn = view.activeUserId === myUserId;
-  const isDealer = mySide === view.dealer;
-  switch (view.phase) {
+const THEME_KEY = "cribbage.tableTheme";
+type TableTheme = "baize" | "walnut" | "noir";
+const THEMES: ReadonlyArray<TableTheme> = ["baize", "walnut", "noir"];
+function readStoredTheme(): TableTheme {
+  if (typeof localStorage === "undefined") return "baize";
+  const v = localStorage.getItem(THEME_KEY) as TableTheme | null;
+  return v && THEMES.includes(v) ? v : "baize";
+}
+
+function PhaseEyebrow({
+  phase,
+  running,
+  myTurn,
+  isDealer,
+}: {
+  phase: CribbageView["phase"];
+  running: number;
+  myTurn: boolean;
+  isDealer: boolean;
+}) {
+  switch (phase) {
     case "discard":
-      return `Discard 2 to ${isDealer ? "your" : "your opponent's"} crib`;
+      return (
+        <div className="phase-eyebrow">
+          <span>
+            Discard 2 to <em>{isDealer ? "your" : "their"}</em> crib.
+          </span>
+        </div>
+      );
     case "cut":
-      return isDealer ? "Waiting for opponent to cut…" : "Cut the deck";
+      return (
+        <div className="phase-eyebrow">
+          {isDealer ? <em>Waiting for the cut…</em> : <span>Cut the deck.</span>}
+        </div>
+      );
     case "pegging":
-      return myTurn
-        ? `Your play — running ${view.pegging?.running ?? 0}`
-        : `Opponent's play — running ${view.pegging?.running ?? 0}`;
+      return (
+        <div className="phase-eyebrow">
+          <span>{myTurn ? "Your play." : "Their play."}</span>
+          <span className="phase-eyebrow__count">
+            Running <em style={{ marginLeft: 6 }}>{running}</em> / 31
+          </span>
+        </div>
+      );
     case "show":
-      return "Hand counts";
-    case "match-end": {
-      const me = view.scores[mySide];
-      const opp = view.scores[1 - mySide];
-      const won = view.winnerSide === (mySide === 0 ? "a" : "b");
-      const skunked = (won ? opp : me) < 91;
-      const margin = skunked ? " — skunk!" : "";
-      return won
-        ? `You won the match, ${me} to ${opp}${margin}`
-        : `Opponent won the match, ${opp} to ${me}${margin}`;
-    }
+      return (
+        <div className="phase-eyebrow">
+          <em>"Pegs forward — let's count 'em."</em>
+        </div>
+      );
+    default:
+      return null;
   }
 }
 
@@ -48,12 +75,10 @@ export function applyTransition(
   myUserId: number,
 ): void {
   if (!prev) return;
-  // Activated turn boundary: not-my-turn → my-turn at pegging phase
   const wasMine = prev.activeUserId === myUserId;
   const isMine = next.activeUserId === myUserId;
   if (!wasMine && isMine && next.phase === "pegging") play("your-turn");
 
-  // Match end transition
   if (prev.phase !== "match-end" && next.phase === "match-end") {
     const mySide = next.sides.a === myUserId ? 0 : 1;
     const won = next.winnerSide === (mySide === 0 ? "a" : "b");
@@ -64,7 +89,6 @@ export function applyTransition(
     }
   }
 
-  // Score motion → tiered cheer (avoid double-up with match-end)
   for (const side of [0, 1] as const) {
     const delta = (next.scores?.[side] ?? 0) - (prev.scores?.[side] ?? 0);
     if (delta > 0 && next.phase !== "match-end") {
@@ -80,6 +104,36 @@ export function formatDealSummary(
   oppName: string,
 ): string {
   return `Deal ${prev.dealNumber} → ${next.dealNumber}. ${myName} ${prev.scores[0]}, ${oppName} ${prev.scores[1]}.`;
+}
+
+function SkunkPlate({
+  won,
+  scoresMe,
+  scoresOpp,
+}: {
+  won: boolean;
+  scoresMe: number;
+  scoresOpp: number;
+}) {
+  return (
+    <div className="skunk-plate" id="skunk-banner">
+      <div className="skunk-plate__eyebrow">
+        {won ? "Skunk delivered" : "Skunk taken"}
+      </div>
+      <div className="skunk-plate__title">SKUNKED</div>
+      <div className="skunk-plate__sub">
+        {won ? (
+          <>
+            You finished {scoresMe} to {scoresOpp}. <em>Cruel, that.</em>
+          </>
+        ) : (
+          <>
+            Final: {scoresOpp} to {scoresMe}. <em>Stings, doesn't it.</em>
+          </>
+        )}
+      </div>
+    </div>
+  );
 }
 
 export function CribbageApp() {
@@ -128,14 +182,39 @@ export function CribbageApp() {
     return () => document.removeEventListener("click", handler);
   }, []);
 
+  const [theme, setTheme] = useState<TableTheme>(readStoredTheme);
+  const [muted, setMuted] = useState<boolean>(() => isMuted());
+
+  useEffect(() => {
+    const classes = THEMES.map((t) => `table-${t}`);
+    document.body.classList.remove(...classes);
+    document.body.classList.add(`table-${theme}`);
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(THEME_KEY, theme);
+    }
+    return () => {
+      document.body.classList.remove(`table-${theme}`);
+    };
+  }, [theme]);
+
+  function onToggleMute() {
+    const next = toggleMuted();
+    setMuted(next);
+    if (!next) play("click");
+  }
+
   if (!view) return <div className="banner">Loading…</div>;
 
   const myUserId = ctx.userId;
   const mySide: 0 | 1 = view.sides.a === myUserId ? 0 : 1;
   const oppSide: 0 | 1 = (1 - mySide) as 0 | 1;
   const isMatchEnd = view.phase === "match-end";
+  const myTurn = view.activeUserId === myUserId;
+  const isDealer = mySide === view.dealer;
 
-  const myHand = Array.isArray(view.hands[mySide]) ? (view.hands[mySide] as CardType[]) : [];
+  const myHand = Array.isArray(view.hands[mySide])
+    ? (view.hands[mySide] as CardType[])
+    : [];
   const oppCount = !Array.isArray(view.hands[oppSide])
     ? (view.hands[oppSide] as { count: number }).count
     : (view.hands[oppSide] as CardType[]).length;
@@ -155,117 +234,216 @@ export function CribbageApp() {
     await post({ type: "next" });
   }
 
-  const opponent = (
-    <OpponentCard
-      personaId={ctx.opponentPersonaId ?? null}
-      friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
-      color={ctx.opponentColor}
-      glyph={ctx.opponentGlyph}
-    >
-      <OpponentBanter
-        gameId={ctx.gameId}
-        userId={ctx.userId}
-        sseUrl={ctx.sseUrl}
-        friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
-      />
-    </OpponentCard>
-  );
-
   const mySubmittedDiscard =
     view.phase === "discard" && view.pendingDiscards[mySide] != null;
-  const showDiscardButton =
-    view.phase === "discard" && !mySubmittedDiscard;
+  const showDiscardButton = view.phase === "discard" && !mySubmittedDiscard;
   const showCutButton = view.phase === "cut" && mySide !== view.dealer;
 
+  const skunkLoserScore = isMatchEnd
+    ? view.winnerSide === (mySide === 0 ? "a" : "b")
+      ? view.scores[oppSide]
+      : view.scores[mySide]
+    : 121;
+  const showSkunk = isMatchEnd && skunkLoserScore < 91;
+  const wonMatch = view.winnerSide === (mySide === 0 ? "a" : "b");
+
+  const myLabel = (ctx.yourFriendlyName ?? "You").split(" ")[0];
+  const opponentLabel = (ctx.opponentFriendlyName ?? "Opp").split(" ")[0];
+
+  const activeSide: 0 | 1 | null =
+    view.activeUserId == null
+      ? null
+      : view.activeUserId === myUserId
+        ? mySide
+        : oppSide;
+
   return (
-    <GameChrome
-      title="Cribbage"
-      status={
-        <span>
-          {bannerText(view, mySide, myUserId)}
-          {showDiscardButton && (
+    <main className="cribbage" data-screen-label={`Cribbage · ${view.phase}`}>
+      <header className="gb-header game-chrome__header">
+        <span className="gb-screws gb-screws--l" />
+        <span className="gb-screws gb-screws--r" />
+        <div className="gb-header__inner">
+          <a
+            href="/"
+            className="gb-back"
+            aria-label="Back to cabinet"
+          >
+            ← Cabinet
+          </a>
+          <h1 className="gb-plate game-chrome__title">Cribbage</h1>
+          <div className="gb-controls">
+            <label className="gb-theme">
+              <span className="gb-theme__label">Table</span>
+              <select
+                className="gb-theme__select"
+                value={theme}
+                onChange={(e) => setTheme(e.target.value as TableTheme)}
+                aria-label="Table backdrop"
+              >
+                <option value="baize">Baize</option>
+                <option value="walnut">Walnut</option>
+                <option value="noir">Noir</option>
+              </select>
+            </label>
             <button
               type="button"
-              className="btn-discard"
-              disabled={pendingDiscard.length !== 2}
-              onClick={onDiscard}
+              id="btn-mute"
+              className="gb-mute"
+              aria-label={muted ? "Unmute sounds" : "Mute sounds"}
+              aria-pressed={muted}
+              onClick={onToggleMute}
             >
-              Send to crib
+              {muted ? "🔇" : "🔊"}
             </button>
-          )}
-          {showCutButton && (
-            <button type="button" className="btn-cut" onClick={onCut}>
-              Cut
-            </button>
-          )}
-        </span>
-      }
-      controls={opponent}
-    >
-      {toast && <div className="cribbage-toast">{toast}</div>}
-      {isMatchEnd && view.scores[oppSide] < 91 && (
-        <div id="skunk-banner" className="skunk-banner">
-          Skunked!
+          </div>
         </div>
-      )}
-      <PegBoard
-        scores={view.scores}
-        prevScores={view.prevScores}
-        matchTarget={view.matchTarget}
-        myColor={ctx.yourColor ?? "#3b82f6"}
-        opponentColor={ctx.opponentColor ?? "#f59e0b"}
-        mySide={mySide}
-      />
+      </header>
 
-      <section className="hand-row hand-row--opp">
-        <Hand mode="opponent" cards={null} count={oppCount} />
-      </section>
-
-      <section className="table">
-        <div className="slot slot--starter">
-          {view.starter ? <CardImg card={view.starter} /> : null}
+      <div className="cribbage__layout">
+        <div className="peg-board-wrap">
+          <PegBoard
+            scores={view.scores}
+            prevScores={view.prevScores}
+            matchTarget={view.matchTarget}
+            myColor={ctx.yourColor ?? "#3b82f6"}
+            opponentColor={ctx.opponentColor ?? "#f59e0b"}
+            mySide={mySide}
+            activeSide={activeSide}
+            myLabel={myLabel}
+            opponentLabel={opponentLabel}
+          />
         </div>
-        {view.pegging && (view.phase === "pegging" || view.phase === "show") && (
+
+        <section className="opp-row hand-row hand-row--opp">
+          <div className="opp-row__hand">
+            <Hand mode="opponent" cards={null} count={oppCount} />
+          </div>
+          <OpponentCard
+            personaId={ctx.opponentPersonaId ?? null}
+            friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
+            color={ctx.opponentColor}
+            glyph={ctx.opponentGlyph}
+          >
+            <OpponentBanter
+              gameId={ctx.gameId}
+              userId={ctx.userId}
+              sseUrl={ctx.sseUrl}
+              friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
+            />
+          </OpponentCard>
+        </section>
+
+        {view.phase === "pegging" && view.pegging && (
           <div className="pegging-strip">
-            <Pegging pegging={view.pegging} />
+            <Pegging pegging={view.pegging} starter={view.starter} />
           </div>
         )}
-      </section>
 
-      <section className="hand-row hand-row--me">
-        {view.phase === "discard" && !mySubmittedDiscard && (
-          <Hand mode="discard" cards={myHand} onSelectionChange={setPendingDiscard} />
+        {view.phase !== "pegging" && !isMatchEnd && (
+          <div className="table table-row">
+            <div className="slot">
+              <div className="slot__label">Crib</div>
+              {view.phase === "discard" && mySubmittedDiscard ? (
+                <div className="crib-stack">
+                  <CardImg card={{}} faceDown />
+                  <CardImg card={{}} faceDown />
+                </div>
+              ) : (
+                <div className="slot__placeholder">crib</div>
+              )}
+            </div>
+            <div className="slot slot--starter">
+              <div className="slot__label">Starter</div>
+              {view.starter ? (
+                <CardImg card={view.starter} className="is-starter" />
+              ) : (
+                <div className="slot__placeholder">cut</div>
+              )}
+            </div>
+          </div>
         )}
-        {view.phase === "discard" && mySubmittedDiscard && (
-          <Hand mode="view" cards={myHand} />
-        )}
-        {view.phase === "cut" && <Hand mode="view" cards={myHand} />}
-        {view.phase === "pegging" && view.pegging && (
-          <Hand
-            mode="pegging"
-            cards={myHand}
-            pegging={view.pegging}
-            isMyTurn={view.activeUserId === myUserId}
-            onPlay={onPlay}
-          />
-        )}
-        {(view.phase === "show" || isMatchEnd) && <Hand mode="view" cards={myHand} />}
-      </section>
 
-      {(view.phase === "show" || isMatchEnd) && view.showBreakdown && (
-        <div className="show-overlay">
-          <Show
-            breakdown={view.showBreakdown}
-            isDealer={mySide === view.dealer}
-            isMatchEnd={isMatchEnd}
-            myAcknowledged={view.acknowledged[mySide]}
-            scoresMe={view.scores[mySide]}
-            scoresOpp={view.scores[oppSide]}
-            wonMatch={view.winnerSide === (mySide === 0 ? "a" : "b")}
-            onAcknowledge={onAcknowledge}
+        <section className="hand-row hand-row--me">
+          <PhaseEyebrow
+            phase={view.phase}
+            running={view.pegging?.running ?? 0}
+            myTurn={myTurn}
+            isDealer={isDealer}
           />
-        </div>
+          <div className="hand hand--flat">
+            {view.phase === "discard" && !mySubmittedDiscard && (
+              <Hand
+                mode="discard"
+                cards={myHand}
+                onSelectionChange={setPendingDiscard}
+              />
+            )}
+            {view.phase === "discard" && mySubmittedDiscard && (
+              <Hand mode="view" cards={myHand} />
+            )}
+            {view.phase === "cut" && <Hand mode="view" cards={myHand} />}
+            {view.phase === "pegging" && view.pegging && (
+              <Hand
+                mode="pegging"
+                cards={myHand}
+                pegging={view.pegging}
+                isMyTurn={myTurn}
+                onPlay={onPlay}
+              />
+            )}
+            {(view.phase === "show" || isMatchEnd) && (
+              <Hand mode="view" cards={myHand} />
+            )}
+          </div>
+          {(showDiscardButton || showCutButton) && (
+            <div className="phase-action">
+              {showDiscardButton && (
+                <button
+                  type="button"
+                  className="phase-action__btn btn-discard"
+                  disabled={pendingDiscard.length !== 2}
+                  onClick={onDiscard}
+                >
+                  Send to crib
+                </button>
+              )}
+              {showCutButton && (
+                <button
+                  type="button"
+                  className="phase-action__btn btn-cut"
+                  onClick={onCut}
+                >
+                  Cut the deck
+                </button>
+              )}
+            </div>
+          )}
+        </section>
+
+        {(view.phase === "show" || isMatchEnd) && view.showBreakdown && (
+          <div className="show-overlay">
+            <Show
+              breakdown={view.showBreakdown}
+              isDealer={isDealer}
+              isMatchEnd={isMatchEnd}
+              myAcknowledged={view.acknowledged[mySide]}
+              scoresMe={view.scores[mySide]}
+              scoresOpp={view.scores[oppSide]}
+              wonMatch={wonMatch}
+              onAcknowledge={onAcknowledge}
+            />
+          </div>
+        )}
+      </div>
+
+      {toast && <div className="cribbage-toast">{toast}</div>}
+      {showSkunk && (
+        <SkunkPlate
+          won={wonMatch}
+          scoresMe={view.scores[mySide]}
+          scoresOpp={view.scores[oppSide]}
+        />
       )}
-    </GameChrome>
+    </main>
   );
 }

@@ -1,5 +1,8 @@
-// Verbatim geometry port of plugins/cribbage/client/peg-board.js.
-// Standard 121-hole cribbage board, two pegs per player.
+// Cribbage peg board. Standard 121-hole horizontal layout, two pegs per
+// player. The trailing peg crawls hole-by-hole past the front peg whenever
+// the score increases — same physical motion as the real game.
+
+import { useEffect, useRef, useState } from "react";
 
 const HOLES_PER_GROUP = 5;
 const GROUPS_PER_ROW = 12;
@@ -12,6 +15,7 @@ const PLAYER_GAP_PX = 14;
 const SIDE_PAD_PX = 18;
 const PEG_PX = 13;
 const SKUNK_AT = 91;
+const MATCH_TARGET = 121;
 
 function holeXOffsetWithinRow(holeIndex: number) {
   const groupIdx = Math.floor(holeIndex / HOLES_PER_GROUP);
@@ -39,7 +43,7 @@ function pegPosition(score: number, playerLaneTop: number) {
   if (score <= 0) {
     return { x: SIDE_PAD_PX - HOLE_PX - HOLE_GAP_PX, y: outerY };
   }
-  if (score >= 121) {
+  if (score >= MATCH_TARGET) {
     return {
       x: SIDE_PAD_PX + rowWidth() + HOLE_GAP_PX + HOLE_PX,
       y: (outerY + innerY) / 2,
@@ -66,6 +70,49 @@ function totalHeight() {
 }
 function totalWidth() {
   return SIDE_PAD_PX * 2 + rowWidth() + HOLE_PX * 2 + HOLE_GAP_PX;
+}
+
+// usePegPair owns the two physical pegs for one player.
+// On a score increase, only the back peg moves: it crawls hole-by-hole past
+// the stationary front peg and lands at the new score. The old front then
+// becomes the new back.
+function usePegPair(score: number, speedMs = 60) {
+  const [pair, setPair] = useState(() => ({
+    back: Math.max(0, score - 4),
+    front: score,
+  }));
+  const lastScoreRef = useRef(score);
+
+  useEffect(() => {
+    if (score === lastScoreRef.current) return;
+    const oldFront = lastScoreRef.current;
+    const newFront = score;
+    lastScoreRef.current = score;
+
+    let cur = Math.min(pair.back, oldFront);
+    setPair({ back: cur, front: oldFront });
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    function step() {
+      if (cancelled) return;
+      cur += 1;
+      if (cur >= newFront) {
+        setPair({ back: oldFront, front: newFront });
+        return;
+      }
+      setPair({ back: cur, front: oldFront });
+      timers.push(setTimeout(step, speedMs));
+    }
+    timers.push(setTimeout(step, speedMs));
+    return () => {
+      cancelled = true;
+      timers.forEach((t) => clearTimeout(t));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [score]);
+
+  return pair;
 }
 
 function HoleRow({ yTop }: { yTop: number }) {
@@ -151,6 +198,25 @@ function Peg({
   );
 }
 
+interface ChipProps {
+  label: string;
+  score: number;
+  color: string;
+  active: boolean;
+}
+function PegChip({ label, score, color, active }: ChipProps) {
+  return (
+    <span
+      className={`peg-chip ${active ? "is-active" : ""}`}
+      style={{ ["--peg-color" as string]: color }}
+    >
+      <i className="peg-chip__dot" />
+      <span className="peg-chip__label">{label}</span>
+      <span className="peg-chip__num">{score}</span>
+    </span>
+  );
+}
+
 interface Props {
   scores: [number, number];
   prevScores: [number, number];
@@ -158,15 +224,20 @@ interface Props {
   myColor: string;
   opponentColor: string;
   mySide: 0 | 1;
+  activeSide?: 0 | 1 | null;
+  myLabel?: string;
+  opponentLabel?: string;
 }
 
 export function PegBoard({
   scores,
-  prevScores,
   matchTarget,
   myColor,
   opponentColor,
   mySide,
+  activeSide = null,
+  myLabel = "You",
+  opponentLabel = "Opp",
 }: Props) {
   const w = totalWidth();
   const h = totalHeight();
@@ -174,33 +245,60 @@ export function PegBoard({
     0: mySide === 0 ? myColor : opponentColor,
     1: mySide === 1 ? myColor : opponentColor,
   };
+  const labelBySide: Record<0 | 1, string> = {
+    0: mySide === 0 ? myLabel : opponentLabel,
+    1: mySide === 1 ? myLabel : opponentLabel,
+  };
   const topPlayer = mySide;
   const bottomPlayer = (1 - mySide) as 0 | 1;
 
+  const pairBySide: Record<0 | 1, ReturnType<typeof usePegPair>> = {
+    0: usePegPair(scores[0]),
+    1: usePegPair(scores[1]),
+  };
+
   return (
-    <svg
-      viewBox={`0 0 ${w} ${h}`}
-      className="peg-board-svg"
-      role="img"
-      aria-label={`Cribbage peg board. Score ${scores[0]} to ${scores[1]} of ${matchTarget}.`}
-    >
-      <Lane laneTop={laneTopForPlayer(0)} />
-      <Lane laneTop={laneTopForPlayer(1)} />
-      <GameHole laneTop={0} />
-      {[
-        [0, topPlayer] as const,
-        [1, bottomPlayer] as const,
-      ].map(([laneIdx, side]) => {
-        const laneTop = laneTopForPlayer(laneIdx);
-        const back = pegPosition(prevScores[side], laneTop);
-        const front = pegPosition(scores[side], laneTop);
-        return (
-          <g key={laneIdx}>
-            <Peg x={back.x} y={back.y} color={colorBySide[side]} kind="back" />
-            <Peg x={front.x} y={front.y} color={colorBySide[side]} kind="front" />
-          </g>
-        );
-      })}
-    </svg>
+    <div className="peg-board">
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        className="peg-board-svg"
+        role="img"
+        aria-label={`Cribbage peg board. Score ${scores[0]} to ${scores[1]} of ${matchTarget}.`}
+      >
+        <Lane laneTop={laneTopForPlayer(0)} />
+        <Lane laneTop={laneTopForPlayer(1)} />
+        <GameHole laneTop={0} />
+        {[
+          [0, topPlayer] as const,
+          [1, bottomPlayer] as const,
+        ].map(([laneIdx, side]) => {
+          const laneTop = laneTopForPlayer(laneIdx);
+          const pair = pairBySide[side];
+          const back = pegPosition(pair.back, laneTop);
+          const front = pegPosition(pair.front, laneTop);
+          return (
+            <g key={laneIdx}>
+              <Peg x={back.x} y={back.y} color={colorBySide[side]} kind="back" />
+              <Peg x={front.x} y={front.y} color={colorBySide[side]} kind="front" />
+            </g>
+          );
+        })}
+      </svg>
+      <div className="peg-board__meta">
+        <PegChip
+          label={labelBySide[mySide]}
+          score={scores[mySide]}
+          color={colorBySide[mySide]}
+          active={activeSide === mySide}
+        />
+        <span className="peg-chip peg-chip--target">to {matchTarget}</span>
+        <PegChip
+          label={labelBySide[(1 - mySide) as 0 | 1]}
+          score={scores[(1 - mySide) as 0 | 1]}
+          color={colorBySide[(1 - mySide) as 0 | 1]}
+          active={activeSide === ((1 - mySide) as 0 | 1)}
+        />
+      </div>
+    </div>
   );
 }

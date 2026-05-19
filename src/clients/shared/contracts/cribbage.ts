@@ -23,6 +23,8 @@ export interface PeggingState {
 export interface BreakdownItem {
   say: string;
   cards: Card[];
+  points?: number;
+  kind?: string;
 }
 
 export interface BreakdownGroup {
