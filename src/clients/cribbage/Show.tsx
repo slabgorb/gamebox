@@ -51,7 +51,7 @@ export function Show({
   const ndLabel = isDealer ? "Opponent (non-dealer)" : "You (non-dealer)";
   const dLabel = isDealer ? "You (dealer)" : "Opponent (dealer)";
   const loserScore = wonMatch ? scoresOpp : scoresMe;
-  const skunked = isMatchEnd && loserScore > 75;
+  const skunked = isMatchEnd && loserScore < 91;
   return (
     <div className="show-wrap">
       {isMatchEnd && (

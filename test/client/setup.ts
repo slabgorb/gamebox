@@ -1,10 +1,13 @@
 // test/client/setup.ts
 import "@testing-library/jest-dom/vitest";
+import { beforeEach } from "vitest";
 
-// Ensure localStorage works properly in jsdom environment.
+// jsdom in this environment ships a broken localStorage (no methods). Until
+// the underlying jsdom config can be fixed, provide a minimal in-memory stub
+// and reset it between tests so state cannot leak across files.
 const store: Record<string, string> = {};
-(globalThis as any).localStorage = {
-  getItem: (key: string) => store[key] || null,
+(globalThis as unknown as { localStorage: Storage }).localStorage = {
+  getItem: (key: string) => (key in store ? store[key] : null),
   setItem: (key: string, value: string) => {
     store[key] = value;
   },
@@ -12,16 +15,17 @@ const store: Record<string, string> = {};
     delete store[key];
   },
   clear: () => {
-    for (const key in store) delete store[key];
+    for (const key of Object.keys(store)) delete store[key];
   },
-  key: (index: number) => {
-    const keys = Object.keys(store);
-    return keys[index] || null;
-  },
+  key: (index: number) => Object.keys(store)[index] ?? null,
   get length() {
     return Object.keys(store).length;
   },
 };
+
+beforeEach(() => {
+  for (const key of Object.keys(store)) delete store[key];
+});
 
 // jsdom does not ship an EventSource — provide a tiny test-only stub.
 // Tests grab the most-recent instance via __lastEventSource and call

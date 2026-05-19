@@ -79,7 +79,6 @@ export function formatDealSummary(
   myName: string,
   oppName: string,
 ): string {
-  void next;
   return `Deal ${prev.dealNumber} → ${next.dealNumber}. ${myName} ${prev.scores[0]}, ${oppName} ${prev.scores[1]}.`;
 }
 
@@ -89,6 +88,7 @@ export function CribbageApp() {
   const [toast, setToast] = useState<string | null>(null);
 
   const prevViewRef = useRef<CribbageView | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!view) return;
@@ -106,10 +106,21 @@ export function CribbageApp() {
         ctx.opponentFriendlyName ?? "Opponent",
       );
       setToast(summary);
-      setTimeout(() => setToast(null), 4500);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
+        setToast(null);
+        toastTimerRef.current = null;
+      }, 4500);
     }
     prevViewRef.current = view;
   });
+
+  useEffect(
+    () => () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const handler = () => primeAudio();

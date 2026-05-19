@@ -1,6 +1,6 @@
 // test/client/CribbageApp.test.tsx
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, act, fireEvent } from "@testing-library/react";
+import { render, act, fireEvent, waitFor } from "@testing-library/react";
 
 vi.mock("../../src/clients/shared/card-assets", () => ({
   cardImageUrl: (c: { suit: string; rank: string }) => `/cards/${c.suit}-${c.rank}.jpg`,
@@ -109,8 +109,11 @@ describe("CribbageApp skeleton", () => {
 describe("CribbageApp action posting", () => {
   it("Send-to-crib POSTs { type: 'discard', payload: { cards } }", async () => {
     const { container } = render(<CribbageApp />);
-    await new Promise((r) => setTimeout(r, 0));
-    const handCards = container.querySelectorAll(".hand-row--me img.card");
+    const handCards = await waitFor(() => {
+      const cards = container.querySelectorAll(".hand-row--me img.card");
+      if (cards.length < 2) throw new Error("hand not rendered yet");
+      return cards;
+    });
     fireEvent.click(handCards[0]);
     fireEvent.click(handCards[1]);
     const btn = container.querySelector("button.btn-discard") as HTMLButtonElement;
@@ -142,8 +145,11 @@ describe("CribbageApp action posting", () => {
       return new Response(null, { status: 200 });
     });
     const { container } = render(<CribbageApp />);
-    await new Promise((r) => setTimeout(r, 0));
-    const btn = container.querySelector("button.btn-cut") as HTMLButtonElement;
+    const btn = await waitFor(() => {
+      const el = container.querySelector("button.btn-cut") as HTMLButtonElement | null;
+      if (!el) throw new Error("btn-cut not rendered yet");
+      return el;
+    });
     await act(async () => {
       btn.click();
     });

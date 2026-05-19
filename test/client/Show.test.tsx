@@ -87,12 +87,12 @@ describe("Show", () => {
         isMatchEnd
         myAcknowledged={false}
         scoresMe={121}
-        scoresOpp={75}
+        scoresOpp={100}
         wonMatch
         onAcknowledge={() => {}}
       />,
     );
-    expect(getByText(/Game! You won, 121 to 75\./)).not.toBeNull();
+    expect(getByText(/Game! You won, 121 to 100\./)).not.toBeNull();
     const link = container.querySelector("a.show-lobby-btn") as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe("/");
   });
@@ -111,5 +111,21 @@ describe("Show", () => {
       />,
     );
     expect(getByText(/Game! You skunked them, 121 to 88\./)).not.toBeNull();
+  });
+
+  it("at match-end at exactly 91 loser score is NOT a skunk", () => {
+    const { getByText } = render(
+      <Show
+        breakdown={BREAKDOWN}
+        isDealer={false}
+        isMatchEnd
+        myAcknowledged={false}
+        scoresMe={121}
+        scoresOpp={91}
+        wonMatch
+        onAcknowledge={() => {}}
+      />,
+    );
+    expect(getByText(/Game! You won, 121 to 91\./)).not.toBeNull();
   });
 });
