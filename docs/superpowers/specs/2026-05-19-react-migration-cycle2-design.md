@@ -116,6 +116,8 @@ Risk's existing `<ExitControls>` + `<EndScreen>` are **not** retrofitted into `<
 
 Stateless. Inputs: `suit`, `rank`, optional `faceDown`. Resolves to `/shared/cards/<id>.svg` (the existing asset path). No drag/flip behaviour — those are game-specific overlays that consumers add.
 
+**Note (Architect):** The actual asset path is `/shared/cards/assets/<suitname>-<rank>.jpg` (joker: `joker-<color>.jpg`; back: `back_<n>.png`). Prior art is `public/shared/cards/card-element.js` which already exports `cardImageUrl(card)` and `backImageUrl(n)` as pure URL builders. The React port MUST consume those builders (re-export from a thin TS shim) rather than re-encode the path scheme — one source of truth for asset paths during the multi-cycle transition. See §10.
+
 ---
 
 ## 6. Out of Scope (Cycle 2)
@@ -159,3 +161,70 @@ Suggested phase structure (analogous to Cycle 1 but smaller):
 - **Phase 4:** Build, swap index.html, delete vanilla modules, full regression + parity.
 
 No Phase 3-equivalent server work (no Amendment-A in this cycle).
+
+---
+
+## 10. Architect Review (2026-05-19, Naomi Nagata, design mode)
+
+The math doesn't lie. I read the spec against the actual code in `plugins/cribbage/client/`, `public/shared/opponent-card.js`, and `public/shared/cards/card-element.js`. Six findings; three correct decisions endorsed, three gaps require the Cycle-2 plan author to revise before writing tasks.
+
+### 10.1 Endorsed (no change)
+
+- **R1 (game pick — cribbage).** The "small game, low-stakes breakage, exercises shared-layer gaps" argument holds. Caveat (§3.1 is misleading): cribbage is the smallest by *file count* (6 modules) but buraco is smaller by *line count* (305 LOC vs cribbage's 725). The peg-board (189 LOC) is cribbage's bulk. I still endorse cribbage — the peg-board is bounded, scoring-only, and has no AI/UX cross-cutting risk. Buraco's table/melds surface is structurally more ambitious AND it is Sonia's game (project memory: Brazilian rules, higher cost of regression). Take the larger LOC; pay it on the safer game. Acknowledge the LOC discrepancy in §3.1 to keep the audit honest.
+- **R2 (no `contracts/base.ts`).** Correct. Two examples (Risk, cribbage) is not enough to abstract. Revisit after Cycle 3 when there are three.
+- **R3 (server untouched).** Verified: cribbage `app.js` uses `ctx.stateUrl`, `ctx.actionUrl`, `ctx.sseUrl` — exactly what `useGameState` already speaks. No protocol amendment needed. The "no Amendment-A in this cycle" claim is correct.
+
+### 10.2 Spec gaps requiring revision
+
+- **R4 — `<OpponentCard>` surface is drastically understated (§5.1).** The vanilla module is not "name + portrait + score + status." It owns: (a) speech-bubble queue with 5s timers and SSE `banter` events; (b) thinking-dots animation tied to `bot_thinking`/`update` events; (c) stall banner with Retry/Abandon buttons that POST to `/api/games/${gameId}/ai/{retry,abandon}`; (d) trash-talk chat form that POSTs `/api/games/${gameId}/chat`; (e) own-message bubble flash on SSE `user_chat`. That is **219 LOC across five distinct event sources and three POST endpoints** — it is a feature, not a primitive.
+
+  **Decision:** Do not collapse this into one `<OpponentCard>` with a fat prop API. Decompose into:
+  - `<OpponentCard>` — pure presentational shell (portrait, name, score, is-active). Renders children for overlays.
+  - `<OpponentBanter>` — SSE-driven bubble + thinking + stall + chat. Lives next to the card or as a child. Wraps the existing `useGameState` SSE source rather than opening a second `EventSource`.
+
+  This is correct decomposition by *change axis*: visual layout (R5.1) changes independently from AI-conversation state (R4 surface). The cycle-2 spec must rewrite §5.1 with the decomposition before the plan author starts. Without this, the plan will either ship a 400-LOC mega-component or rediscover the split mid-implementation.
+
+- **R5 — `<Card>` must wrap, not reimplement, `card-element.js` (§5.3).** The path scheme is `/shared/cards/assets/<suitname>-<rank>.jpg`, not `/shared/cards/<id>.svg`. The existing `cardImageUrl()` / `backImageUrl()` are pure URL builders with no DOM dependency — the React port re-exports them through a thin `src/clients/shared/card-assets.ts` shim and `<Card>` consumes them. Path edits then have a single point of truth across cycles 2/3/5/6. I have inline-patched §5.3 with this note already.
+
+- **R6 — CSS bundling decision is unstated and matters (§8 lists it as a risk but does not decide).** `opponent-card.css` is 174 LOC and uses a flat `.opp-card__*` BEM namespace with no collision risk. Two viable strategies:
+  - **(a) CSS module imported by `OpponentCard.tsx`** — Vite emits a hashed file adjacent to `app.js`; rename classes via the module's keyed export. **Cost:** every BEM selector must be re-keyed; styles are scoped (good) but cascade order against the existing `style.css` for the game becomes implicit.
+  - **(b) Plain CSS imported as side-effect (`import './OpponentCard.css'`)** — Vite emits it adjacent and links it in the bundle's CSS chunk; class names stay verbatim. **Cost:** no scoping (acceptable given the BEM namespace); cascade order is "after the plugin's own `style.css`" because the JS bundle loads after the `<link>` tag in `index.html`.
+
+  **Decision (Architect):** Plan (b). The BEM namespace already provides isolation; the win from (a) is theoretical and the cost is real (every selector edited). Match what `<dice-tray>` did — its CSS lives inside the prebuilt scene; the React wrapper does not re-style. Apply this same "lift the existing CSS into the component as a side-effect import" rule to `OpponentCard.css` and (when reached) `card-element.css`. Document this decision in the Cycle-2 plan's Task 1.1 step.
+
+### 10.3 New architectural concern not captured by the spec
+
+- **R7 — Transition detection / sound effects.** `plugins/cribbage/client/app.js` line 18 does `applyTransition(prevState, incoming)` — sound effects fire when scores change, when a hand is dealt, etc. The pattern reads `prevState` against `state`. `useGameState` does **not** expose `prevState`. Two options:
+  - Add `prevState` to `useGameState`'s return shape (small `useRef` change; affects every consumer).
+  - Cribbage components compute their own `prevState` via `useRef` inside `CribbageApp`.
+
+  **Decision (Architect):** Local `useRef` inside `CribbageApp` for Cycle 2. Do not modify `useGameState` to surface `prevState` until a second game (Cycle 3) demonstrates the same need — that's the threshold for shared infra. Same reuse-first principle as the contracts question.
+
+### 10.4 Implications for the Cycle-2 plan
+
+The plan author (whoever writes the task-by-task plan from this spec) must:
+
+1. Rewrite §5.1 of this spec — or replace it in the plan — with the `<OpponentCard>` + `<OpponentBanter>` split before drafting Phase-1 tasks. Add `<OpponentBanter>` to the file structure in §4 and to the AC list in §7. Add `src/clients/shared/card-assets.ts` to §4.
+2. Treat the CSS strategy (side-effect import, no CSS modules) as a non-negotiable Phase-1 task convention.
+3. Add a Phase-3 task for `prevState` ref inside `CribbageApp` with a test that drives the score-change sound path.
+4. Increase the Phase-1 scope estimate: `<OpponentBanter>` plus `<OpponentCard>` shell plus chat-form POST integration is closer to two Risk-sized components than one. Phase 1 is bigger than the spec implies.
+
+### 10.5 Architect-mode out-of-scope (for the record)
+
+- I did **not** evaluate whether `useGameState`'s SSE subscription handles `bot_thinking`/`banter`/`bot_stalled`/`user_chat` events. The Cycle-1 implementation may have hard-coded `update` as the only event consumed. If so, `<OpponentBanter>` either subscribes alongside (second `EventSource`) or `useGameState` grows a general `onEvent(name, handler)` API. **This is the Phase-1 Task 0 the plan author must investigate first.** It could be a no-op (already handled) or it could be the cycle's biggest piece of work.
+
+### 10.6 Decision summary
+
+| ID | Decision | Authority |
+|----|----------|-----------|
+| R1 | Cribbage is Cycle 2 (acknowledge LOC discrepancy in §3.1) | Confirmed |
+| R2 | No `contracts/base.ts` until ≥3 examples | Confirmed |
+| R3 | Server untouched in Cycle 2 | Confirmed |
+| R4 | Decompose `<OpponentCard>` into shell + `<OpponentBanter>` | New — spec §5.1 must be revised |
+| R5 | `<Card>` wraps `cardImageUrl/backImageUrl` from existing module | New — §5.3 inline-noted |
+| R6 | Side-effect CSS import; no CSS modules | New — Phase-1 convention |
+| R7 | Local `prevState` ref in `CribbageApp`; do not modify shared hook yet | New — Phase-3 task |
+
+**Carry forward to Cycle 3 (buraco):** if `<OpponentBanter>` works cleanly on cribbage, it ports verbatim. The "is the SSE event surface general enough" question (R7-style) recurs every cycle — keep an event-coverage table in each cycle's plan self-review.
+
+The math is sound. Get the Phase-1 SSE-event audit done first; the rest follows.
