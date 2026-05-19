@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "active": "/pf-dev",
+  "active": "/superpowers:subagent-driven-development",
   "bindings": {
     "/pf-dev": {
       "theme": "the-expanse",
@@ -13,6 +13,14 @@
     "/superpowers:subagent-driven-development": {
       "theme": "the-expanse",
       "character": "naomi-nagata"
+    },
+    "/superpowers:brainstorming": {
+      "theme": "sherlock-holmes",
+      "character": "sherlock-holmes"
+    },
+    "/superpowers:writing-plans": {
+      "theme": "sherlock-holmes",
+      "character": "sherlock-holmes"
     }
   }
 }
