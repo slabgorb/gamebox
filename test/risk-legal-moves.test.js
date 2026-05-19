@@ -1,21 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { enumerateLegalMoves } from '../plugins/risk/server/ai/legal-moves.js';
+import { allTerritories } from '../plugins/risk/server/map.js';
 
-// northern_reach (you, 6) is adjacent to atlantic_shore (enemy) -> an attack
-// exists; northern_reach<->cordillera (both yours) -> a fortify exists.
+// alaska (you, 6) is adjacent to alberta (enemy) -> an attack exists;
+// alaska<->nwt (both yours) -> a fortify exists.
 function st(phase, extra = {}) {
+  const territories = {};
+  for (const id of allTerritories()) {
+    if (id === 'alaska') territories[id] = { owner: 0, armies: 6 };
+    else if (id === 'nwt') territories[id] = { owner: 0, armies: 1 };
+    else if (id === 'alberta') territories[id] = { owner: 1, armies: 2 };
+    else territories[id] = { owner: 1, armies: 1 };
+  }
   return {
-    phase, currentPlayer: 0,
-    territories: {
-      northern_reach: { owner: 0, armies: 6 }, cordillera: { owner: 0, armies: 1 },
-      atlantic_shore: { owner: 1, armies: 2 }, britannia: { owner: 1, armies: 1 },
-      europa: { owner: 1, armies: 1 }, persia: { owner: 1, armies: 1 },
-      cathay: { owner: 1, armies: 1 }, north_africa: { owner: 1, armies: 1 },
-      equatorial: { owner: 1, armies: 1 }, cape: { owner: 1, armies: 1 },
-      amazonia: { owner: 1, armies: 1 }, patagonia: { owner: 1, armies: 1 },
-      australia: { owner: 1, armies: 1 },
-    },
+    phase, currentPlayer: 0, territories,
     reinforcePool: 4, setupPools: [4, 4], fortifyUsed: false,
     sides: { a: 7, b: 8 }, ...extra,
   };

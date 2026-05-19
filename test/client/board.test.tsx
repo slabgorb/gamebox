@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
-import { buildBoardHTML } from "../../src/clients/risk/board-svg";
 import { Board } from "../../src/clients/risk/Board";
 import { TERRITORIES } from "../../src/clients/risk/map-geometry.js";
 
@@ -13,27 +12,23 @@ const view = {
   ),
 } as any;
 
-describe("board-svg", () => {
-  it("builds an SVG containing a hit path for every territory", () => {
-    const html = buildBoardHTML(view, {
-      selected: null,
-      plan: {},
-      to: null,
-    });
-    expect(html).toContain("risk-map");
-    expect(html).toContain(`data-pick="${anyId}"`);
-  });
-});
-
 describe("Board", () => {
-  it("clicking a territory hit target calls onPick with its id", () => {
+  it("renders an SVG with a hit hotspot for every territory", () => {
+    const { container } = render(
+      <Board view={view} onPick={() => {}} selected={null} plan={{}} to={null} />,
+    );
+    expect(container.querySelector("svg.risk-map")).not.toBeNull();
+    for (const id of Object.keys(TERRITORIES)) {
+      expect(container.querySelector(`[data-pick="${id}"]`)).not.toBeNull();
+    }
+  });
+
+  it("clicking a hit hotspot calls onPick with its id", () => {
     const onPick = vi.fn();
     const { container } = render(
       <Board view={view} onPick={onPick} selected={null} plan={{}} to={null} />,
     );
-    const hit = container.querySelector(
-      `[data-pick="${anyId}"]`,
-    ) as HTMLElement;
+    const hit = container.querySelector(`[data-pick="${anyId}"]`) as SVGElement;
     hit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onPick).toHaveBeenCalledWith(anyId);
   });

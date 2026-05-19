@@ -1,15 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyRiskAction } from '../plugins/risk/server/actions.js';
+import { allTerritories } from '../plugins/risk/server/map.js';
 
-const ALL = ['northern_reach', 'cordillera', 'atlantic_shore', 'britannia', 'europa',
-  'persia', 'cathay', 'north_africa', 'equatorial', 'cape', 'amazonia', 'patagonia', 'australia'];
-
+// alaska and nwt are both owned by player 0 and adjacent — a legal fortify
+// edge. alaska is NOT adjacent to indonesia, so that's a legal "non-adjacent"
+// counter-example.
 function fortifyState() {
   const territories = {};
-  for (const id of ALL) {
-    if (id === 'northern_reach') territories[id] = { owner: 0, armies: 5 };
-    else if (id === 'cordillera') territories[id] = { owner: 0, armies: 1 };
+  for (const id of allTerritories()) {
+    if (id === 'alaska') territories[id] = { owner: 0, armies: 5 };
+    else if (id === 'nwt') territories[id] = { owner: 0, armies: 1 };
     else territories[id] = { owner: 1, armies: 1 };
   }
   return {
@@ -23,11 +24,11 @@ function fortifyState() {
 test('fortify moves armies between adjacent owned territories and ends the turn', () => {
   const r = applyRiskAction({
     state: fortifyState(), actorId: 7,
-    action: { type: 'fortify', payload: { from: 'northern_reach', to: 'cordillera', count: 3 } },
+    action: { type: 'fortify', payload: { from: 'alaska', to: 'nwt', count: 3 } },
   });
   assert.equal(r.error, undefined);
-  assert.equal(r.state.territories.northern_reach.armies, 2);
-  assert.equal(r.state.territories.cordillera.armies, 4);
+  assert.equal(r.state.territories.alaska.armies, 2);
+  assert.equal(r.state.territories.nwt.armies, 4);
   assert.equal(r.state.phase, 'reinforce'); // turn passed
   assert.equal(r.state.currentPlayer, 1);
   assert.equal(r.state.activeUserId, 8);
@@ -45,7 +46,7 @@ test('end-turn skips fortify and passes the turn', () => {
 test('illegal fortify (non-adjacent) is rejected', () => {
   const r = applyRiskAction({
     state: fortifyState(), actorId: 7,
-    action: { type: 'fortify', payload: { from: 'northern_reach', to: 'persia', count: 1 } },
+    action: { type: 'fortify', payload: { from: 'alaska', to: 'indonesia', count: 1 } },
   });
   assert.match(r.error, /adjacent|owned/);
 });
