@@ -18,11 +18,15 @@ interface StallState {
   displayName: string;
 }
 
-export function OpponentBanter({ gameId, userId: _userId, sseUrl, friendlyName }: Props) {
+export function OpponentBanter({ gameId, userId, sseUrl, friendlyName }: Props) {
   const [bubble, setBubble] = useState<BubbleState | null>(null);
   const [stall, setStall] = useState<StallState | null>(null);
+  const [chatSubmitting, setChatSubmitting] = useState(false);
+  const [myFlash, setMyFlash] = useState<string | null>(null);
   const queueRef = useRef<string[]>([]);
   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const myFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   function clearHideTimer() {
     if (hideTimerRef.current) {
@@ -69,21 +73,35 @@ export function OpponentBanter({ gameId, userId: _userId, sseUrl, friendlyName }
     const onUpdate = () => {
       setBubble((b) => (b?.thinking ? null : b));
     };
+    const onUserChat = (ev: Event) => {
+      const data = JSON.parse((ev as MessageEvent).data ?? "{}");
+      if (data.userId !== userId) return;
+      if (!data.text) return;
+      setMyFlash(data.text);
+      if (myFlashTimerRef.current) clearTimeout(myFlashTimerRef.current);
+      myFlashTimerRef.current = setTimeout(() => {
+        setMyFlash(null);
+        myFlashTimerRef.current = null;
+      }, 4000);
+    };
 
     es.addEventListener("banter", onBanter);
     es.addEventListener("bot_thinking", onThinking);
     es.addEventListener("bot_stalled", onStalled);
     es.addEventListener("update", onUpdate);
+    es.addEventListener("user_chat", onUserChat);
 
     return () => {
       es.removeEventListener("banter", onBanter);
       es.removeEventListener("bot_thinking", onThinking);
       es.removeEventListener("bot_stalled", onStalled);
       es.removeEventListener("update", onUpdate);
+      es.removeEventListener("user_chat", onUserChat);
       es.close();
       clearHideTimer();
+      if (myFlashTimerRef.current) clearTimeout(myFlashTimerRef.current);
     };
-  }, [sseUrl, friendlyName]);
+  }, [sseUrl, friendlyName, userId]);
 
   async function onRetry() {
     try {
@@ -117,6 +135,30 @@ export function OpponentBanter({ gameId, userId: _userId, sseUrl, friendlyName }
     }
   }
 
+  async function onChatSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const text = (inputRef.current?.value ?? "").trim();
+    if (!text) return;
+    if (inputRef.current) inputRef.current.value = "";
+    setChatSubmitting(true);
+    try {
+      const r = await fetch(`/api/games/${gameId}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!r.ok) {
+        const detail =
+          (await r.json().catch(() => ({}))).error || String(r.status);
+        setMyFlash(`(failed: ${detail})`);
+        if (myFlashTimerRef.current) clearTimeout(myFlashTimerRef.current);
+        myFlashTimerRef.current = setTimeout(() => setMyFlash(null), 4000);
+      }
+    } finally {
+      setChatSubmitting(false);
+    }
+  }
+
   return (
     <>
       {bubble && (
@@ -144,6 +186,20 @@ export function OpponentBanter({ gameId, userId: _userId, sseUrl, friendlyName }
           </div>
         </div>
       )}
+      <form className="opp-card__chat" onSubmit={onChatSubmit}>
+        <input
+          ref={inputRef}
+          type="text"
+          maxLength={200}
+          placeholder="Talk smack…"
+          autoComplete="off"
+          disabled={chatSubmitting}
+        />
+        <button type="submit" hidden>
+          Submit
+        </button>
+      </form>
+      {myFlash && <div className="opp-card__my-bubble">{myFlash}</div>}
     </>
   );
 }

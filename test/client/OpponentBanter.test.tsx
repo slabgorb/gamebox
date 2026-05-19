@@ -132,3 +132,67 @@ describe("OpponentBanter — stall surface", () => {
     expect(window.location.reload).toHaveBeenCalled();
   });
 });
+
+describe("OpponentBanter — trash talk", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 200 })),
+    );
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    __lastEventSource.set(null);
+  });
+
+  it("renders a chat form with input and submit button", () => {
+    const { container } = render(
+      <OpponentBanter gameId={9} userId={42} sseUrl="/sse/g/9" friendlyName="Amos" />,
+    );
+    expect(container.querySelector("form.opp-card__chat")).not.toBeNull();
+    expect(
+      container.querySelector("form.opp-card__chat input[type=text]"),
+    ).not.toBeNull();
+  });
+
+  it("submit POSTs to /api/games/:id/chat with the typed text", async () => {
+    const { container } = render(
+      <OpponentBanter gameId={9} userId={42} sseUrl="/sse/g/9" friendlyName="Amos" />,
+    );
+    const form = container.querySelector("form.opp-card__chat") as HTMLFormElement;
+    const input = form.querySelector("input") as HTMLInputElement;
+    await act(async () => {
+      input.value = "git gud";
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/games/9/chat",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "git gud" }),
+      }),
+    );
+  });
+
+  it("flashes my-bubble when user_chat arrives with my userId", () => {
+    const { container } = render(
+      <OpponentBanter gameId={9} userId={42} sseUrl="/sse/g/9" friendlyName="Amos" />,
+    );
+    act(() => emit("user_chat", { userId: 42, text: "hi" }));
+    const flash = container.querySelector(".opp-card__my-bubble");
+    expect(flash).not.toBeNull();
+    expect(flash!.textContent).toBe("hi");
+  });
+
+  it("ignores user_chat for other users", () => {
+    const { container } = render(
+      <OpponentBanter gameId={9} userId={42} sseUrl="/sse/g/9" friendlyName="Amos" />,
+    );
+    act(() => emit("user_chat", { userId: 99, text: "not me" }));
+    expect(container.querySelector(".opp-card__my-bubble")).toBeNull();
+  });
+});
