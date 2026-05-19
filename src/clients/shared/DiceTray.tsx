@@ -22,15 +22,21 @@ interface Props {
 // Synthesized throw params: a physical-looking auto-roll (no drag gesture).
 // position/velocity/angular are cosmetic; the settled value is whatever the
 // physics yields — Risk posts those values to the server (spec Amendment A).
+//
+// Bounds discipline: the tray ceiling collider's bottom face is at y=1.0, so
+// the spawn y MUST stay below ~0.85 (die half-edge ~0.21) or dice initialise
+// embedded in the ceiling and Rapier ejects them out of the tray — looks
+// exactly like "dice falling through". Values mirror dice-lib's
+// buildDefaultThrowParams (the proven user-drag fallback).
 function autoThrowParams() {
   const rand = (a: number, b: number) => a + Math.random() * (b - a);
   return {
-    position: [rand(-0.3, 0.3), 1.2, rand(-0.3, 0.3)] as [
+    position: [0, 0.5, rand(-0.2, 0.2)] as [number, number, number],
+    linearVelocity: [rand(-2, 2), rand(2, 4), rand(-4, -2)] as [
       number,
       number,
       number,
     ],
-    linearVelocity: [rand(-2, 2), 1, rand(-6, -3)] as [number, number, number],
     angularVelocity: [rand(-12, 12), rand(-12, 12), rand(-12, 12)] as [
       number,
       number,
@@ -50,6 +56,7 @@ export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
 ) {
   const elRef = useRef<HTMLElement & {
     throw: (p: unknown) => void;
+    throwAll: (ps: unknown[]) => void;
     reset: () => void;
   }>(null);
 
@@ -76,7 +83,11 @@ export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
           el.addEventListener("dice-error", onError);
           el.setAttribute("dice", `${count}d6`);
           el.setAttribute("mode", "active");
-          for (let i = 0; i < count; i++) el.throw(autoThrowParams());
+          // Per-die params: identical kinematics across non-colliding dice
+          // settle to the same face (always-doubles bug). Submit as a batch
+          // so the scene applies throwParams[i] to PhysicsDie i.
+          const allParams = Array.from({ length: count }, () => autoThrowParams());
+          el.throwAll(allParams);
         });
       },
     }),
@@ -90,7 +101,11 @@ export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
       dice="1d6"
       mode="idle"
       data-color={themeColor}
-      style={{ width: "100%", minHeight: 200, ...style }}
+      // Custom elements default to `display: inline`, which ignores width/
+      // min-height — the bundle's 3D scene then collapses and dice render
+      // (and visually fall) out of frame. Force a sized block box. 240px
+      // matches the bundle's internal canvas minHeight.
+      style={{ display: "block", width: "100%", height: 240, ...style }}
     />
   );
 });
