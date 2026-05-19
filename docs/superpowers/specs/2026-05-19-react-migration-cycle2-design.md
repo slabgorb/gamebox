@@ -1,6 +1,7 @@
 # React Frontend Migration — Cycle 2 Design
 
-**Status:** Design (game selection + shared-layer gaps; pending implementation plan)
+**Status:** SUPERSEDED — see `2026-05-19-cribbage-react-port-design.md` for the final, brainstormed Cycle 2 design (incorporates the §10 Architect Review and the 2026-05-19 brainstorm decisions). This document is retained for audit history only.
+
 **Date:** 2026-05-19
 **Parent spec:** `docs/superpowers/specs/2026-05-18-react-frontend-migration-design.md`
 **Predecessor:** Cycle 1 plan `docs/superpowers/plans/2026-05-18-react-frontend-migration-cycle1.md` (Risk + shared foundation) + parity tail `docs/superpowers/plans/2026-05-19-cycle1-dicetray-parity-fixes.md`.

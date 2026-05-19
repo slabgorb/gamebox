@@ -32,8 +32,10 @@ export default defineConfig({
       entry: resolve(process.cwd(), `src/clients/${plugin}/main.tsx`),
       formats: ["es"],
       fileName: () => "app.js",
+      cssFileName: "app",
     },
     rollupOptions: {
+      external: ["/shared/cards/card-element.js"],
       output: { codeSplitting: false },
     },
   },
