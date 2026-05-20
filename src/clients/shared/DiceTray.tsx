@@ -10,12 +10,23 @@ export interface DiceTrayHandle {
   roll: (count: number) => Promise<number[]>;
 }
 
+/**
+ * Per-game tuning passed through to the underlying `<dice-tray>` element as a
+ * JSON-encoded `tuning` attribute. Shape is intentionally open: the lib
+ * decides which keys it recognizes (camera, jitter, trajectory, slide-final,
+ * tray geometry, …). Consumers spread `TRAY_DEFAULTS`/`DEFAULT_CAMERA`
+ * overrides into this object.
+ */
+export type DiceTuning = Record<string, unknown>;
+
 interface Props {
   /** Passed through as `data-color` for host-page CSS hooks only. The bundle's 3D
    *  dice theme is NOT driven by this; the element themes via its `theme` attribute
    *  (keys: "default" | "ivory" | "obsidian"). Color→theme mapping for attacker/
    *  defender tinting is a Task 4.7/5.4 concern, not handled here. */
   themeColor?: string;
+  /** Per-game tuner overrides (camera, jitter, trajectory, slide-final). */
+  tuning?: DiceTuning;
   style?: CSSProperties;
 }
 
@@ -51,9 +62,14 @@ function autoThrowParams() {
 }
 
 export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
-  { themeColor, style },
+  { themeColor, tuning, style },
   ref,
 ) {
+  // Serialize tuning to a JSON attribute so the lib's DiceTrayElement can
+  // observe it via attributeChangedCallback. Omit the prop → omit the
+  // attribute (don't paint an empty `tuning=""`).
+  const tuningAttr =
+    tuning !== undefined ? JSON.stringify(tuning) : undefined;
   const elRef = useRef<HTMLElement & {
     throw: (p: unknown) => void;
     throwAll: (ps: unknown[]) => void;
@@ -101,6 +117,7 @@ export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
       dice="1d6"
       mode="idle"
       data-color={themeColor}
+      tuning={tuningAttr}
       // Custom elements default to `display: inline`, which ignores width/
       // min-height — the bundle's 3D scene then collapses and dice render
       // (and visually fall) out of frame. Force a sized block box. 240px

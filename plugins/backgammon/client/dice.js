@@ -1,9 +1,19 @@
 // Render the dice area inside the board. Phase-driven:
 //   initial-roll, viewer not yet rolled  → <dice-tray dice="1d6" mode="active">
 //   pre-roll, viewer active              → <dice-tray dice="2d6" mode="active">
-//   moving                               → static pip-grid showing turn.dice.values
+//   moving                               → <dice-tray dice="Nd6" mode="idle">
+//                                          (fresh idle tray each update —
+//                                          replay animation deferred to
+//                                          follow-up; see CROSS-BUG-2)
 //   awaiting-double-response             → hidden (cube has the user's attention)
 //   anything else                        → empty
+//
+// The moving phase used to paint a static `.die-placeholder` pip row. That row
+// was the surface of the "AI-turn freeze on 2" bug — a stale single-die render
+// retained from the prior phase. Mounting a fresh idle <dice-tray> every
+// moving-phase update removes the stale-state surface without risking
+// malformed replay data (the AI rollers send throwParams: [], and the player
+// rollers send wire-format params that don't match the lib's replay schema).
 //
 // On dice-settle, calls onRoll({ values, throwParams }).
 
@@ -38,17 +48,41 @@ function staticDiceRow(values) {
   return wrap;
 }
 
-// Wraps the active <dice-tray> so we can attach listeners and forward roll events.
-function activeDiceTray({ count, themeKey, onRoll }) {
+// The bundled <dice-tray> renders its 3D scene with minHeight: 240 internally;
+// tray must be at least that tall or the scene gets cropped and the dice don't
+// paint until they're thrown. Width drives the throw surface area.
+const TRAY_WIDTH = '320px';
+const TRAY_HEIGHT = '260px';
+
+function makeDiceTray({ count, mode, themeKey }) {
   const tray = document.createElement('dice-tray');
   tray.setAttribute('dice', `${count}d6`);
-  tray.setAttribute('mode', 'active');
+  tray.setAttribute('mode', mode);
   tray.setAttribute('theme', themeKey);
-  // The bundled <dice-tray> renders its 3D scene with minHeight: 240 internally;
-  // tray must be at least that tall or the scene gets cropped and the dice
-  // don't paint until they're thrown. Width drives the throw surface area.
-  tray.style.width = '320px';
-  tray.style.height = '260px';
+  tray.style.width = TRAY_WIDTH;
+  tray.style.height = TRAY_HEIGHT;
+  return tray;
+}
+
+function replayDiceTray({ values, themeKey }) {
+  // Render N idle dice during the moving phase. We deliberately do NOT set
+  // the `replay` attribute: the wire-format DiceThrowParams stored in
+  // `state.turn.dice.throwParams` (shape: `{velocity, angular, position[2]}`)
+  // are NOT the scene-format ThrowParams (`{position[3], linearVelocity,
+  // angularVelocity, rotation}`) the lib's <dice-tray> consumes from `replay`.
+  // Feeding wire format to PhysicsDie produces undefined → NaN positions and
+  // a broken render. Until a wire→scene conversion is wired through (via
+  // `replayThrowParams(wire, seed, D6_RADIUS)` from `@local/dice-lib`) and
+  // the AI rollers emit real throwParams, the safe behavior is to mount a
+  // fresh idle tray every moving-phase update — which is enough to eliminate
+  // the stale-state freeze surface that motivated this story.
+  const count = Math.max(1, Array.isArray(values) ? values.length : 1);
+  return makeDiceTray({ count, mode: 'idle', themeKey });
+}
+
+// Wraps the active <dice-tray> so we can attach listeners and forward roll events.
+function activeDiceTray({ count, themeKey, onRoll }) {
+  const tray = makeDiceTray({ count, mode: 'active', themeKey });
   tray.addEventListener('dice-settle', (e) => {
     const detail = e.detail || {};
     if (!Array.isArray(detail.values) || detail.values.length === 0) return;
@@ -101,7 +135,7 @@ export function renderDice(state, ctx, onRoll) {
   if (phase === 'moving') {
     const values = state.turn?.dice?.values;
     if (Array.isArray(values) && values.length > 0) {
-      mount.appendChild(staticDiceRow(values));
+      mount.appendChild(replayDiceTray({ values, themeKey }));
     }
     return;
   }
