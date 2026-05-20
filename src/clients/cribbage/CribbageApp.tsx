@@ -143,6 +143,8 @@ export function CribbageApp() {
 
   const prevViewRef = useRef<CribbageView | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handCacheRef = useRef<CardType[] | null>(null);
+  const lastShapeOkRef = useRef(true);
 
   useEffect(() => {
     if (!view) return;
@@ -212,9 +214,39 @@ export function CribbageApp() {
   const myTurn = view.activeUserId === myUserId;
   const isDealer = mySide === view.dealer;
 
-  const myHand = Array.isArray(view.hands[mySide])
-    ? (view.hands[mySide] as CardType[])
-    : [];
+  // CROSS-BUG-1: defend against transient masked-hand views. A resync
+  // race or viewerSide=null moment can deliver view.hands[mySide] in
+  // the opponent shape {count: N}. Silent fallback to [] hid the bug
+  // — the user saw the count keep ticking while their cards vanished.
+  // Now: cache the last-good Card[], log on transition into bad shape,
+  // and render face-down placeholders when there's no cache yet.
+  const rawMyHand = view.hands[mySide];
+  let myHand: CardType[];
+  let myHandSource: "view" | "cache" | "placeholder" = "view";
+  let myHandPlaceholderCount = 0;
+  if (Array.isArray(rawMyHand)) {
+    myHand = rawMyHand as CardType[];
+    handCacheRef.current = myHand;
+    lastShapeOkRef.current = true;
+  } else {
+    if (lastShapeOkRef.current) {
+      console.error(
+        "CribbageApp: view.hands[mySide] not Card[] — masked-hand shape during",
+        view.phase,
+        { mySide, raw: rawMyHand },
+      );
+      lastShapeOkRef.current = false;
+    }
+    if (handCacheRef.current) {
+      myHand = handCacheRef.current;
+      myHandSource = "cache";
+    } else {
+      myHand = [];
+      myHandSource = "placeholder";
+      myHandPlaceholderCount =
+        (rawMyHand as { count?: number } | null)?.count ?? 0;
+    }
+  }
   const oppCount = !Array.isArray(view.hands[oppSide])
     ? (view.hands[oppSide] as { count: number }).count
     : (view.hands[oppSide] as CardType[]).length;
@@ -382,7 +414,7 @@ export function CribbageApp() {
               <Hand mode="view" cards={myHand} />
             )}
             {view.phase === "cut" && <Hand mode="view" cards={myHand} />}
-            {view.phase === "pegging" && view.pegging && (
+            {view.phase === "pegging" && view.pegging && myHandSource !== "placeholder" && (
               <Hand
                 mode="pegging"
                 cards={myHand}
@@ -390,6 +422,17 @@ export function CribbageApp() {
                 isMyTurn={myTurn}
                 onPlay={onPlay}
               />
+            )}
+            {view.phase === "pegging" && myHandSource === "placeholder" && (
+              <div
+                data-state="hand-unknown"
+                className="hand-unknown"
+                aria-label="Your hand is syncing"
+              >
+                {Array.from({ length: myHandPlaceholderCount }, (_, i) => (
+                  <CardImg key={i} card={{}} faceDown />
+                ))}
+              </div>
             )}
             {(view.phase === "show" || isMatchEnd) && (
               <Hand mode="view" cards={myHand} />
