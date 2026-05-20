@@ -1,16 +1,19 @@
 // Render the dice area inside the board. Phase-driven:
 //   initial-roll, viewer not yet rolled  → <dice-tray dice="1d6" mode="active">
 //   pre-roll, viewer active              → <dice-tray dice="2d6" mode="active">
-//   moving                               → <dice-tray dice="Nd6" mode="replay">
-//                                          replaying the recorded roll
+//   moving                               → <dice-tray dice="Nd6" mode="idle">
+//                                          (fresh idle tray each update —
+//                                          replay animation deferred to
+//                                          follow-up; see CROSS-BUG-2)
 //   awaiting-double-response             → hidden (cube has the user's attention)
 //   anything else                        → empty
 //
 // The moving phase used to paint a static `.die-placeholder` pip row. That row
 // was the surface of the "AI-turn freeze on 2" bug — a stale single-die render
-// retained from the prior phase. Driving the moving phase through the live
-// `<dice-tray>` mounts a fresh element on every state update so stale state
-// can't persist.
+// retained from the prior phase. Mounting a fresh idle <dice-tray> every
+// moving-phase update removes the stale-state surface without risking
+// malformed replay data (the AI rollers send throwParams: [], and the player
+// rollers send wire-format params that don't match the lib's replay schema).
 //
 // On dice-settle, calls onRoll({ values, throwParams }).
 
@@ -61,13 +64,20 @@ function makeDiceTray({ count, mode, themeKey }) {
   return tray;
 }
 
-function replayDiceTray({ values, throwParams, themeKey }) {
+function replayDiceTray({ values, themeKey }) {
+  // Render N idle dice during the moving phase. We deliberately do NOT set
+  // the `replay` attribute: the wire-format DiceThrowParams stored in
+  // `state.turn.dice.throwParams` (shape: `{velocity, angular, position[2]}`)
+  // are NOT the scene-format ThrowParams (`{position[3], linearVelocity,
+  // angularVelocity, rotation}`) the lib's <dice-tray> consumes from `replay`.
+  // Feeding wire format to PhysicsDie produces undefined → NaN positions and
+  // a broken render. Until a wire→scene conversion is wired through (via
+  // `replayThrowParams(wire, seed, D6_RADIUS)` from `@local/dice-lib`) and
+  // the AI rollers emit real throwParams, the safe behavior is to mount a
+  // fresh idle tray every moving-phase update — which is enough to eliminate
+  // the stale-state freeze surface that motivated this story.
   const count = Math.max(1, Array.isArray(values) ? values.length : 1);
-  const tray = makeDiceTray({ count, mode: 'replay', themeKey });
-  if (Array.isArray(throwParams) && throwParams.length > 0) {
-    tray.setAttribute('replay', JSON.stringify({ throwParams, values }));
-  }
-  return tray;
+  return makeDiceTray({ count, mode: 'idle', themeKey });
 }
 
 // Wraps the active <dice-tray> so we can attach listeners and forward roll events.
@@ -124,9 +134,8 @@ export function renderDice(state, ctx, onRoll) {
 
   if (phase === 'moving') {
     const values = state.turn?.dice?.values;
-    const throwParams = state.turn?.dice?.throwParams;
     if (Array.isArray(values) && values.length > 0) {
-      mount.appendChild(replayDiceTray({ values, throwParams, themeKey }));
+      mount.appendChild(replayDiceTray({ values, themeKey }));
     }
     return;
   }

@@ -58,17 +58,36 @@ describe("backgammon renderDice — live tray drives every turn", () => {
   });
 
   it("renders a <dice-tray> during the viewer's own moving phase too", () => {
+    // Production-realistic fixture: after the player rolls, the server
+    // stores wire-format throwParams (`{velocity, angular, position[2]}`)
+    // in state.turn.dice.throwParams. The renderer must NOT pass that wire
+    // format to the lib's `replay` attribute — the lib parses replay as
+    // scene-format ThrowParams[], so wire format would yield NaN positions
+    // and an undefined linearVelocity on Rapier's RigidBody.
+    const wireThrowParams = [
+      { velocity: [1, 3, -2], angular: [4, 5, 6], position: [0.5, 0.5] },
+      { velocity: [-1, 3, -2], angular: [-4, 5, 6], position: [0.4, 0.6] },
+    ];
     const state = {
       youAre: "p1",
-      turn: { phase: "moving", activePlayer: "p1", dice: { values: [4, 6] } },
+      turn: {
+        phase: "moving",
+        activePlayer: "p1",
+        dice: { values: [4, 6], throwParams: wireThrowParams },
+      },
     };
     renderDice(state, { send: () => {} }, () => {});
     const mount = getMount();
+    const tray = mount.querySelector("dice-tray");
     expect(
-      mount.querySelector("dice-tray"),
+      tray,
       "moving phase must use the live dice-tray renderer for both players",
     ).not.toBeNull();
     expect(mount.querySelector(".die-placeholder")).toBeNull();
+    expect(
+      tray!.getAttribute("replay"),
+      "wire-format throwParams must NOT be forwarded as a scene-format replay attribute — the lib would mis-parse and break PhysicsDie",
+    ).toBeNull();
   });
 
   it("does not paint a partial single-die row if values arrive truncated", () => {
