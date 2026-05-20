@@ -13,25 +13,14 @@ stories:
     status: done
     repos: g-1
     workflow: tdd
+    completed: 2026-05-20
+    pr: 53
     type: bug
     assignee: slabgorb
     branch: feat/CROSS-BUG-1-cribbage-pegging-hand-invisible
     review_verdict: approved
-    completed: 2026-05-20
-    pr: 53
   - id: CROSS-BUG-2
     title: Port dice rendering to @local/dice-lib (fixes AI-turn frozen dice)
-    points: 5
-    priority: p1
-    status: done
-    repos: g-1
-    workflow: tdd
-    type: refactor
-    assignee: slabgorb
-    branch: feat/CROSS-BUG-2-dice-lib-port
-    review_verdict: approved
-    completed: 2026-05-20
-    pr: 55
     description: |
       Replace the current in-tree dice renderer with the new @local/dice-lib
       (~/Projects/dice-lib). The library exposes a tuner so we can adjust
@@ -42,3 +31,33 @@ stories:
       bug that should disappear once the new renderer drives every turn
       (player and AI). Goal here is the port + tuning hooks, not preserving
       bug-for-bug behavior of the old renderer.
+    points: 5
+    priority: p1
+    status: done
+    repos: g-1
+    workflow: tdd
+    completed: 2026-05-20
+    pr: 55
+    type: refactor
+    assignee: slabgorb
+    branch: feat/CROSS-BUG-2-dice-lib-port
+    review_verdict: approved
+  - id: CROSS-BUG-3
+    title: Client-side dice rolling for AI (Risk + Backgammon)
+    description: |
+      Remove server-side dice RNG for AI opponents in Risk and Backgammon.
+      Dice rolls live on the client that renders the physics; the bot signals
+      intent, the engine stores pendingCombat/pendingRoll, and the opposing
+      human's client drives the animation and POSTs settled values back.
+      Same collapsed-mechanic pattern as cribbage's auto-cut.
+    points: 5
+    priority: p1
+    status: in_review
+    repos: g-1
+    workflow: tdd
+    completed: 2026-05-20
+    pr: 56
+    type: bug
+    assignee: slabgorb
+    branch: feat/CROSS-BUG-3-client-side-dice-ai
+    review_verdict: approved
