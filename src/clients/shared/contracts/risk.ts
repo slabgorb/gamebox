@@ -84,7 +84,11 @@ export type RiskAction =
         from: string;
         to: string;
         force?: number;
-        resolved: ResolvedCombat;
+        // Absent on a bot's intent POST (server stores pendingCombat);
+        // present on the defender's resolve POST (server applies the outcome
+        // and clears pendingCombat). Also present on a human attacker's POST
+        // (Amendment A.1).
+        resolved?: ResolvedCombat;
       };
     }
   | { type: "end-attack" }

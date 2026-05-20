@@ -7,7 +7,7 @@ export { InvalidLlmResponse, InvalidLlmMove };
 
 const MAX_SHORTLIST = 4;
 
-export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, rng, userMessages = [] }) {
+export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, userMessages = [] }) {
   const legalMoves = enumerateLegalMoves(state, botPlayerIdx);
   if (legalMoves.length === 0) {
     throw new Error(`no legal moves for phase '${state.turn?.phase}'`);
