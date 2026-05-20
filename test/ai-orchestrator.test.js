@@ -261,9 +261,14 @@ test('orchestrator: auto-executes initial-roll without an LLM call', async () =>
   const newState = JSON.parse(game.state);
   const sess = getAiSession(db, gameId);
   assert.equal(sess.stalledAt, null, 'auto-action did not stall');
-  // The bot rolled at least one initial die; that side should have a recorded value.
+  // CROSS-BUG-3: the auto-action no longer materializes a value server-side.
+  // It POSTs a values-less intent; the engine stores pendingRoll and pauses
+  // for the human's client to drive the physics. The bot's own initialRoll
+  // entry stays null until the human's resolve POST applies the value.
   const botSide = newState.sides.a === botId ? 'a' : 'b';
-  assert.ok(newState.initialRoll[botSide] !== null, 'bot recorded an initial roll');
+  assert.equal(newState.initialRoll[botSide], null, 'bot side awaiting client-side resolution');
+  assert.ok(newState.pendingRoll, 'pendingRoll signals intent to roll');
+  assert.equal(newState.pendingRoll.kind, 'roll-initial');
 });
 
 test('orchestrator: caches sequenceTail and drains the full tail in one wake-up', async () => {
@@ -400,10 +405,14 @@ test('orchestrator: bot acts on backgammon initial-roll without explicit activeU
 
   await orch.runTurn(gameId);
 
-  // The bot should have rolled for its side. Check that initialRoll[botSide] is now set.
+  // CROSS-BUG-3: the bot's wake-up POSTs a values-less intent; the engine
+  // stores pendingRoll for the human's client to resolve. The bot's own
+  // initialRoll entry stays null until that resolve POST lands. The
+  // regression this test guards is the orchestrator's "should I act" gate
+  // — pre-CROSS-BUG-3 the symptom was a silent no-op; post-CROSS-BUG-3 the
+  // symptom would be no pendingRoll being set.
   const after = JSON.parse(db.prepare("SELECT state FROM games WHERE id = ?").get(gameId).state);
-  const botSide = after.sides.a === botId ? 'a' : 'b';
-  assert.ok(after.initialRoll[botSide] != null,
-    `bot should have rolled for side ${botSide}; got initialRoll=${JSON.stringify(after.initialRoll)}`);
+  assert.ok(after.pendingRoll, 'bot wake-up set pendingRoll (intent signalled)');
+  assert.equal(after.pendingRoll.kind, 'roll-initial');
   assert.equal(llm.calls.length, 0, 'no LLM call for auto-action');
 });

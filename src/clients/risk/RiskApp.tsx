@@ -115,7 +115,33 @@ export function RiskApp() {
         />
       )}
 
-      {!live && replay && view.lastCombat && (
+      {!live && view.pendingCombat &&
+        view.pendingCombat.defenderIdx === view.youAre && (
+        <CombatReveal
+          mode="live"
+          from={view.pendingCombat.from}
+          to={view.pendingCombat.to}
+          force={view.pendingCombat.force}
+          defenders={view.territories[view.pendingCombat.to].armies}
+          // Defender's perspective: the attacker is the opponent.
+          attackerColor={defenderColor}
+          defenderColor={attackerColor}
+          onResolved={(resolved) => {
+            const pc = view.pendingCombat!;
+            post({
+              type: "attack",
+              payload: {
+                from: pc.from,
+                to: pc.to,
+                force: pc.force,
+                resolved,
+              },
+            });
+          }}
+        />
+      )}
+
+      {!live && !view.pendingCombat && replay && view.lastCombat && (
         <CombatReveal
           mode="replay"
           from={view.lastCombat.from}

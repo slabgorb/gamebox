@@ -7,7 +7,7 @@ export { InvalidLlmResponse, InvalidLlmMove };
 
 const MAX_SHORTLIST = 4;
 
-export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, rng, userMessages = [] }) {
+export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, userMessages = [] }) {
   const legalMoves = enumerateLegalMoves(state, botPlayerIdx);
   if (legalMoves.length === 0) {
     throw new Error(`no legal moves for phase '${state.turn?.phase}'`);
@@ -45,13 +45,12 @@ export async function chooseAction({ llm, persona, sessionId, state, botPlayerId
   const match = shortlist.find(m => m.id === parsed.moveId);
   if (!match) throw new InvalidLlmMove(parsed.moveId, shortlist.map(m => m.id));
 
-  // The legal-moves enumerator emits 'roll' as a bare intent — the engine
-  // requires actual dice values (and a throwParams array for the 3D physics
-  // replay on clients; bots have none). Materialize here using the rng.
+  // CROSS-BUG-3: 'roll' is a values-less intent. The engine stores
+  // pendingRoll and pauses; the human's client physically rolls and POSTs
+  // the values back. No server-side RNG for dice values.
   let action = match.action;
   if (action.type === 'roll' && !action.payload) {
-    const d = () => Math.floor(rng() * 6) + 1;
-    action = { type: 'roll', payload: { values: [d(), d()], throwParams: [] } };
+    action = { type: 'roll', payload: { throwParams: [] } };
   }
 
   return {

@@ -52,15 +52,34 @@ test('backgammon end-to-end: bot rolls, picks sequence, drains cache, then await
 
   await orchestrator.runTurn(gameId);
 
+  // CROSS-BUG-3: the bot's initial-roll wake-up sets pendingRoll instead of
+  // generating a value. In production the human's client resolves it; here
+  // we simulate that POST so the rest of the leg can run.
+  const backgammonPlugin = (await import('../plugins/backgammon/plugin.js')).default;
+  const writeState = (s) => db.prepare("UPDATE games SET state = ? WHERE id = ?").run(JSON.stringify(s), gameId);
+  let s = JSON.parse(db.prepare("SELECT state FROM games WHERE id = ?").get(gameId).state);
+  assert.ok(s.pendingRoll, 'bot wake-up set pendingRoll');
+  assert.equal(s.pendingRoll.kind, 'roll-initial');
+  // Resolve as the human (proxy POST) with a deterministic value.
+  const resolveResult = backgammonPlugin.applyAction({
+    state: s,
+    action: { type: 'roll-initial', payload: { value: 5, throwParams: [] } },
+    actorId: humanId,
+  });
+  assert.equal(resolveResult.error, undefined, `resolve POST failed: ${resolveResult.error}`);
+  writeState(resolveResult.state);
+
+  // Now wake the orchestrator again — bot picks moves with the resolved dice.
+  await orchestrator.runTurn(gameId);
+
   // Assertions:
-  // - LLM was called at most twice (initial-roll auto, pre-roll + moving LLM-driven)
+  // - LLM was called at most twice (initial-roll auto wakes once, moving LLM-driven once)
   // - SSE saw at least one update
   // - Phase is no longer initial-roll
   assert.ok(llm.calls.length <= 2, `LLM called ${llm.calls.length} times; expected ≤2`);
   const types = events.map(e => e.type);
   assert.ok(types.includes('update'), 'update SSE fired');
-  const game = db.prepare("SELECT state FROM games WHERE id = ?").get(gameId);
-  const finalState = JSON.parse(game.state);
+  const finalState = JSON.parse(db.prepare("SELECT state FROM games WHERE id = ?").get(gameId).state);
   assert.notEqual(finalState.turn.phase, 'initial-roll', 'phase advanced past initial-roll');
 
   const sess = getAiSession(db, gameId);

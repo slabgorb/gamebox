@@ -53,16 +53,18 @@ test('resign on an already-finished game is rejected', () => {
 
 test('natural win (opponent wiped out) signals ended + winnerSide + reason', () => {
   // Player 0 holds alaska with overwhelming force; player 1 owns only nwt
-  // (1 army). Steamroll it and player 1 has zero territories.
+  // (1 army). Steamroll it and player 1 has zero territories. CROSS-BUG-3:
+  // the attacker (player 0) is the active player and POSTs a resolved
+  // payload (their own client rolled). Defender = 1 → 3 attacker dice vs
+  // 1 defender die wipes the defender in one round.
   const s = midGame({
     territories: {
       alaska: { owner: 0, armies: 20 }, nwt: { owner: 1, armies: 1 },
     },
   });
-  let rc = 0;
-  const rng = () => (rc++ < 3 ? 0.99 : 0.0); // attacker max, defender min -> capture
-  const r = applyRiskAction({ state: s, actorId: 7, rng,
-    action: { type: 'attack', payload: { from: 'alaska', to: 'nwt', force: 10 } } });
+  const r = applyRiskAction({ state: s, actorId: 7,
+    action: { type: 'attack', payload: { from: 'alaska', to: 'nwt', force: 19,
+      resolved: { rounds: [{ aDice: [6, 6, 6], dDice: [1] }] } } } });
   assert.equal(r.error, undefined);
   assert.equal(r.state.phase, 'gameover');
   assert.equal(r.state.winner, 0);

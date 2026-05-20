@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import riskPlugin from '../plugins/risk/plugin.js';
 import { chooseAction } from '../plugins/risk/server/ai/risk-player.js';
 import { enumerateLegalMoves } from '../plugins/risk/server/ai/legal-moves.js';
+import { resolveAttack } from '../plugins/risk/server/combat.js';
 
 function rngFrom(seed) {
   // Mulberry32 — deterministic PRNG.
@@ -24,6 +25,27 @@ const fakeLlm = {
   },
 };
 
+// CROSS-BUG-3: the live game no longer server-rolls — the defender's client
+// drives the physics. In a bot-vs-bot simulation there's no human client, so
+// this helper stands in: when pendingCombat is set, resolve it using the same
+// deterministic rng the rest of the harness uses.
+function resolveBotCombat(state, rng) {
+  const pc = state.pendingCombat;
+  const src = state.territories[pc.from];
+  const tgt = state.territories[pc.to];
+  const committed = src.armies - 1;
+  const outcome = resolveAttack({ force: committed, defenders: tgt.armies }, rng);
+  const action = {
+    type: 'attack',
+    payload: {
+      from: pc.from, to: pc.to, force: pc.force,
+      resolved: { rounds: outcome.rounds },
+    },
+  };
+  // The defender (activeUserId after pendingCombat is set) POSTs.
+  return riskPlugin.applyAction({ state, action, actorId: state.activeUserId });
+}
+
 test('a full game between two AI strategies terminates with a winner', async () => {
   const rng = rngFrom(12345);
   let state = riskPlugin.initialState({
@@ -34,6 +56,14 @@ test('a full game between two AI strategies terminates with a winner', async () 
   let guard = 0;
   while (state.phase !== 'gameover') {
     if (++guard > 4000) throw new Error('game did not terminate');
+
+    if (state.pendingCombat) {
+      const out = resolveBotCombat(state, rng);
+      assert.equal(out.error, undefined, `engine rejected resolve: ${out.error}`);
+      state = out.state;
+      continue;
+    }
+
     const actorId = state.activeUserId;
     const botIdx = state.sides.a === actorId ? 0 : 1;
     const moves = enumerateLegalMoves(state, botIdx);

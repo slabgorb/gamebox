@@ -42,6 +42,14 @@ export interface RiskLogEntry {
   placements?: Record<string, number>;
 }
 
+export interface PendingCombat {
+  from: string;
+  to: string;
+  force: number;
+  attackerIdx: PlayerIdx;
+  defenderIdx: PlayerIdx;
+}
+
 export interface RiskView {
   phase: RiskPhase;
   currentPlayer: PlayerIdx;
@@ -53,6 +61,10 @@ export interface RiskView {
   winner: PlayerIdx | null;
   log: RiskLogEntry[];
   youAre: PlayerIdx | null;
+  // Set when a bot's attack is awaiting client-side dice resolution. The
+  // defender's client mounts a live CombatReveal and POSTs the resolved
+  // payload back so the server can apply the outcome.
+  pendingCombat?: PendingCombat;
 }
 
 // Resolved combat outcome posted by the human attacker's client.
@@ -68,7 +80,16 @@ export type RiskAction =
   | { type: "deploy"; payload: { placements: Record<string, number> } }
   | {
       type: "attack";
-      payload: { from: string; to: string; resolved: ResolvedCombat };
+      payload: {
+        from: string;
+        to: string;
+        force?: number;
+        // Absent on a bot's intent POST (server stores pendingCombat);
+        // present on the defender's resolve POST (server applies the outcome
+        // and clears pendingCombat). Also present on a human attacker's POST
+        // (Amendment A.1).
+        resolved?: ResolvedCombat;
+      };
     }
   | { type: "end-attack" }
   | { type: "fortify"; payload: { from: string; to: string; count: number } }

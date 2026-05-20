@@ -1,6 +1,6 @@
 import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
 import { validateDeploy, validateAttack, validateFortify } from './validate.js';
-import { resolveAttack, replayAttack } from './combat.js';
+import { replayAttack } from './combat.js';
 import { playerIndex, userIdOf } from './state.js';
 
 export function reinforcementFor(state, playerIdx) {
@@ -14,7 +14,18 @@ export function reinforcementFor(state, playerIdx) {
 }
 
 function syncActiveUser(state) {
-  state.activeUserId = state.winner != null ? null : userIdOf(state, state.currentPlayer);
+  if (state.winner != null) {
+    state.activeUserId = null;
+    return state;
+  }
+  // Bot's attack intent is paused for client-side resolution: the defender
+  // (a human in mixed games) is the one who must POST the resolved payload.
+  // Flipping activeUserId hands the route-level "not your turn" gate to them.
+  if (state.pendingCombat) {
+    state.activeUserId = userIdOf(state, state.pendingCombat.defenderIdx);
+    return state;
+  }
+  state.activeUserId = userIdOf(state, state.currentPlayer);
   return state;
 }
 
@@ -38,7 +49,18 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     return finishGame(r, 'resign');
   }
 
-  if (actorIdx !== state.currentPlayer) return { error: 'not your turn' };
+  // Defender-as-proxy: when a bot's attack is awaiting client-side
+  // resolution (state.pendingCombat set), the defender is allowed to act —
+  // they're driving the physics on the bot's behalf and POSTing the
+  // resolved payload. Any other action falls back to the standard
+  // currentPlayer gate.
+  const isResolverPost = action.type === 'attack'
+    && action.payload?.resolved
+    && state.pendingCombat
+    && state.pendingCombat.defenderIdx === actorIdx;
+  if (!isResolverPost && actorIdx !== state.currentPlayer) {
+    return { error: 'not your turn' };
+  }
 
   const s = clone(state);
   let err;
@@ -50,7 +72,7 @@ export function applyRiskAction({ state, action, actorId, rng }) {
       err = applySetupDeploy(s, actorIdx, action.payload);
       break;
     case 'attack:attack':
-      err = applyAttack(s, actorIdx, action.payload, rng);
+      err = applyAttack(s, actorIdx, action.payload);
       break;
     case 'attack:end-attack':
       s.phase = 'fortify';
@@ -123,19 +145,29 @@ function ownedCount(s, playerIdx) {
   return Object.values(s.territories).filter(t => t.owner === playerIdx).length;
 }
 
-function applyAttack(s, playerIdx, payload, rng) {
+function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
   const { from, to, force, resolved } = payload ?? {};
 
-  // Client-resolved path (human attacker, spec Amendment A.1): the client
-  // rolled the dice and posts the round sequence; we validate + apply it.
-  // The committed force is implicit — the maximum (armies-1) — matching the
-  // round-by-round driver on the client.
+  // Client-resolved path: the client rolled the dice (their own or the
+  // bot's, per CROSS-BUG-3) and posts the round sequence; we validate +
+  // apply. The committed force is implicit — the maximum (armies-1) —
+  // matching the round-by-round driver on the client.
+  //
+  // When pendingCombat is set the attacker authority comes from that record
+  // (the bot is the attacker; the human is acting as physics proxy and the
+  // POST's actorId is the human's). When pendingCombat is absent the
+  // attacker is the acting player (Amendment A.1 human path).
   if (resolved) {
+    const pc = s.pendingCombat;
+    const attackerIdx = pc ? pc.attackerIdx : playerIdx;
     const src = s.territories[from];
     const tgt = s.territories[to];
     if (!src || !tgt) return 'unknown territory';
-    if (src.owner !== playerIdx) return `source ${from} not owned`;
-    if (tgt.owner === playerIdx) return `target ${to} is not an enemy territory`;
+    if (pc && (pc.from !== from || pc.to !== to)) {
+      return 'resolved combat must match the pending intent';
+    }
+    if (src.owner !== attackerIdx) return `source ${from} not owned`;
+    if (tgt.owner === attackerIdx) return `target ${to} is not an enemy territory`;
     if (!areAdjacent(from, to)) return `${from} and ${to} are not adjacent`;
     if (!Number.isInteger(src.armies) || src.armies < 2) {
       return `force must be an integer in 2..${src.armies - 1}`;
@@ -153,7 +185,7 @@ function applyAttack(s, playerIdx, payload, rng) {
     // 1 + attackerSurvivors).
     src.armies -= forceCommitted;
     if (eff.captured) {
-      tgt.owner = playerIdx;
+      tgt.owner = attackerIdx;
       tgt.armies = eff.attackerSurvivors;
     } else {
       tgt.armies = eff.defenderSurvivors;
@@ -166,47 +198,25 @@ function applyAttack(s, playerIdx, payload, rng) {
       attackerSurvivors: eff.attackerSurvivors,
       defenderSurvivors: eff.defenderSurvivors,
     };
-    s.log.push({ kind: 'attack', player: playerIdx, from, to, force: forceCommitted, captured: eff.captured });
-    const opponent = playerIdx === 0 ? 1 : 0;
+    s.log.push({ kind: 'attack', player: attackerIdx, from, to, force: forceCommitted, captured: eff.captured });
+    if (pc) delete s.pendingCombat;
+    const opponent = attackerIdx === 0 ? 1 : 0;
     if (ownedCount(s, opponent) === 0) {
       s.phase = 'gameover';
-      s.winner = playerIdx;
+      s.winner = attackerIdx;
     }
     return null;
   }
 
-  // Server-resolved path (bot attacker / legacy): unchanged.
+  // Bot-intent path (CROSS-BUG-3): no resolved payload means "attacker is
+  // signalling an attack; client will roll." Validate legality, then store
+  // pendingCombat so the defender's client can drive the physics. The
+  // resolved POST that follows runs through the branch above and clears
+  // pendingCombat after applying the outcome.
   const verr = validateAttack(s, playerIdx, { from, to, force });
   if (verr) return verr;
-
-  const src = s.territories[from];
-  const tgt = s.territories[to];
-  src.armies -= force; // the committed force marches out
-
-  const outcome = resolveAttack({ force, defenders: tgt.armies }, rng ?? Math.random);
-
-  if (outcome.captured) {
-    tgt.owner = playerIdx;
-    tgt.armies = outcome.attackerSurvivors;
-  } else {
-    tgt.armies = outcome.defenderSurvivors;
-    src.armies += outcome.attackerSurvivors; // lone survivor retreats
-  }
-
-  s.lastCombat = {
-    from, to, force,
-    rounds: outcome.rounds,
-    captured: outcome.captured,
-    attackerSurvivors: outcome.attackerSurvivors,
-    defenderSurvivors: outcome.defenderSurvivors,
-  };
-  s.log.push({ kind: 'attack', player: playerIdx, from, to, force, captured: outcome.captured });
-
-  const opponent = playerIdx === 0 ? 1 : 0;
-  if (ownedCount(s, opponent) === 0) {
-    s.phase = 'gameover';
-    s.winner = playerIdx;
-  }
+  const defenderIdx = playerIdx === 0 ? 1 : 0;
+  s.pendingCombat = { from, to, force, attackerIdx: playerIdx, defenderIdx };
   return null;
 }
 
