@@ -23,12 +23,15 @@ stories:
     title: Port dice rendering to @local/dice-lib (fixes AI-turn frozen dice)
     points: 5
     priority: p1
-    status: in_progress
+    status: done
     repos: g-1
     workflow: tdd
     type: refactor
     assignee: slabgorb
     branch: feat/CROSS-BUG-2-dice-lib-port
+    review_verdict: approved
+    completed: 2026-05-20
+    pr: 55
     description: |
       Replace the current in-tree dice renderer with the new @local/dice-lib
       (~/Projects/dice-lib). The library exposes a tuner so we can adjust
