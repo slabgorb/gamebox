@@ -1,0 +1,8 @@
+sprint:
+  goal: Cross-game bugfixes and dicelib integration
+  start_date: 2026-05-20
+  end_date: 2026-06-02
+  status: active
+  number: 1
+epics:
+  - CROSS-BUG

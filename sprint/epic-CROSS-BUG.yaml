@@ -1,0 +1,39 @@
+id: CROSS-BUG
+type: epic
+title: Cross-game bugfixes
+description: Bucket for engine, AI orchestrator, and shared-component bugs spanning multiple games
+priority: p1
+status: backlog
+repos: pennyfarthing
+stories:
+  - id: CROSS-BUG-1
+    title: 'Cribbage pegging: player hand intermittently invisible during play'
+    points: 3
+    priority: p1
+    status: done
+    repos: g-1
+    workflow: tdd
+    type: bug
+    assignee: slabgorb
+    branch: feat/CROSS-BUG-1-cribbage-pegging-hand-invisible
+    review_verdict: approved
+    completed: 2026-05-20
+    pr: 53
+  - id: CROSS-BUG-2
+    title: Port dice rendering to @local/dice-lib (fixes AI-turn frozen dice)
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    type: refactor
+    description: |
+      Replace the current in-tree dice renderer with the new @local/dice-lib
+      (~/Projects/dice-lib). The library exposes a tuner so we can adjust
+      camera, jitter, trajectory, and slide-final behavior per game.
+
+      Motivating symptom: during AI turns the dice freeze on a single die
+      showing '2' while count/state advance normally — a front-end render
+      bug that should disappear once the new renderer drives every turn
+      (player and AI). Goal here is the port + tuning hooks, not preserving
+      bug-for-bug behavior of the old renderer.
