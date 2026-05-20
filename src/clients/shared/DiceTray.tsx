@@ -27,6 +27,12 @@ interface Props {
   themeColor?: string;
   /** Per-game tuner overrides (camera, jitter, trajectory, slide-final). */
   tuning?: DiceTuning;
+  /** Initial die count for the tray. Defaults to 1 (a single pickup d6).
+   *  Imperative `roll(N)` overrides this at throw time. Consumers that
+   *  observe rolled rounds without driving them (e.g. replay view of an
+   *  opponent's attack) should set this so the tray mounts with the right
+   *  number of pickup dice instead of a lone die. */
+  count?: number;
   style?: CSSProperties;
 }
 
@@ -62,7 +68,7 @@ function autoThrowParams() {
 }
 
 export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
-  { themeColor, tuning, style },
+  { themeColor, tuning, count, style },
   ref,
 ) {
   // Serialize tuning to a JSON attribute so the lib's DiceTrayElement can
@@ -70,6 +76,7 @@ export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
   // attribute (don't paint an empty `tuning=""`).
   const tuningAttr =
     tuning !== undefined ? JSON.stringify(tuning) : undefined;
+  const diceAttr = `${Math.max(1, count ?? 1)}d6`;
   const elRef = useRef<HTMLElement & {
     throw: (p: unknown) => void;
     throwAll: (ps: unknown[]) => void;
@@ -114,7 +121,7 @@ export const DiceTray = forwardRef<DiceTrayHandle, Props>(function DiceTray(
     // @ts-expect-error custom element registered by public/shared/dice.js
     <dice-tray
       ref={elRef}
-      dice="1d6"
+      dice={diceAttr}
       mode="idle"
       data-color={themeColor}
       tuning={tuningAttr}
