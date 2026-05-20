@@ -32,20 +32,21 @@ function rngFor(gameId) {
 //     fired after the action is applied.
 const autoActions = {
   backgammon: {
-    'initial-roll': (state, rng) => ({
+    // CROSS-BUG-3: bot signals INTENT only. The engine stores pendingRoll
+    // (kind 'roll-initial') and pauses; the human's client picks it up,
+    // physically rolls 1d6, and POSTs the value back as roll-initial. No
+    // server-side RNG for dice values on the bot path.
+    'initial-roll': () => ({
       type: 'roll-initial',
-      payload: { value: Math.floor(rng() * 6) + 1, throwParams: [] },
+      payload: { throwParams: [] },
     }),
-    // Auto-roll: skip the LLM "roll vs offer-double" decision. Tradeoff —
-    // the bot can no longer offer the cube, but it still accepts/declines
-    // doubles (awaiting-double-response is still LLM-driven). Saves one
-    // LLM round-trip per turn (~20–60s with sonnet).
-    'pre-roll': (state, rng) => ({
+    // Same shape for pre-roll: the bot signals intent; the human's client
+    // resolves 2d6 and POSTs the values back. Auto-roll still skips the
+    // LLM "roll vs offer-double" decision (tradeoff — the bot can't offer
+    // the cube but still accepts/declines doubles via LLM).
+    'pre-roll': () => ({
       type: 'roll',
-      payload: {
-        values: [Math.floor(rng() * 6) + 1, Math.floor(rng() * 6) + 1],
-        throwParams: [],
-      },
+      payload: { throwParams: [] },
     }),
   },
   cribbage: {
@@ -88,6 +89,11 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
     const gameRow = db.prepare("SELECT * FROM games WHERE id = ?").get(gameId);
     if (!gameRow || gameRow.status !== 'active') return;
     const state = JSON.parse(gameRow.state);
+    // CROSS-BUG-3 continuation gate: while a bot action is awaiting
+    // client-side dice resolution (pendingCombat in Risk; pendingRoll in
+    // backgammon), the bot is paused. The human's resolved POST will
+    // clear the pending state and the next wake-up runs the next bot action.
+    if (state.pendingCombat || state.pendingRoll) return;
     // Allow bot to act when activeUserId is explicitly theirs, OR when
     // activeUserId is null (concurrent phases: discard, show) and the bot
     // hasn't yet submitted its half.

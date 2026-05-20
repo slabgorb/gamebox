@@ -36,7 +36,15 @@ export function applyBackgammonAction({ state, action, actorId }) {
 // where the "active player" isn't who needs to act (initial-roll requires
 // both, awaiting-double-response requires the opponent of the offerer) —
 // null disables the host gate and the plugin's own checks gatekeep instead.
+//
+// CROSS-BUG-3: when state.pendingRoll is set, the bot is paused awaiting
+// client-side dice resolution. Flip activeUserId to the opponent so the
+// human's POST passes the route-level "not your turn" gate.
 function deriveActiveUserId(state) {
+  if (state.pendingRoll) {
+    const proxy = opponent(state.pendingRoll.player);
+    return state.sides?.[proxy] ?? null;
+  }
   const phase = state.turn?.phase;
   if (phase === PHASE.INITIAL_ROLL) return null;
   if (phase === PHASE.AWAITING_DOUBLE_RESPONSE) {
@@ -55,30 +63,61 @@ function doRollInitial(state, payload, side) {
   if (state.turn.phase !== PHASE.INITIAL_ROLL) {
     return { error: `cannot roll-initial in phase: ${state.turn.phase}` };
   }
-  if (state.initialRoll[side] !== null) {
-    return { error: 'already rolled this leg' };
+  const hasValue = Number.isInteger(payload?.value);
+  const pending = state.pendingRoll;
+
+  // CROSS-BUG-3 intent path: a bot's wake-up POSTs with no value; we store
+  // pendingRoll and pause. The acting side must be the one needing a roll
+  // (initialRoll[side] still null). The human resolves on the bot's behalf
+  // by POSTing with a value while pendingRoll is set.
+  if (!hasValue) {
+    if (state.initialRoll[side] !== null) {
+      return { error: 'already rolled this leg' };
+    }
+    if (pending) return { error: 'pendingRoll already set' };
+    return {
+      state: { ...state, pendingRoll: { player: side, kind: 'roll-initial' } },
+      ended: false,
+      summary: { kind: 'roll-initial-intent', side },
+    };
   }
-  const value = payload?.value;
+
+  // Value supplied: either the player rolled their own, or the human is
+  // resolving a bot's pendingRoll. In the resolve case, the value applies
+  // to the bot's side (pendingRoll.player), not the actor's side.
+  const value = payload.value;
   const throwParams = payload?.throwParams;
-  if (!Number.isInteger(value) || value < 1 || value > 6) {
+  if (value < 1 || value > 6) {
     return { error: 'roll-initial value must be 1..6' };
   }
   if (!Array.isArray(throwParams)) {
     return { error: 'roll-initial requires throwParams array' };
   }
+  const rollerSide = pending && pending.kind === 'roll-initial' ? pending.player : side;
+  if (state.initialRoll[rollerSide] !== null) {
+    return { error: 'already rolled this leg' };
+  }
 
-  const tpKey = side === 'a' ? 'throwParamsA' : 'throwParamsB';
-  const ir = { ...state.initialRoll, [side]: value, [tpKey]: throwParams };
+  const tpKey = rollerSide === 'a' ? 'throwParamsA' : 'throwParamsB';
+  const ir = { ...state.initialRoll, [rollerSide]: value, [tpKey]: throwParams };
+  const clearPending = pending && pending.kind === 'roll-initial';
+
+  function withPendingCleared(next) {
+    if (!clearPending) return next;
+    const cleared = { ...next };
+    delete cleared.pendingRoll;
+    return cleared;
+  }
 
   // Both rolled?
   if (ir.a !== null && ir.b !== null) {
     if (ir.a === ir.b) {
       // Tie: clear all four fields and reroll.
       return {
-        state: {
+        state: withPendingCleared({
           ...state,
           initialRoll: { a: null, b: null, throwParamsA: null, throwParamsB: null },
-        },
+        }),
         ended: false,
         summary: { kind: 'roll-initial', tie: true },
       };
@@ -89,7 +128,7 @@ function doRollInitial(state, payload, side) {
     const winnerTp = winner === 'a' ? ir.throwParamsA : ir.throwParamsB;
     const loserTp  = loser  === 'a' ? ir.throwParamsA : ir.throwParamsB;
     return {
-      state: {
+      state: withPendingCleared({
         ...state,
         initialRoll: ir,  // keep the 4-field shape per spec §4.2
         turn: {
@@ -101,7 +140,7 @@ function doRollInitial(state, payload, side) {
             throwParams: [...winnerTp, ...loserTp],
           },
         },
-      },
+      }),
       ended: false,
       summary: { kind: 'roll-initial', activePlayer: winner },
     };
@@ -109,9 +148,9 @@ function doRollInitial(state, payload, side) {
 
   // Only this side has rolled.
   return {
-    state: { ...state, initialRoll: ir },
+    state: withPendingCleared({ ...state, initialRoll: ir }),
     ended: false,
-    summary: { kind: 'roll-initial', side },
+    summary: { kind: 'roll-initial', side: rollerSide },
   };
 }
 
@@ -119,10 +158,30 @@ function doRoll(state, payload, side) {
   if (state.turn.phase !== PHASE.PRE_ROLL) {
     return { error: `cannot roll in phase: ${state.turn.phase}` };
   }
-  if (!isActive(state, side)) return { error: 'not your turn' };
-  const values = payload?.values;
+  const hasValues = Array.isArray(payload?.values);
+  const pending = state.pendingRoll;
+
+  // CROSS-BUG-3 intent path: a bot's wake-up POSTs with no values; we store
+  // pendingRoll and pause. The human resolves on the bot's behalf by
+  // POSTing with values while pendingRoll is set.
+  if (!hasValues) {
+    if (!isActive(state, side)) return { error: 'not your turn' };
+    if (pending) return { error: 'pendingRoll already set' };
+    return {
+      state: { ...state, pendingRoll: { player: side, kind: 'roll' } },
+      ended: false,
+      summary: { kind: 'roll-intent' },
+    };
+  }
+
+  // Values supplied: either the active player rolled their own, or the
+  // human is resolving a bot's pendingRoll. When pendingRoll is set, the
+  // dice apply to the BOT's side (the active player), not the actor's side.
+  if (!pending && !isActive(state, side)) return { error: 'not your turn' };
+  const rollerSide = pending && pending.kind === 'roll' ? pending.player : side;
+  const values = payload.values;
   const throwParams = payload?.throwParams;
-  if (!Array.isArray(values) || values.length !== 2 ||
+  if (values.length !== 2 ||
       !values.every(v => Number.isInteger(v) && v >= 1 && v <= 6)) {
     return { error: 'roll values must be two integers 1..6' };
   }
@@ -135,11 +194,12 @@ function doRoll(state, payload, side) {
     ...state,
     turn: { ...state.turn, phase: PHASE.MOVING, dice },
   };
+  if (pending) delete afterRoll.pendingRoll;
 
   // Auto-pass if no legal moves
-  const moves = enumerateLegalMoves(afterRoll.board, remaining, side);
+  const moves = enumerateLegalMoves(afterRoll.board, remaining, rollerSide);
   if (moves.length === 0) {
-    return doPassTurn(afterRoll, side);
+    return doPassTurn(afterRoll, rollerSide);
   }
   return { state: afterRoll, ended: false, summary: { kind: 'roll', values: values.slice() } };
 }

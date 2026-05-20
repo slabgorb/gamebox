@@ -108,6 +108,28 @@ export function renderDice(state, ctx, onRoll) {
   if (ownerSide === me) mount.classList.add('bottom');
   else if (ownerSide) mount.classList.add('top');
 
+  // CROSS-BUG-3: a bot's roll intent is paused on state.pendingRoll. The
+  // viewer (the human in a mixed game) drives the physics on the bot's
+  // behalf and POSTs the values back as the same action type — the engine
+  // applies them to the bot's side and clears pendingRoll.
+  if (state.pendingRoll && state.pendingRoll.player !== me) {
+    const kind = state.pendingRoll.kind;
+    if (kind === 'roll-initial') {
+      mount.appendChild(activeDiceTray({
+        count: 1, themeKey,
+        onRoll: ({ values, throwParams }) => onRoll('roll-initial', { value: values[0], throwParams }),
+      }));
+      return;
+    }
+    if (kind === 'roll') {
+      mount.appendChild(activeDiceTray({
+        count: 2, themeKey,
+        onRoll: ({ values, throwParams }) => onRoll('roll', { values, throwParams }),
+      }));
+      return;
+    }
+  }
+
   if (phase === 'initial-roll') {
     const myValue = state.initialRoll?.[me];
     if (myValue == null) {
