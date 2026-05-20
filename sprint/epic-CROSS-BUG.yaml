@@ -52,7 +52,7 @@ stories:
       Same collapsed-mechanic pattern as cribbage's auto-cut.
     points: 5
     priority: p1
-    status: in_review
+    status: done
     repos: g-1
     workflow: tdd
     completed: 2026-05-20
