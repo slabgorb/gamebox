@@ -45,33 +45,34 @@ function staticDiceRow(values) {
   return wrap;
 }
 
-function replayDiceTray({ values, throwParams, themeKey }) {
-  const count = Math.max(1, Array.isArray(values) ? values.length : 1);
+// The bundled <dice-tray> renders its 3D scene with minHeight: 240 internally;
+// tray must be at least that tall or the scene gets cropped and the dice don't
+// paint until they're thrown. Width drives the throw surface area.
+const TRAY_WIDTH = '320px';
+const TRAY_HEIGHT = '260px';
+
+function makeDiceTray({ count, mode, themeKey }) {
   const tray = document.createElement('dice-tray');
   tray.setAttribute('dice', `${count}d6`);
-  tray.setAttribute('mode', 'replay');
+  tray.setAttribute('mode', mode);
   tray.setAttribute('theme', themeKey);
+  tray.style.width = TRAY_WIDTH;
+  tray.style.height = TRAY_HEIGHT;
+  return tray;
+}
+
+function replayDiceTray({ values, throwParams, themeKey }) {
+  const count = Math.max(1, Array.isArray(values) ? values.length : 1);
+  const tray = makeDiceTray({ count, mode: 'replay', themeKey });
   if (Array.isArray(throwParams) && throwParams.length > 0) {
     tray.setAttribute('replay', JSON.stringify({ throwParams, values }));
   }
-  // Match the active tray's footprint so swapping between phases doesn't
-  // cause a layout jump.
-  tray.style.width = '320px';
-  tray.style.height = '260px';
   return tray;
 }
 
 // Wraps the active <dice-tray> so we can attach listeners and forward roll events.
 function activeDiceTray({ count, themeKey, onRoll }) {
-  const tray = document.createElement('dice-tray');
-  tray.setAttribute('dice', `${count}d6`);
-  tray.setAttribute('mode', 'active');
-  tray.setAttribute('theme', themeKey);
-  // The bundled <dice-tray> renders its 3D scene with minHeight: 240 internally;
-  // tray must be at least that tall or the scene gets cropped and the dice
-  // don't paint until they're thrown. Width drives the throw surface area.
-  tray.style.width = '320px';
-  tray.style.height = '260px';
+  const tray = makeDiceTray({ count, mode: 'active', themeKey });
   tray.addEventListener('dice-settle', (e) => {
     const detail = e.detail || {};
     if (!Array.isArray(detail.values) || detail.values.length === 0) return;
