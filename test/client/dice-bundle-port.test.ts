@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 // CROSS-BUG-2 — Bundle port to @local/dice-lib.
 //
 // The bundle entry (src/shared/dice/index.tsx → public/shared/dice.js) used to
@@ -10,12 +11,15 @@
 // scene, theme, registry, parser, gestures, or replay helpers.
 
 import { describe, it, expect } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+// Vite ?raw suffix returns the file's text content at build time — works
+// inside vitest's jsdom env without needing `node:fs`.
+import bundleEntrySrc from "../../src/shared/dice/index.tsx?raw";
 
-const REPO_ROOT = new URL("../../", import.meta.url).pathname;
-const DICE_DIR = join(REPO_ROOT, "src/shared/dice");
-const ENTRY = join(DICE_DIR, "index.tsx");
+// `import.meta.glob` is Vite's native directory-listing primitive; the keys
+// are repo-relative paths to every file matching the pattern.
+const localDiceFiles = import.meta.glob("../../src/shared/dice/*", {
+  eager: true,
+});
 
 const FORBIDDEN_LOCAL_FILES = [
   "d4.ts",
@@ -37,12 +41,9 @@ const FORBIDDEN_LOCAL_FILES = [
 
 describe("dice bundle entry — port to @local/dice-lib", () => {
   it("imports DiceTrayElement from @local/dice-lib", () => {
-    const src = readFileSync(ENTRY, "utf8");
-    // Accept either a named import from "@local/dice-lib" that pulls in
-    // DiceTrayElement, or a side-effect import of the lib's element module.
     const hasLibImport =
       /import\s*\{[^}]*\bDiceTrayElement\b[^}]*\}\s*from\s*["']@local\/dice-lib["']/.test(
-        src,
+        bundleEntrySrc,
       );
     expect(
       hasLibImport,
@@ -52,16 +53,17 @@ describe("dice bundle entry — port to @local/dice-lib", () => {
   });
 
   it("does not declare its own custom-element class", () => {
-    const src = readFileSync(ENTRY, "utf8");
     expect(
-      /class\s+\w+\s+extends\s+HTMLElement/.test(src),
+      /class\s+\w+\s+extends\s+HTMLElement/.test(bundleEntrySrc),
       "bundle entry must not redeclare `class … extends HTMLElement`; " +
         "use the lib's DiceTrayElement",
     ).toBe(false);
   });
 
   it("does not keep duplicate copies of dice-lib source in words", () => {
-    const present = readdirSync(DICE_DIR);
+    const present = Object.keys(localDiceFiles).map((p) =>
+      p.slice(p.lastIndexOf("/") + 1),
+    );
     const offenders = FORBIDDEN_LOCAL_FILES.filter((f) => present.includes(f));
     expect(
       offenders,

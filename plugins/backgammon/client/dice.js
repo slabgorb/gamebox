@@ -1,9 +1,16 @@
 // Render the dice area inside the board. Phase-driven:
 //   initial-roll, viewer not yet rolled  → <dice-tray dice="1d6" mode="active">
 //   pre-roll, viewer active              → <dice-tray dice="2d6" mode="active">
-//   moving                               → static pip-grid showing turn.dice.values
+//   moving                               → <dice-tray dice="Nd6" mode="replay">
+//                                          replaying the recorded roll
 //   awaiting-double-response             → hidden (cube has the user's attention)
 //   anything else                        → empty
+//
+// The moving phase used to paint a static `.die-placeholder` pip row. That row
+// was the surface of the "AI-turn freeze on 2" bug — a stale single-die render
+// retained from the prior phase. Driving the moving phase through the live
+// `<dice-tray>` mounts a fresh element on every state update so stale state
+// can't persist.
 //
 // On dice-settle, calls onRoll({ values, throwParams }).
 
@@ -36,6 +43,22 @@ function staticDiceRow(values) {
   wrap.style.gap = '14px';
   for (const v of values) wrap.appendChild(staticDie(v));
   return wrap;
+}
+
+function replayDiceTray({ values, throwParams, themeKey }) {
+  const count = Math.max(1, Array.isArray(values) ? values.length : 1);
+  const tray = document.createElement('dice-tray');
+  tray.setAttribute('dice', `${count}d6`);
+  tray.setAttribute('mode', 'replay');
+  tray.setAttribute('theme', themeKey);
+  if (Array.isArray(throwParams) && throwParams.length > 0) {
+    tray.setAttribute('replay', JSON.stringify({ throwParams, values }));
+  }
+  // Match the active tray's footprint so swapping between phases doesn't
+  // cause a layout jump.
+  tray.style.width = '320px';
+  tray.style.height = '260px';
+  return tray;
 }
 
 // Wraps the active <dice-tray> so we can attach listeners and forward roll events.
@@ -100,8 +123,9 @@ export function renderDice(state, ctx, onRoll) {
 
   if (phase === 'moving') {
     const values = state.turn?.dice?.values;
+    const throwParams = state.turn?.dice?.throwParams;
     if (Array.isArray(values) && values.length > 0) {
-      mount.appendChild(staticDiceRow(values));
+      mount.appendChild(replayDiceTray({ values, throwParams, themeKey }));
     }
     return;
   }
