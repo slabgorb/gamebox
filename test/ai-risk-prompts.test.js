@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildTurnPrompt, parseLlmResponse } from '../plugins/risk/server/ai/prompts.js';
+import { buildTurnPrompt, parseLlmResponse, BUILD_TURN_PROMPT_VERSION } from '../plugins/risk/server/ai/prompts.js';
 import { allTerritories } from '../plugins/risk/server/map.js';
 
 const territories = {};
@@ -40,4 +40,27 @@ test('parseLlmResponse extracts moveId + banter, tolerates code fences', () => {
 
 test('parseLlmResponse throws on missing moveId', () => {
   assert.throws(() => parseLlmResponse('{"banter":"hi"}'), /moveId/);
+});
+
+test('buildTurnPrompt default mode is live and includes banter clause', () => {
+  const p = buildTurnPrompt({ state, shortlist, botPlayerIdx: 0, userMessages: [] });
+  assert.match(p, /banter/);
+});
+
+test('buildTurnPrompt mode=collection drops banter clause', () => {
+  const p = buildTurnPrompt({ state, shortlist, botPlayerIdx: 0, userMessages: [], mode: 'collection' });
+  assert.doesNotMatch(p, /banter/);
+  assert.match(p, /moveId/);
+});
+
+test('buildTurnPrompt mode=live explicitly equals default', () => {
+  const a = buildTurnPrompt({ state, shortlist, botPlayerIdx: 0, userMessages: [] });
+  const b = buildTurnPrompt({ state, shortlist, botPlayerIdx: 0, userMessages: [], mode: 'live' });
+  assert.equal(a, b);
+});
+
+test('BUILD_TURN_PROMPT_VERSION is a positive integer', () => {
+  assert.equal(typeof BUILD_TURN_PROMPT_VERSION, 'number');
+  assert.ok(Number.isInteger(BUILD_TURN_PROMPT_VERSION));
+  assert.ok(BUILD_TURN_PROMPT_VERSION >= 1);
 });

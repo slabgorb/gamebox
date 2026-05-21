@@ -56,7 +56,7 @@ function resolvePendingCombat(state, rng) {
 }
 
 export async function runGame({
-  llmA, llmB, personaA, personaB, seed, maxTurns = 500,
+  llmA, llmB, personaA, personaB, seed, maxTurns = 500, mode = 'live',
 }) {
   const rng = mulberry32(seed);
   const t0 = Date.now();
@@ -96,6 +96,7 @@ export async function runGame({
         llm, persona, sessionId,
         state, botPlayerIdx: sideIdx,
         userMessages: [],
+        mode,
       });
     } catch (err) {
       return {
@@ -115,7 +116,8 @@ export async function runGame({
       turn,
       side,
       phase: state.phase,
-      chosenMoveId: result.action.type,
+      chosenMoveId: result.chosenMoveId,
+      shortlist: result.shortlist,
       banter: result.banter,
       stateBefore: structuredClone(state),
       action: result.action,
@@ -124,8 +126,6 @@ export async function runGame({
     const actorId = sideIdx === 0 ? FAKE_USER_A : FAKE_USER_B;
     const applied = applyRiskAction({ state, action: result.action, actorId, rng });
     if (applied.error) {
-      // The bot chose a legal-shaped move that applyRiskAction rejected
-      // (race/edge case). Treat as forfeit so the tournament continues.
       return {
         winner: sideIdx === 0 ? 'b' : 'a',
         endReason: 'forfeit',
@@ -137,13 +137,10 @@ export async function runGame({
     }
     state = applied.state;
 
-    // If the action was an attack-intent, applyRiskAction set pendingCombat;
-    // resolve it now (the harness plays the defender's client).
     if (state.pendingCombat) {
       state = resolvePendingCombat(state, rng);
     }
 
-    // Check for game end from conquest (applyRiskAction returned ended:true).
     if (applied.ended) {
       return {
         winner: state.winner === 0 ? 'a' : 'b',

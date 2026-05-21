@@ -4,26 +4,46 @@
 //
 // Usage:
 //   node scripts/risk-tourney.mjs \
-//     --a claude:claude-haiku-4-5-20251001 \
-//     --b ollama:llama3.1:8b \
+//     --a claude:claude-sonnet-4-6 \
+//     --b claude:claude-sonnet-4-6 \
 //     --persona-a admiral-vonnegut \
 //     --persona-b admiral-vonnegut \
-//     --games 20 \
+//     --games 25 \
 //     --seed 42 \
-//     --out results/run.jsonl
+//     --mode collection \
+//     --out data/risk-corpus/pilot/vonnegut-vonnegut.jsonl
 //
 // Backend string: "<kind>:<model>" where kind is "claude" or "ollama".
+// --mode: "live" (default) or "collection" (drops banter from prompt).
+//
+// Append-and-resume: --out is opened in append mode. If the file already
+// contains N JSONL lines, those games are considered done and skipped.
 
-import { mkdirSync, createWriteStream } from 'node:fs';
+import {
+  mkdirSync, createWriteStream, existsSync, readFileSync,
+} from 'node:fs';
+import { execSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ClaudeCliClient } from '../src/server/ai/llm-client.js';
 import { OllamaClient } from '../src/server/ai/ollama-client.js';
 import { loadPersonaCatalog } from '../src/server/ai/persona-catalog.js';
 import { runGame, wilsonInterval } from '../src/server/ai/headless-game.js';
+import { runWithRateLimitRetry, isRateLimitError } from '../src/server/ai/retry.js';
+import { BUILD_TURN_PROMPT_VERSION } from '../plugins/risk/server/ai/prompts.js';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const PERSONA_DIR = resolve(PROJECT_ROOT, 'data', 'ai-personas');
+
+// Count completed games in an existing JSONL output file. Lines that are
+// blank are skipped (defensive — we never write blanks, but a partial write
+// during a crash could leave one). Returns 0 if the file does not exist.
+export function countCompletedGames(path) {
+  if (!existsSync(path)) return 0;
+  const text = readFileSync(path, 'utf8');
+  if (!text) return 0;
+  return text.split('\n').filter(line => line.trim().length > 0).length;
+}
 
 function parseArgs(argv) {
   const args = {};
@@ -44,6 +64,10 @@ function parseArgs(argv) {
   }
   args.seed = args.seed != null ? parseInt(args.seed, 10) : 0;
   args['max-turns'] = args['max-turns'] != null ? parseInt(args['max-turns'], 10) : 500;
+  args.mode = args.mode ?? 'live';
+  if (args.mode !== 'live' && args.mode !== 'collection') {
+    throw new Error(`--mode must be 'live' or 'collection' (got '${args.mode}')`);
+  }
   return args;
 }
 
@@ -58,6 +82,16 @@ function makeClient(backend) {
 
 function pct(x) { return (x * 100).toFixed(1) + '%'; }
 
+function captureGitSha() {
+  try {
+    return execSync('git rev-parse HEAD', {
+      cwd: PROJECT_ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -70,14 +104,24 @@ async function main() {
   const clientA = makeClient(args.a);
   const clientB = makeClient(args.b);
 
-  mkdirSync(dirname(resolve(args.out)), { recursive: true });
-  const out = createWriteStream(resolve(args.out), { flags: 'w' });
+  const outPath = resolve(args.out);
+  mkdirSync(dirname(outPath), { recursive: true });
 
+  const startIndex = countCompletedGames(outPath);
+  if (startIndex > 0) {
+    console.log(`[resume] ${startIndex} completed games found in ${args.out}, skipping ahead`);
+    if (startIndex >= args.games) {
+      console.log(`[resume] all ${args.games} games already complete; nothing to do`);
+      return;
+    }
+  }
+
+  const out = createWriteStream(outPath, { flags: 'a' });
+  const harnessGitSha = captureGitSha();
   const wins = { a: 0, b: 0, draw: 0 };
   const totalStart = Date.now();
 
-  for (let i = 0; i < args.games; i++) {
-    // Alternate which backend plays side A so the side-A advantage cancels out.
+  for (let i = startIndex; i < args.games; i++) {
     const swap = i % 2 === 1;
     const llmA = swap ? clientB : clientA;
     const llmB = swap ? clientA : clientB;
@@ -86,12 +130,33 @@ async function main() {
     const labelA = swap ? args.b : args.a;
     const labelB = swap ? args.a : args.b;
 
-    const result = await runGame({
-      llmA, llmB, personaA: pA, personaB: pB,
-      seed: args.seed + i, maxTurns: args['max-turns'],
-    });
+    let result;
+    try {
+      result = await runWithRateLimitRetry(() => runGame({
+        llmA, llmB, personaA: pA, personaB: pB,
+        seed: args.seed + i, maxTurns: args['max-turns'],
+        mode: args.mode,
+      }));
+    } catch (err) {
+      // Always flush the write stream fully before exiting — WriteStream.end()
+      // is async and process.exit() can race past an unflushed buffer, which
+      // would corrupt the corpus by losing already-written lines.  Wrapping in
+      // a Promise makes the flush synchronous from our perspective.
+      //
+      // Design intent: only rate-limit errors get a clean checkpoint exit (0).
+      // Any other error (network glitch, JSON parse failure, engine assertion)
+      // is a real bug and must surface as exit 1 with a clear message so CI
+      // and the operator are not misled.
+      await new Promise(resolve => out.end(resolve));
+      if (isRateLimitError(err)) {
+        console.error(`[rate-limited twice in a row] checkpointing at game ${i}`);
+        console.error(`[resume with: node scripts/risk-tourney.mjs ${process.argv.slice(2).join(' ')}]`);
+        process.exit(0);
+      }
+      console.error(`[error during game ${i}] ${err.message}`);
+      process.exit(1);
+    }
 
-    // Map side-A/B winner back to the configured backend labels.
     let winnerBackend = null;
     if (result.winner === 'a') winnerBackend = labelA;
     else if (result.winner === 'b') winnerBackend = labelB;
@@ -114,6 +179,9 @@ async function main() {
       durationMs: result.durationMs,
       forfeitReason: result.forfeitReason ?? null,
       transcript: result.transcript,
+      harnessGitSha,
+      buildTurnPromptVersion: BUILD_TURN_PROMPT_VERSION,
+      collectionMode: args.mode === 'collection',
     });
     out.write(line + '\n');
 
@@ -128,22 +196,26 @@ async function main() {
   out.end();
 
   const totalSecs = ((Date.now() - totalStart) / 1000).toFixed(0);
-  const ciA = wilsonInterval(wins.a, args.games);
-  const ciB = wilsonInterval(wins.b, args.games);
-  console.log(`\nTournament complete: ${args.games} games, ${totalSecs}s`);
+  const playedCount = args.games - startIndex;
+  const ciA = wilsonInterval(wins.a, playedCount || 1);
+  const ciB = wilsonInterval(wins.b, playedCount || 1);
+  console.log(`\nTournament complete: ${args.games} games (${playedCount} played this run), ${totalSecs}s`);
   console.log(
-    `  ${args.a}: ${wins.a} wins (${pct(wins.a / args.games)}, ` +
+    `  ${args.a}: ${wins.a} wins (${pct(wins.a / (playedCount || 1))}, ` +
     `95% CI: ${pct(ciA.low)}–${pct(ciA.high)})`
   );
   console.log(
-    `  ${args.b}: ${wins.b} wins (${pct(wins.b / args.games)}, ` +
+    `  ${args.b}: ${wins.b} wins (${pct(wins.b / (playedCount || 1))}, ` +
     `95% CI: ${pct(ciB.low)}–${pct(ciB.high)})`
   );
   console.log(`  draws/timeouts: ${wins.draw}`);
   console.log(`\nTranscripts written to ${args.out}`);
 }
 
-main().catch(err => {
-  console.error(`risk-tourney: ${err.message}`);
-  process.exit(1);
-});
+// Only run main() when invoked as a script — never when imported for tests.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(err => {
+    console.error(`risk-tourney: ${err.message}`);
+    process.exit(1);
+  });
+}

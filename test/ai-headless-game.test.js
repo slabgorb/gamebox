@@ -117,3 +117,62 @@ test('runGame: LLM throw counts as forfeit for that side', async () => {
   assert.equal(r.winner, 'b');
   assert.equal(r.endReason, 'forfeit');
 });
+
+test('runGame transcript chosenMoveId matches the actual shortlist id, not action type', async () => {
+  // The existing firstMoveLlm stub returns the first [mN] token from the
+  // prompt. After Task 3, chooseAction returns chosenMoveId=match.id which
+  // is one of "setup-deploy:0", "attack:alaska->alberta", etc. — never the
+  // bare action type "attack" or "setup-deploy".
+  const r = await runGame({
+    llmA: firstMoveLlm(), llmB: firstMoveLlm(),
+    personaA: STUB_PERSONA, personaB: STUB_PERSONA,
+    seed: 1, maxTurns: 5,
+  });
+  for (const entry of r.transcript) {
+    // chosenMoveId must contain a ':' (move ids are "type:detail") OR be one
+    // of the bare-terminator ids end-attack / end-turn.
+    const isStructured = entry.chosenMoveId.includes(':');
+    const isTerminator = entry.chosenMoveId === 'end-attack' || entry.chosenMoveId === 'end-turn';
+    assert.ok(isStructured || isTerminator,
+      `chosenMoveId "${entry.chosenMoveId}" should be a real move id, not an action type`);
+  }
+});
+
+test('runGame transcript includes shortlist with id/summary/score on every turn', async () => {
+  const r = await runGame({
+    llmA: firstMoveLlm(), llmB: firstMoveLlm(),
+    personaA: STUB_PERSONA, personaB: STUB_PERSONA,
+    seed: 1, maxTurns: 5,
+  });
+  for (const entry of r.transcript) {
+    assert.ok(Array.isArray(entry.shortlist), 'shortlist missing');
+    assert.ok(entry.shortlist.length >= 1);
+    for (const item of entry.shortlist) {
+      assert.equal(typeof item.id, 'string');
+      assert.equal(typeof item.summary, 'string');
+      assert.equal(typeof item.score, 'number');
+    }
+  }
+});
+
+test('runGame passes mode to chooseAction (collection mode prompts have no banter clause)', async () => {
+  // Capture the prompt to confirm collection mode reaches all the way down.
+  const prompts = [];
+  const captureLlm = {
+    async send({ prompt }) {
+      prompts.push(prompt);
+      const m = prompt.match(/^\s*-\s+([\w\-:>]+):/m);
+      const id = m ? m[1] : 'end-attack';
+      return { text: JSON.stringify({ moveId: id }), sessionId: 'cap' };
+    },
+  };
+  await runGame({
+    llmA: captureLlm, llmB: captureLlm,
+    personaA: STUB_PERSONA, personaB: STUB_PERSONA,
+    seed: 1, maxTurns: 3, mode: 'collection',
+  });
+  assert.ok(prompts.length > 0);
+  for (const p of prompts) {
+    assert.doesNotMatch(p, /banter/, 'collection mode should not request banter');
+  }
+});
