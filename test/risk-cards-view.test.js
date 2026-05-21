@@ -58,6 +58,27 @@ test('a non-participant viewer learns no card identities', () => {
     'a spectator holds no revealed cards');
 });
 
+test('nextTradeBonus reflects the escalating bonus for the next trade, counter stays private', () => {
+  const fresh = riskPublicView({ state: stateWithHands(), viewerId: 7 });
+  assert.equal(fresh.nextTradeBonus, 4, 'first trade-in (count 0) grants 4 armies');
+  assert.equal(fresh.tradeInCount, undefined, 'the raw trade counter must not leak');
+
+  const mid = stateWithHands();
+  mid.tradeInCount = 2;
+  const v = riskPublicView({ state: mid, viewerId: 7 });
+  assert.equal(v.nextTradeBonus, 8, 'third trade-in (count 2) grants 8 armies');
+  assert.equal(v.tradeInCount, undefined, 'counter still redacted');
+
+  // Boundary between the fixed table (last entry, count 5 -> 15) and the
+  // +5 formula branch (count 6 -> 20).
+  const lastTable = stateWithHands(); lastTable.tradeInCount = 5;
+  assert.equal(riskPublicView({ state: lastTable, viewerId: 7 }).nextTradeBonus, 15,
+    'sixth trade-in (count 5) grants the final table value, 15');
+  const firstFormula = stateWithHands(); firstFormula.tradeInCount = 6;
+  assert.equal(riskPublicView({ state: firstFormula, viewerId: 7 }).nextTradeBonus, 20,
+    'seventh trade-in (count 6) grants 15 + 5 = 20 via the formula branch');
+});
+
 // The board itself stays fully public — redaction is scoped to hands only.
 test('redaction does not disturb the public board view', () => {
   const state = stateWithHands();
