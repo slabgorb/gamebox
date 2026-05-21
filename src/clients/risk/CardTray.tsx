@@ -32,7 +32,14 @@ export function CardTray({ view, post }: Props) {
   const yourTurn = view.youAre === view.currentPlayer;
   const canTrade = view.phase === "reinforce" && yourTurn;
   const mustTrade = canTrade && hand.length >= FORCED_TRADE_AT;
-  const validSet = selected.length === 3 && isValidCardSet(selected.map((i) => hand[i]));
+  // Guard against stale indices: when the hand shrinks (a completed trade, an
+  // SSE update) `selected` can still reference indices past the new hand for
+  // the one render before the reset effect fires. Treat that as not-a-set
+  // rather than indexing undefined into isValidCardSet.
+  const validSet =
+    selected.length === 3 &&
+    selected.every((i) => i < hand.length) &&
+    isValidCardSet(selected.map((i) => hand[i]));
 
   function toggle(i: number) {
     setSelected((cur) => {
@@ -44,6 +51,10 @@ export function CardTray({ view, post }: Props) {
 
   function submit() {
     if (!validSet) return;
+    // cardIndices are positional indices into view.hand. This is valid only
+    // because the server hand is order-preserving and append-only (trade-in
+    // filters by index, draw appends — neither reorders), so client and
+    // server indices agree. The server re-validates bounds/dups/set shape.
     post({ type: "trade-in", payload: { cardIndices: [...selected] } });
     setSelected([]);
   }
@@ -55,7 +66,10 @@ export function CardTray({ view, post }: Props) {
       {hand.map((card, i) => {
         const on = selected.includes(i);
         return (
-          <li key={i}>
+          // Stable key: a trade-in removes cards mid-list, so a bare index key
+          // would make React reuse the wrong <li> nodes for the survivors. The
+          // :i suffix disambiguates the two identical wild cards.
+          <li key={`${card.type}:${card.territory}:${i}`}>
             <button
               type="button"
               className={`hand-card${on ? " selected" : ""} type-${card.type}`}
@@ -101,14 +115,17 @@ export function CardTray({ view, post }: Props) {
         </span>
       </div>
 
-      {hand.length === 0 ? (
+      {/* When a trade is forced, the modal below is the sole renderer of the
+          hand + controls — gating the inline body on !mustTrade avoids mounting
+          a duplicate (and AT-visible) interactive copy beneath the overlay. */}
+      {!mustTrade && (hand.length === 0 ? (
         <p className="card-tray__empty">No cards yet — capture a territory to earn one.</p>
       ) : (
         <>
           {handList}
           {canTrade && tradeControls}
         </>
-      )}
+      ))}
 
       {mustTrade && (
         <div className="trade-modal" role="dialog" aria-modal="true" data-testid="must-trade-modal">

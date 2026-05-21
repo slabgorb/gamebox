@@ -68,6 +68,15 @@ test('nextTradeBonus reflects the escalating bonus for the next trade, counter s
   const v = riskPublicView({ state: mid, viewerId: 7 });
   assert.equal(v.nextTradeBonus, 8, 'third trade-in (count 2) grants 8 armies');
   assert.equal(v.tradeInCount, undefined, 'counter still redacted');
+
+  // Boundary between the fixed table (last entry, count 5 -> 15) and the
+  // +5 formula branch (count 6 -> 20).
+  const lastTable = stateWithHands(); lastTable.tradeInCount = 5;
+  assert.equal(riskPublicView({ state: lastTable, viewerId: 7 }).nextTradeBonus, 15,
+    'sixth trade-in (count 5) grants the final table value, 15');
+  const firstFormula = stateWithHands(); firstFormula.tradeInCount = 6;
+  assert.equal(riskPublicView({ state: firstFormula, viewerId: 7 }).nextTradeBonus, 20,
+    'seventh trade-in (count 6) grants 15 + 5 = 20 via the formula branch');
 });
 
 // The board itself stays fully public — redaction is scoped to hands only.

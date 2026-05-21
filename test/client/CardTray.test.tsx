@@ -66,14 +66,89 @@ describe("CardTray", () => {
     expect(post).toHaveBeenCalledWith({ type: "trade-in", payload: { cardIndices: [0, 1, 2] } });
   });
 
-  it("blocks with a must-trade modal when holding 5+ cards on your reinforce step", () => {
+  it("keeps trade-in disabled when three selected cards do NOT form a valid set", () => {
+    // two infantry + one cavalry = only two distinct types, no wild → invalid.
+    render(<CardTray view={view([inf("alaska"), inf("nwt"), cav("greenland")])} post={vi.fn()} />);
+    const cards = screen.getAllByTestId("hand-card");
+    fireEvent.click(cards[0]);
+    fireEvent.click(cards[1]);
+    fireEvent.click(cards[2]);
+    expect(screen.getByTestId("trade-in-btn")).toBeDisabled();
+  });
+
+  it("deselecting a card drops back below a valid set and re-disables trade-in", () => {
+    render(<CardTray view={view([inf("alaska"), cav("nwt"), art("greenland")])} post={vi.fn()} />);
+    const cards = screen.getAllByTestId("hand-card");
+    fireEvent.click(cards[0]);
+    fireEvent.click(cards[1]);
+    fireEvent.click(cards[2]);
+    expect(screen.getByTestId("trade-in-btn")).toBeEnabled();
+    fireEvent.click(cards[2]); // deselect
+    expect(screen.getByTestId("trade-in-btn")).toBeDisabled();
+    expect(cards[2].getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("caps selection at three — a fourth click is ignored", () => {
+    // four infantry, below the must-trade threshold (so no modal).
+    const four = [inf("alaska"), inf("nwt"), inf("greenland"), inf("alberta")];
+    render(<CardTray view={view(four)} post={vi.fn()} />);
+    const cards = screen.getAllByTestId("hand-card");
+    cards.forEach((c) => fireEvent.click(c));
+    const pressed = cards.filter((c) => c.getAttribute("aria-pressed") === "true");
+    expect(pressed).toHaveLength(3);
+    expect(screen.getByTestId("trade-in-btn")).toBeEnabled(); // first three are a valid set
+  });
+
+  it("dispatches the actually-selected (non-contiguous) indices", () => {
+    const post = vi.fn();
+    const four = [inf("alaska"), inf("nwt"), inf("greenland"), inf("alberta")];
+    render(<CardTray view={view(four)} post={post} />);
+    const cards = screen.getAllByTestId("hand-card");
+    fireEvent.click(cards[0]);
+    fireEvent.click(cards[2]);
+    fireEvent.click(cards[3]);
+    fireEvent.click(screen.getByTestId("trade-in-btn"));
+    expect(post).toHaveBeenCalledWith({ type: "trade-in", payload: { cardIndices: [0, 2, 3] } });
+  });
+
+  it("resets the selection when the hand changes underneath it", () => {
+    const { rerender } = render(
+      <CardTray view={view([inf("alaska"), cav("nwt"), art("greenland")])} post={vi.fn()} />,
+    );
+    const cards = screen.getAllByTestId("hand-card");
+    cards.forEach((c) => fireEvent.click(c));
+    expect(cards.filter((c) => c.getAttribute("aria-pressed") === "true")).toHaveLength(3);
+    rerender(<CardTray view={view([inf("peru"), cav("brazil")])} post={vi.fn()} />);
+    for (const c of screen.getAllByTestId("hand-card")) {
+      expect(c.getAttribute("aria-pressed")).toBe("false");
+    }
+  });
+
+  it("must-trade modal renders its own hand + disabled button, with no duplicate body", () => {
     const five = [inf("alaska"), inf("nwt"), inf("greenland"), cav("alberta"), art("ontario")];
     render(<CardTray view={view(five)} post={vi.fn()} />);
-    expect(screen.getByTestId("must-trade-modal")).toBeInTheDocument();
+    const modal = screen.getByTestId("must-trade-modal");
+    // The modal is the SOLE renderer when forced: no duplicate body beneath the
+    // overlay, so exactly five cards / one trade button exist in the document.
+    expect(screen.getAllByTestId("hand-card")).toHaveLength(5);
+    expect(within(modal).getAllByTestId("hand-card")).toHaveLength(5);
+    expect(within(modal).getByTestId("trade-in-btn")).toBeDisabled();
   });
 
   it("does not show the must-trade modal below the threshold", () => {
     render(<CardTray view={view([inf("alaska"), cav("nwt"), art("greenland")])} post={vi.fn()} />);
+    expect(screen.queryByTestId("must-trade-modal")).not.toBeInTheDocument();
+  });
+
+  it("does not force a trade at four cards (one below threshold)", () => {
+    const four = [inf("alaska"), inf("nwt"), inf("greenland"), cav("alberta")];
+    render(<CardTray view={view(four)} post={vi.fn()} />);
+    expect(screen.queryByTestId("must-trade-modal")).not.toBeInTheDocument();
+  });
+
+  it("does not force a trade outside the reinforce phase even with 5+ cards", () => {
+    const five = [inf("alaska"), inf("nwt"), inf("greenland"), cav("alberta"), art("ontario")];
+    render(<CardTray view={view(five, { phase: "attack" })} post={vi.fn()} />);
     expect(screen.queryByTestId("must-trade-modal")).not.toBeInTheDocument();
   });
 
