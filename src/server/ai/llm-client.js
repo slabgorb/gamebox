@@ -3,8 +3,20 @@ import { randomUUID } from 'node:crypto';
 import { tmpdir } from 'node:os';
 
 const DEFAULT_TIMEOUT_MS = 180_000;
-const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+export const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 const DEFAULT_COMMAND = 'claude';
+
+// Per-game-type LLM model overrides. Game types absent from this map fall
+// back to DEFAULT_MODEL (Haiku). Risk runs on Sonnet because its turns are
+// long multi-action sequences where decision quality matters more than the
+// per-turn cost; this seam is also where E2-7 will A/B a fine-tuned model.
+export const MODEL_BY_GAME_TYPE = {
+  risk: 'claude-sonnet-4-6',
+};
+
+export function modelForGameType(gameType) {
+  return MODEL_BY_GAME_TYPE[gameType] ?? DEFAULT_MODEL;
+}
 
 export class LlmClientError extends Error {}
 export class TimeoutError extends LlmClientError {
@@ -57,6 +69,8 @@ export class ClaudeCliClient {
     this._command = command;
     this._model = model;
   }
+
+  get model() { return this._model; }
 
   async send({ prompt, sessionId, systemPrompt }) {
     if (!prompt || !prompt.trim()) throw new EmptyResponse();
