@@ -198,7 +198,8 @@ stories:
     description: Add a per-game-type model map so each AI adapter selects its own LLM model, defaulting to DEFAULT_MODEL (Haiku) with Risk overridden to Sonnet (claude-sonnet-4-6). Today src/server/ai/index.js constructs a single shared ClaudeCliClient for all games; thread a per-game model through bootAiSubsystem -> orchestrator -> adapter so cribbage/backgammon/words stay on Haiku. This seam is also the precursor E2-7 needs to A/B a fine-tuned model against Sonnet in live Risk.
     points: 2
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-05-21'
     repos: g-1
     workflow: trivial
     acceptance_criteria:
@@ -206,3 +207,4 @@ stories:
       - Risk AI turns use claude-sonnet-4-6; cribbage/backgammon/words remain on the Haiku default
       - Game types with no override fall back to DEFAULT_MODEL
       - Existing AI tests pass; a test asserts Risk resolves to the Sonnet model and a non-Risk game resolves to Haiku
+    completed: '2026-05-21'

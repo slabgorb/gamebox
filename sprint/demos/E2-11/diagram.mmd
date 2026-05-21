@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant Client
+    participant GameServer
+    participant Orchestrator
+    participant ModelMap
+    participant ClaudeAPI
+
+    Client->>GameServer: POST /api/game/{id}/action
+    GameServer->>Orchestrator: wakeUpBot(game_type, game_state)
+    Orchestrator->>ModelMap: resolveModel(game_type)
+    
+    alt game_type === "risk"
+        ModelMap-->>Orchestrator: "claude-sonnet-4-6"
+    else game_type === "cribbage" | "backgammon" | "words"
+        ModelMap-->>Orchestrator: "claude-haiku-4-5"
+    else unknown game_type
+        ModelMap-->>Orchestrator: DEFAULT_MODEL (fallback)
+    end
+
+    Orchestrator->>ClaudeAPI: invoke(model, persona_prompt, game_state)
+    ClaudeAPI-->>Orchestrator: bot_action
+    Orchestrator-->>GameServer: bot_action
+    GameServer-->>Client: updated_game_state
