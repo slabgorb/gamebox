@@ -62,6 +62,29 @@ test('OllamaClient: throws on empty message content', async () => {
   await assert.rejects(client.send({ prompt: 'x' }), /empty/i);
 });
 
+test('OllamaClient: replays cached systemPrompt for known sessionId when caller omits it', async () => {
+  const { fetch, calls } = fakeFetch(() => okResponse('ok'));
+  const client = new OllamaClient({ model: 'llama3.1:8b', fetch });
+  const first = await client.send({ prompt: 'a', systemPrompt: 'persona X' });
+  await client.send({ prompt: 'b', sessionId: first.sessionId, systemPrompt: null });
+  const secondBody = JSON.parse(calls[1].init.body);
+  assert.deepEqual(secondBody.messages, [
+    { role: 'system', content: 'persona X' },
+    { role: 'user', content: 'b' },
+  ]);
+});
+
+test('OllamaClient: different sessionIds have independent systemPrompt caches', async () => {
+  const { fetch, calls } = fakeFetch(() => okResponse('ok'));
+  const client = new OllamaClient({ model: 'llama3.1:8b', fetch });
+  const sessionA = await client.send({ prompt: 'a1', systemPrompt: 'persona A' });
+  const sessionB = await client.send({ prompt: 'b1', systemPrompt: 'persona B' });
+  await client.send({ prompt: 'a2', sessionId: sessionA.sessionId });
+  await client.send({ prompt: 'b2', sessionId: sessionB.sessionId });
+  assert.equal(JSON.parse(calls[2].init.body).messages[0].content, 'persona A');
+  assert.equal(JSON.parse(calls[3].init.body).messages[0].content, 'persona B');
+});
+
 test('OllamaClient: uses custom baseUrl', async () => {
   const { fetch, calls } = fakeFetch(() => okResponse('ok'));
   const client = new OllamaClient({

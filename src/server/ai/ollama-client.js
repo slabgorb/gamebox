@@ -12,11 +12,21 @@ export class OllamaClient {
     this._baseUrl = baseUrl.replace(/\/+$/, '');
     this._timeoutMs = timeoutMs;
     this._fetch = fetchImpl;
+    // Ollama is stateless; callers built for stateful backends (e.g. the Claude
+    // CLI's --resume) only send systemPrompt on the first call. Cache it per
+    // sessionId so the persona persists across turns within a game.
+    this._systemPromptBySession = new Map();
   }
 
   async send({ prompt, sessionId, systemPrompt }) {
+    const effectiveSession = sessionId ?? randomUUID();
+    const effectiveSystem = systemPrompt
+      ?? this._systemPromptBySession.get(effectiveSession)
+      ?? null;
+    if (systemPrompt) this._systemPromptBySession.set(effectiveSession, systemPrompt);
+
     const messages = [];
-    if (systemPrompt) messages.push({ role: 'system', content: systemPrompt });
+    if (effectiveSystem) messages.push({ role: 'system', content: effectiveSystem });
     messages.push({ role: 'user', content: prompt });
 
     const controller = new AbortController();
@@ -42,6 +52,6 @@ export class OllamaClient {
     const text = data?.message?.content ?? '';
     if (!text) throw new Error('OllamaClient: empty response content');
 
-    return { text, sessionId: sessionId ?? randomUUID() };
+    return { text, sessionId: effectiveSession };
   }
 }
