@@ -46,12 +46,45 @@ function deployCandidates(state, p, pool, type) {
   }));
 }
 
+// Find the indices of one tradeable set in a hand (3-of-a-kind, 3-distinct,
+// or two cards plus a wild), or null if none exists. Proposes a set for the
+// engine to validate — it does not re-implement validation.
+function findTradeInSet(hand) {
+  if (!Array.isArray(hand) || hand.length < 3) return null;
+  const byType = { infantry: [], cavalry: [], artillery: [], wild: [] };
+  hand.forEach((c, i) => { (byType[c.type] ?? (byType[c.type] = [])).push(i); });
+
+  for (const t of ['infantry', 'cavalry', 'artillery']) {
+    if (byType[t].length >= 3) return byType[t].slice(0, 3);
+  }
+  if (byType.infantry.length && byType.cavalry.length && byType.artillery.length) {
+    return [byType.infantry[0], byType.cavalry[0], byType.artillery[0]];
+  }
+  const nonWild = hand.map((_, i) => i).filter(i => hand[i].type !== 'wild');
+  if (byType.wild.length >= 1 && nonWild.length >= 2) return [byType.wild[0], nonWild[0], nonWild[1]];
+  if (byType.wild.length >= 2 && nonWild.length >= 1) return [byType.wild[0], byType.wild[1], nonWild[0]];
+  return null;
+}
+
 export function enumerateLegalMoves(state, p) {
   switch (state.phase) {
     case 'setup':
       return deployCandidates(state, p, state.setupPools[p], 'setup-deploy');
-    case 'reinforce':
-      return deployCandidates(state, p, state.reinforcePool, 'deploy');
+    case 'reinforce': {
+      const moves = [];
+      const set = findTradeInSet(state.hands?.[p]);
+      if (set) {
+        moves.push({
+          id: 'trade-in',
+          action: { type: 'trade-in', payload: { cardIndices: set } },
+          summary: `trade in card set ${set.join(',')}`,
+        });
+      }
+      // Holding 5+ cards forces a trade before any deploy is legal.
+      const mustTrade = (state.hands?.[p]?.length ?? 0) >= 5;
+      if (!mustTrade) moves.push(...deployCandidates(state, p, state.reinforcePool, 'deploy'));
+      return moves;
+    }
     case 'attack': {
       const moves = [];
       for (const from of ownedIds(state, p)) {

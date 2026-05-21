@@ -68,6 +68,9 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     case 'reinforce:deploy':
       err = applyDeploy(s, actorIdx, action.payload, 'reinforce');
       break;
+    case 'reinforce:trade-in':
+      err = applyTradeIn(s, actorIdx, action.payload);
+      break;
     case 'setup:setup-deploy':
       err = applySetupDeploy(s, actorIdx, action.payload);
       break;
@@ -108,7 +111,73 @@ function finishGame(s, reason) {
   };
 }
 
+function handSize(s, playerIdx) {
+  return s.hands?.[playerIdx]?.length ?? 0;
+}
+
+// Escalating trade-in bonus: trade #1 (n=0) -> 4, then 6,8,10,12,15, then +5
+// each (20, 25, ...). n is the number of trades already made (tradeInCount).
+const TRADE_BONUSES = [4, 6, 8, 10, 12, 15];
+function tradeBonus(n) {
+  return n < TRADE_BONUSES.length ? TRADE_BONUSES[n] : 15 + 5 * (n - (TRADE_BONUSES.length - 1));
+}
+
+function isValidSet(cards) {
+  if (cards.some(c => c.type === 'wild')) return true; // any 2 + a wild
+  const types = new Set(cards.map(c => c.type));
+  return types.size === 1 || types.size === 3; // three-of-a-kind or three-distinct
+}
+
+function applyTradeIn(s, playerIdx, payload) {
+  const hand = s.hands?.[playerIdx];
+  if (!Array.isArray(hand)) return 'no hand to trade from';
+  const idxs = payload?.cardIndices;
+  if (!Array.isArray(idxs) || idxs.length !== 3) return 'a trade-in must be exactly three cards';
+  const seen = new Set();
+  for (const i of idxs) {
+    if (!Number.isInteger(i) || i < 0 || i >= hand.length) return `card index ${i} not in hand`;
+    if (seen.has(i)) return `duplicate card index ${i}`;
+    seen.add(i);
+  }
+  const cards = idxs.map(i => hand[i]);
+  if (!isValidSet(cards)) {
+    return 'not a valid set (need three of a kind, three distinct, or two cards plus a wild)';
+  }
+
+  s.reinforcePool += tradeBonus(s.tradeInCount ?? 0);
+  s.tradeInCount = (s.tradeInCount ?? 0) + 1;
+
+  // Territory-match: +2 armies on one owned territory named by a traded card.
+  for (const c of cards) {
+    if (c.territory && s.territories[c.territory]?.owner === playerIdx) {
+      s.territories[c.territory].armies += 2;
+      break;
+    }
+  }
+
+  s.discard = s.discard ?? [];
+  s.hands[playerIdx] = hand.filter((_, i) => !seen.has(i));
+  for (const c of cards) s.discard.push(c);
+  s.log.push({ kind: 'trade-in', player: playerIdx });
+  return null;
+}
+
+// Draw the top card of the deck into a player's hand, reshuffling the discard
+// pile back into the deck first if the deck has run dry.
+function drawCard(s, playerIdx) {
+  if (!Array.isArray(s.hands?.[playerIdx]) || !Array.isArray(s.deck)) return;
+  if (s.deck.length === 0) {
+    if (!s.discard || s.discard.length === 0) return;
+    s.deck = s.discard;
+    s.discard = [];
+  }
+  s.hands[playerIdx].push(s.deck.pop());
+}
+
 function applyDeploy(s, playerIdx, payload, mode) {
+  if (mode === 'reinforce' && handSize(s, playerIdx) >= 5) {
+    return 'you must trade in a card set before deploying while holding 5 or more cards';
+  }
   const placements = payload?.placements ?? {};
   const pool = mode === 'reinforce' ? s.reinforcePool : s.setupPools[playerIdx];
   const verr = validateDeploy(s, playerIdx, placements, pool);
@@ -187,6 +256,7 @@ function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
     if (eff.captured) {
       tgt.owner = attackerIdx;
       tgt.armies = eff.attackerSurvivors;
+      s.capturedThisTurn = true;
     } else {
       tgt.armies = eff.defenderSurvivors;
       src.armies += eff.attackerSurvivors;
@@ -232,6 +302,9 @@ function applyFortify(s, playerIdx, payload) {
 }
 
 function endTurn(s) {
+  // A capture anywhere this turn earns one card for the player whose turn ends.
+  if (s.capturedThisTurn) drawCard(s, s.currentPlayer);
+  s.capturedThisTurn = false;
   s.fortifyUsed = false;
   s.currentPlayer = s.currentPlayer === 0 ? 1 : 0;
   s.phase = 'reinforce';
