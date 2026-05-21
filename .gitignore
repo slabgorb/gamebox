@@ -51,3 +51,6 @@ cribbage-*.png
 
 # Source card sheets (sliced output is what we ship)
 plugins/cribbage/client/assets/cards/Cards.png
+
+# Risk LLM corpus — generated, resumable, large; not source
+data/risk-corpus/

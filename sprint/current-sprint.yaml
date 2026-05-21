@@ -1,8 +1,8 @@
 sprint:
-  goal: Cross-game bugfixes and dicelib integration
-  start_date: 2026-05-20
-  end_date: 2026-06-02
+  goal: Risk LLM persona-style corpus and training (kanban)
+  start_date: 2026-05-21
+  end_date: 2026-07-31
   status: active
-  number: 1
+  number: 2
 epics:
-  - CROSS-BUG
+  - E2

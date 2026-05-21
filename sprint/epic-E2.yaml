@@ -1,0 +1,208 @@
+id: E2
+type: epic
+title: Risk LLM persona-style corpus and training
+description: |
+  Validate persona-style differentiation hypothesis, then (if validated) scale to
+  full corpus and train a fine-tuned model that plays Risk in-character.
+
+  Strategic frame: this thread is about STYLE, not win-rate. Heuristic engines
+  already win more. The point is persona-distinguishable play. Every story below
+  serves that gate.
+
+  Pilot harness, collection mode, transcript-shape fixes, rate-limit retry, the
+  six-pairing pilot wrapper, and the chi-square GO/NO-GO diagnostic all landed
+  in PRs #58 + #60. This epic picks up at "run the pilot and act on the result."
+
+  Decision tree:
+    E2-1 (run pilot) -> E2-2 (read diagnostic) -> GO branch or NO-GO branch.
+    GO   -> E2-3 .. E2-7 (scope corpus, collect, prep, fine-tune, integrate)
+    NO-GO -> E2-3-alt, E2-4-alt (analyze failure, revise prompts, rerun)
+
+  Out of scope: 6-player Risk engine, map redesign, persona UI/portraits.
+priority: p1
+status: in_progress
+repos: g-1
+stories:
+  - id: E2-1
+    title: Run pilot 150-game corpus + emit GO/NO-GO diagnostic
+    description: |-
+      RERUN on the carded engine (cards-first decision, 2026-05-21). The 46 cardless games in data/risk-corpus/pilot/ are DISCARDED. Execute scripts/risk-pilot.sh end-to-end: 6 pairings x 25 games = 150 games of Sonnet 4.6 in collection mode on the card-enabled engine. Then run scripts/risk-style-diag.mjs (per E2-9's possibly-revised metric) and capture GO/NO-GO + per-persona table. Deliverable: pilot-meta.json + 6 corpus JSONLs + docs/risk-llm/pilot-report.md with diagnostic output verbatim and a one-line recommendation.
+    points: 2
+    priority: p1
+    status: backlog
+    started: '2026-05-21'
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-9
+    type: chore
+  - id: E2-2
+    title: Branch decision (review pilot report, declare path)
+    description: |
+      PM + Architect read the pilot report. If GO, mark E2-3..E2-7 ready and
+      E2-3-alt/E2-4-alt cancelled. If NO-GO, the reverse. Record the call in
+      the epic file's decision field.
+    points: 1
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-1
+    type: chore
+  - id: E2-3
+    title: Define full-corpus scope (sample N, persona count, models, budget)
+    description: |
+      Given the pilot signal, propose: how many games, how many personas
+      (3 is the pilot floor; could go to 6-10), which model variants (Sonnet
+      only, or +Haiku/+Opus for style range), and the cost projection.
+      Output: docs/risk-llm/corpus-spec.md ready for architect sign-off.
+    points: 3
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-2
+    type: chore
+  - id: E2-4
+    title: Execute full corpus collection run
+    description: |
+      Run the corpus collection per E2-3 spec. Likely a multi-day operation;
+      the harness's resume + retry survives rate-limit interruption.
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-3
+    type: chore
+  - id: E2-5
+    title: Training-data prep pipeline (corpus -> training examples)
+    description: |
+      Build the transformer that turns per-turn transcript entries into
+      training examples. Includes: prompt+completion shaping, quality
+      filters (drop forfeits, drop hung games), train/eval split, and a
+      manifest describing the dataset version.
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E2-4
+    type: feature
+  - id: E2-6
+    title: Fine-tune candidate model + evaluate vs held-out diagnostic
+    description: |
+      Run the fine-tune (target: an open-weights base model we can self-host,
+      or Anthropic's fine-tune API depending on E2-3 cost outcome). Evaluate
+      against the held-out games using the same chi-square diagnostic and
+      report whether style fidelity improved over the base model.
+    points: 8
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-5
+    type: feature
+  - id: E2-7
+    title: Integrate fine-tuned model into live Risk (A/B vs Sonnet)
+    description: |
+      Wire the fine-tuned model into the live Risk orchestrator path. Run
+      it side-by-side with the current Sonnet baseline for human-facing
+      games and capture style preference signal (subjective for now).
+    points: 5
+    priority: p3
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E2-6
+    type: feature
+  - id: E2-3-alt
+    title: Per-persona failure analysis from pilot diagnostic
+    description: |
+      Read the pilot transcripts; figure out which metric collapsed and
+      why. Was it attack-when-available collapsing toward 100% (all
+      personas hyper-aggressive)? Did the shortlist scorer drown out
+      persona voice? Identify the root cause before iterating prompts.
+    points: 3
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-2
+    type: chore
+  - id: E2-4-alt
+    title: Revised system-prompt set + pilot rerun
+    description: |
+      Apply the E2-3-alt findings to the persona system prompts (data/ai-personas/),
+      bump BUILD_TURN_PROMPT_VERSION, and rerun the 150-game pilot. Loop
+      back to E2-2 with the new result.
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-3-alt
+    type: chore
+  - id: E2-8
+    title: Risk cards engine mechanics (deck, award, trade-in, private hands)
+    description: 'Implement canonical Risk territory cards in the 2-player engine. 44-card deck (42 territory cards typed Infantry/Cavalry/Artillery + 2 wild). Award one card at end of turn IFF the player captured >=1 territory that turn. Trade-in at reinforcement: valid sets (3-of-a-kind, 3-distinct, or 2+wild) yield escalating bonus armies (4,6,8,10,12,15, then +5 each) plus +2 on a held territory matching a card in the set. Forced trade-in when holding >=5 cards at reinforcement start. Hands are PRIVATE - view.js redacts opponent card identities (count only). State gains deck, per-player hands, tradeInCount. NOTE: invalidates the 46 cardless pilot games on disk; they will be discarded.'
+    points: 8
+    priority: p1
+    status: done
+    started: '2026-05-21'
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - 44-card deck built (42 territory cards typed Infantry/Cavalry/Artillery round-robin + 2 wild), shuffled deterministically per game seed
+      - A card is awarded at end of turn only when the player captured >=1 territory that turn; no card otherwise
+      - Trade-in accepts the three valid set shapes (3 same, 3 distinct, 2+wild) and rejects invalid sets via validate.js
+      - Trade-in grants escalating bonus armies per the canonical sequence (4,6,8,10,12,15,+5...) tracked by tradeInCount
+      - A traded set grants +2 armies placed on one owned territory matching a card in the set
+      - Player holding >=5 cards at reinforcement start MUST trade before deploying (forced trade-in enforced)
+      - view.js exposes own hand fully but only opponent card COUNT, never identities
+      - reinforcementFor includes traded bonus armies; deck reshuffles from discard when exhausted
+    completed: '2026-05-21'
+    review_findings: 'HIGH: AC-8 reshuffle unimplemented (drawCard re-stacks discard without shuffling; docstring lies; predictable draw order). MEDIUM: 4 rejection tests use assert.ok(r.error) not assert.match (rule #8); missing capturedThisTurn-reset test. LOW: truthy checks (rule #4), view contract drift, isValidCardSet wild handling.'
+    review_verdict: approved
+  - id: E2-9
+    title: Cards-aware AI + diagnostic re-validation (legal moves, prompt bump, board-eval)
+    description: "Make the AI and pilot harness cards-aware so the rerun corpus reflects carded play. Extend legal-move enumeration to include trade-in options; update the LLM turn prompt to surface the bot's hand + trade-in choices and bump BUILD_TURN_PROMPT_VERSION; teach board-eval to value held cards / near-complete sets. Re-validate the GO/NO-GO diagnostic: attack-when-available is now distorted by the card-per-turn incentive, so confirm or revise the metric (candidates: post-card-secured aggression, trade-in timing) in scripts/risk-style-diag.mjs."
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E2-8
+    acceptance_criteria:
+      - Legal-move enumeration includes valid trade-in actions when the bot holds a tradeable set
+      - LLM turn prompt includes the bot's current hand and available trade-in options
+      - BUILD_TURN_PROMPT_VERSION bumped (corpus prompt-shape change recorded)
+      - board-eval assigns positive value to held cards and near-complete sets
+      - 'risk-style-diag.mjs reviewed: attack-when-available confirmed valid under cards OR replaced/supplemented with a card-robust style metric, rationale documented'
+      - risk-full-game bot-vs-bot test passes end-to-end on the carded engine with at least one trade-in occurring
+  - id: E2-10
+    title: Risk cards client UI (hand tray, trade-in, must-trade prompt)
+    description: Client UI for cards. Hand tray showing the player's cards (type + territory), a trade-in selector that validates set shape before enabling submit, and a blocking must-trade prompt when holding >=5 cards. Opponent hand shows count only. NOT required for the headless pilot rerun - p2, does not block E2-1.
+    points: 3
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-8
+    acceptance_criteria:
+      - Hand tray renders the player's own cards with type and territory name
+      - Trade-in selector enables submit only for a valid set; shows the bonus army count it will grant
+      - Must-trade modal blocks deploy actions when the player holds >=5 cards at reinforcement start
+      - Opponent card count is shown; identities are never revealed client-side
+  - id: E2-11
+    title: Per-game-type AI model seam (Risk -> Sonnet 4.6, others stay Haiku)
+    description: Add a per-game-type model map so each AI adapter selects its own LLM model, defaulting to DEFAULT_MODEL (Haiku) with Risk overridden to Sonnet (claude-sonnet-4-6). Today src/server/ai/index.js constructs a single shared ClaudeCliClient for all games; thread a per-game model through bootAiSubsystem -> orchestrator -> adapter so cribbage/backgammon/words stay on Haiku. This seam is also the precursor E2-7 needs to A/B a fine-tuned model against Sonnet in live Risk.
+    points: 2
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    acceptance_criteria:
+      - A per-game-type model map exists; the orchestrator resolves the correct model per game_type
+      - Risk AI turns use claude-sonnet-4-6; cribbage/backgammon/words remain on the Haiku default
+      - Game types with no override fall back to DEFAULT_MODEL
+      - Existing AI tests pass; a test asserts Risk resolves to the Sonnet model and a non-Risk game resolves to Haiku

@@ -1,7 +1,8 @@
 import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
-import { validateDeploy, validateAttack, validateFortify } from './validate.js';
+import { validateDeploy, validateAttack, validateFortify, validateTradeIn } from './validate.js';
 import { replayAttack } from './combat.js';
 import { playerIndex, userIdOf } from './state.js';
+import { shuffle } from '../../../src/shared/cards/deck.js';
 
 export function reinforcementFor(state, playerIdx) {
   const owned = Object.values(state.territories).filter(t => t.owner === playerIdx).length;
@@ -68,6 +69,9 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     case 'reinforce:deploy':
       err = applyDeploy(s, actorIdx, action.payload, 'reinforce');
       break;
+    case 'reinforce:trade-in':
+      err = applyTradeIn(s, actorIdx, action.payload);
+      break;
     case 'setup:setup-deploy':
       err = applySetupDeploy(s, actorIdx, action.payload);
       break;
@@ -79,10 +83,10 @@ export function applyRiskAction({ state, action, actorId, rng }) {
       break;
     case 'fortify:fortify':
       err = applyFortify(s, actorIdx, action.payload);
-      if (!err) endTurn(s);
+      if (!err) endTurn(s, rng);
       break;
     case 'fortify:end-turn':
-      endTurn(s);
+      endTurn(s, rng);
       break;
     default:
       return { error: `action '${action.type}' not allowed in phase '${s.phase}'` };
@@ -108,7 +112,59 @@ function finishGame(s, reason) {
   };
 }
 
+function handSize(s, playerIdx) {
+  return s.hands?.[playerIdx]?.length ?? 0;
+}
+
+// Escalating trade-in bonus: trade #1 (n=0) -> 4, then 6,8,10,12,15, then +5
+// each (20, 25, ...). n is the number of trades already made (tradeInCount).
+const TRADE_BONUSES = [4, 6, 8, 10, 12, 15];
+function tradeBonus(n) {
+  return n < TRADE_BONUSES.length ? TRADE_BONUSES[n] : 15 + 5 * (n - (TRADE_BONUSES.length - 1));
+}
+
+function applyTradeIn(s, playerIdx, payload) {
+  const idxs = payload?.cardIndices;
+  const verr = validateTradeIn(s, playerIdx, idxs);
+  if (verr) return verr;
+  const hand = s.hands[playerIdx];
+  const remove = new Set(idxs);
+  const cards = idxs.map(i => hand[i]);
+
+  s.reinforcePool += tradeBonus(s.tradeInCount ?? 0);
+  s.tradeInCount = (s.tradeInCount ?? 0) + 1;
+
+  // Territory-match: +2 armies on one owned territory named by a traded card.
+  for (const c of cards) {
+    if (c.territory !== null && s.territories[c.territory]?.owner === playerIdx) {
+      s.territories[c.territory].armies += 2;
+      break;
+    }
+  }
+
+  s.discard = s.discard ?? [];
+  s.hands[playerIdx] = hand.filter((_, i) => !remove.has(i));
+  for (const c of cards) s.discard.push(c);
+  s.log.push({ kind: 'trade-in', player: playerIdx });
+  return null;
+}
+
+// Draw the top card of the deck into a player's hand. If the deck has run dry,
+// the discard pile is reshuffled (with the game rng) to form the new deck.
+function drawCard(s, playerIdx, rng) {
+  if (!Array.isArray(s.hands?.[playerIdx]) || !Array.isArray(s.deck)) return;
+  if (s.deck.length === 0) {
+    if (!s.discard || s.discard.length === 0) return;
+    s.deck = shuffle(s.discard, rng ?? Math.random);
+    s.discard = [];
+  }
+  s.hands[playerIdx].push(s.deck.pop());
+}
+
 function applyDeploy(s, playerIdx, payload, mode) {
+  if (mode === 'reinforce' && handSize(s, playerIdx) >= 5) {
+    return 'you must trade in a card set before deploying while holding 5 or more cards';
+  }
   const placements = payload?.placements ?? {};
   const pool = mode === 'reinforce' ? s.reinforcePool : s.setupPools[playerIdx];
   const verr = validateDeploy(s, playerIdx, placements, pool);
@@ -187,6 +243,7 @@ function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
     if (eff.captured) {
       tgt.owner = attackerIdx;
       tgt.armies = eff.attackerSurvivors;
+      s.capturedThisTurn = true;
     } else {
       tgt.armies = eff.defenderSurvivors;
       src.armies += eff.attackerSurvivors;
@@ -231,7 +288,10 @@ function applyFortify(s, playerIdx, payload) {
   return null;
 }
 
-function endTurn(s) {
+function endTurn(s, rng) {
+  // A capture anywhere this turn earns one card for the player whose turn ends.
+  if (s.capturedThisTurn) drawCard(s, s.currentPlayer, rng);
+  s.capturedThisTurn = false;
   s.fortifyUsed = false;
   s.currentPlayer = s.currentPlayer === 0 ? 1 : 0;
   s.phase = 'reinforce';

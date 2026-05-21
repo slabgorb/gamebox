@@ -13,6 +13,14 @@ export interface Territory {
   armies: number;
 }
 
+export type CardType = "infantry" | "cavalry" | "artillery" | "wild";
+
+export interface Card {
+  // null for wild cards; a map territory id otherwise.
+  territory: string | null;
+  type: CardType;
+}
+
 export interface CombatRound {
   aDice: number[];
   dDice: number[];
@@ -31,7 +39,7 @@ export interface LastCombat {
 }
 
 export interface RiskLogEntry {
-  kind: "setup-deploy" | "deploy" | "attack" | "fortify" | "end-turn";
+  kind: "setup-deploy" | "deploy" | "attack" | "fortify" | "end-turn" | "trade-in";
   player?: number;
   from?: string;
   to?: string;
@@ -61,6 +69,10 @@ export interface RiskView {
   winner: PlayerIdx | null;
   log: RiskLogEntry[];
   youAre: PlayerIdx | null;
+  // Card hands are private: the view exposes only the viewer's own hand and a
+  // count of the opponent's. Absent in games with no card state.
+  hand?: Card[];
+  opponentCardCount?: number;
   // Set when a bot's attack is awaiting client-side dice resolution. The
   // defender's client mounts a live CombatReveal and POSTs the resolved
   // payload back so the server can apply the outcome.
@@ -94,4 +106,7 @@ export type RiskAction =
   | { type: "end-attack" }
   | { type: "fortify"; payload: { from: string; to: string; count: number } }
   | { type: "end-turn" }
+  // Trade three held cards (referenced by index into the viewer's own hand)
+  // for bonus armies during the reinforce phase.
+  | { type: "trade-in"; payload: { cardIndices: number[] } }
   | { type: "resign" };
