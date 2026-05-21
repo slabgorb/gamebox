@@ -2,6 +2,7 @@ import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
 import { validateDeploy, validateAttack, validateFortify, validateTradeIn } from './validate.js';
 import { replayAttack } from './combat.js';
 import { playerIndex, userIdOf } from './state.js';
+import { shuffle } from '../../../src/shared/cards/deck.js';
 
 export function reinforcementFor(state, playerIdx) {
   const owned = Object.values(state.territories).filter(t => t.owner === playerIdx).length;
@@ -82,10 +83,10 @@ export function applyRiskAction({ state, action, actorId, rng }) {
       break;
     case 'fortify:fortify':
       err = applyFortify(s, actorIdx, action.payload);
-      if (!err) endTurn(s);
+      if (!err) endTurn(s, rng);
       break;
     case 'fortify:end-turn':
-      endTurn(s);
+      endTurn(s, rng);
       break;
     default:
       return { error: `action '${action.type}' not allowed in phase '${s.phase}'` };
@@ -135,7 +136,7 @@ function applyTradeIn(s, playerIdx, payload) {
 
   // Territory-match: +2 armies on one owned territory named by a traded card.
   for (const c of cards) {
-    if (c.territory && s.territories[c.territory]?.owner === playerIdx) {
+    if (c.territory !== null && s.territories[c.territory]?.owner === playerIdx) {
       s.territories[c.territory].armies += 2;
       break;
     }
@@ -148,13 +149,13 @@ function applyTradeIn(s, playerIdx, payload) {
   return null;
 }
 
-// Draw the top card of the deck into a player's hand, reshuffling the discard
-// pile back into the deck first if the deck has run dry.
-function drawCard(s, playerIdx) {
+// Draw the top card of the deck into a player's hand. If the deck has run dry,
+// the discard pile is reshuffled (with the game rng) to form the new deck.
+function drawCard(s, playerIdx, rng) {
   if (!Array.isArray(s.hands?.[playerIdx]) || !Array.isArray(s.deck)) return;
   if (s.deck.length === 0) {
     if (!s.discard || s.discard.length === 0) return;
-    s.deck = s.discard;
+    s.deck = shuffle(s.discard, rng ?? Math.random);
     s.discard = [];
   }
   s.hands[playerIdx].push(s.deck.pop());
@@ -287,9 +288,9 @@ function applyFortify(s, playerIdx, payload) {
   return null;
 }
 
-function endTurn(s) {
+function endTurn(s, rng) {
   // A capture anywhere this turn earns one card for the player whose turn ends.
-  if (s.capturedThisTurn) drawCard(s, s.currentPlayer);
+  if (s.capturedThisTurn) drawCard(s, s.currentPlayer, rng);
   s.capturedThisTurn = false;
   s.fortifyUsed = false;
   s.currentPlayer = s.currentPlayer === 0 ? 1 : 0;

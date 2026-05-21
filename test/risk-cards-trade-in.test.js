@@ -48,24 +48,30 @@ test('accepts any two cards plus a wild', () => {
   assert.equal(r.error, undefined, `two + wild should be valid: ${r.error}`);
 });
 
+test('accepts a set with two wilds and one other card', () => {
+  const s = reinforceWithHand([wild(), wild(), inf('egypt')]);
+  const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
+  assert.equal(r.error, undefined, `two wilds + one card should be valid: ${r.error}`);
+});
+
 test('rejects two-same-one-different with no wild', () => {
   const s = reinforceWithHand([inf('egypt'), inf('japan'), cav('peru')]);
   const before = JSON.stringify(s.hands);
   const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
-  assert.ok(r.error, 'two-same + one-different is not a valid set');
+  assert.match(r.error, /not a valid set/, 'two-same + one-different is not a valid set');
   assert.equal(JSON.stringify(s.hands), before, 'rejected trade must not mutate the hand');
 });
 
 test('rejects a set of the wrong size', () => {
   const s = reinforceWithHand([inf('egypt'), inf('japan')]);
   const r = applyRiskAction({ state: s, action: tradeIn([0, 1]), actorId: 7 });
-  assert.ok(r.error, 'a trade-in must be exactly three cards');
+  assert.match(r.error, /exactly three cards/, 'a trade-in must be exactly three cards');
 });
 
 test('rejects card indices not in the hand', () => {
   const s = reinforceWithHand([inf('egypt'), cav('japan'), art('peru')]);
   const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 9]), actorId: 7 });
-  assert.ok(r.error, 'out-of-range card index must be rejected');
+  assert.match(r.error, /not in hand/, 'out-of-range card index must be rejected');
 });
 
 test('rejects a trade-in from the player whose turn it is not', () => {
@@ -78,7 +84,7 @@ test('rejects a trade-in outside the reinforce phase', () => {
   const s = reinforceWithHand([inf('egypt'), cav('japan'), art('peru')]);
   s.phase = 'attack';
   const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
-  assert.ok(r.error, 'trade-in is only legal during reinforcement');
+  assert.match(r.error, /not allowed in phase/, 'trade-in is only legal during reinforcement');
 });
 
 // ---- AC4 + AC8: escalating bonus, added to the reinforce pool --------------

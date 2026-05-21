@@ -33,6 +33,15 @@ test('a player sees only the opponent card count, not identities', () => {
     'the raw per-player hands array must not leak through the view');
 });
 
+test('the deck and discard piles never appear in the view', () => {
+  const state = stateWithHands();
+  state.deck = [inf('china'), inf('india')];
+  state.discard = [cav('siam')];
+  const v = riskPublicView({ state, viewerId: 7 });
+  assert.equal(v.deck, undefined, 'deck order must not leak to a client');
+  assert.equal(v.discard, undefined, 'discard pile must not leak to a client');
+});
+
 test('the opposite player gets the mirror-image redaction', () => {
   const v = riskPublicView({ state: stateWithHands(), viewerId: 8 });
   assert.deepEqual(v.hand, [cav('egypt'), art('japan'), inf('peru')],

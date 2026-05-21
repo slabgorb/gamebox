@@ -57,10 +57,10 @@ function findTradeInSet(hand) {
   for (const t of ['infantry', 'cavalry', 'artillery']) {
     if (byType[t].length >= 3) return byType[t].slice(0, 3);
   }
-  if (byType.infantry.length && byType.cavalry.length && byType.artillery.length) {
+  if (byType.infantry.length > 0 && byType.cavalry.length > 0 && byType.artillery.length > 0) {
     return [byType.infantry[0], byType.cavalry[0], byType.artillery[0]];
   }
-  const nonWild = hand.map((_, i) => i).filter(i => hand[i].type !== 'wild');
+  const nonWild = [...byType.infantry, ...byType.cavalry, ...byType.artillery];
   if (byType.wild.length >= 1 && nonWild.length >= 2) return [byType.wild[0], nonWild[0], nonWild[1]];
   if (byType.wild.length >= 2 && nonWild.length >= 1) return [byType.wild[0], byType.wild[1], nonWild[0]];
   return null;

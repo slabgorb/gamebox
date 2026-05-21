@@ -4,8 +4,9 @@ export function riskPublicView({ state, viewerId }) {
   const youAre = playerIndex(state, viewerId);
   // Hands, deck, and discard are private information — never ship their
   // identities to a client. The viewer sees only their own hand and a count
-  // of the opponent's.
-  const { hands, deck, discard, ...rest } = state;
+  // of the opponent's. capturedThisTurn / tradeInCount are internal engine
+  // bookkeeping and are not part of the RiskView contract.
+  const { hands, deck, discard, capturedThisTurn, tradeInCount, ...rest } = state;
   const view = { ...rest, youAre };
   if (Array.isArray(hands)) {
     const isPlayer = youAre === 0 || youAre === 1;
