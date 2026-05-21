@@ -1,0 +1,152 @@
+id: E2
+type: epic
+title: Risk LLM persona-style corpus and training
+description: |
+  Validate persona-style differentiation hypothesis, then (if validated) scale to
+  full corpus and train a fine-tuned model that plays Risk in-character.
+
+  Strategic frame: this thread is about STYLE, not win-rate. Heuristic engines
+  already win more. The point is persona-distinguishable play. Every story below
+  serves that gate.
+
+  Pilot harness, collection mode, transcript-shape fixes, rate-limit retry, the
+  six-pairing pilot wrapper, and the chi-square GO/NO-GO diagnostic all landed
+  in PRs #58 + #60. This epic picks up at "run the pilot and act on the result."
+
+  Decision tree:
+    E2-1 (run pilot) -> E2-2 (read diagnostic) -> GO branch or NO-GO branch.
+    GO   -> E2-3 .. E2-7 (scope corpus, collect, prep, fine-tune, integrate)
+    NO-GO -> E2-3-alt, E2-4-alt (analyze failure, revise prompts, rerun)
+
+  Out of scope: 6-player Risk engine, map redesign, persona UI/portraits.
+priority: p1
+status: in_progress
+repos: g-1
+stories:
+  - id: E2-1
+    title: Run pilot 150-game corpus + emit GO/NO-GO diagnostic
+    description: |
+      Execute scripts/risk-pilot.sh end-to-end. 6 pairings x 25 games = 150
+      games of Sonnet 4.6 in collection mode. May span Pro Max rate-limit
+      windows; the harness's append-resume handles checkpoint/restart.
+
+      Then run scripts/risk-style-diag.mjs and capture the GO/NO-GO output
+      plus the per-persona metric table.
+
+      Deliverable: pilot-meta.json + the 6 corpus JSONLs + a one-page writeup
+      in docs/risk-llm/pilot-report.md with the diagnostic output verbatim
+      and a one-line recommendation.
+    points: 2
+    priority: p1
+    status: in_progress
+    started: '2026-05-21'
+    repos: g-1
+    workflow: trivial
+    type: chore
+  - id: E2-2
+    title: Branch decision (review pilot report, declare path)
+    description: |
+      PM + Architect read the pilot report. If GO, mark E2-3..E2-7 ready and
+      E2-3-alt/E2-4-alt cancelled. If NO-GO, the reverse. Record the call in
+      the epic file's decision field.
+    points: 1
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-1
+    type: chore
+  - id: E2-3
+    title: Define full-corpus scope (sample N, persona count, models, budget)
+    description: |
+      Given the pilot signal, propose: how many games, how many personas
+      (3 is the pilot floor; could go to 6-10), which model variants (Sonnet
+      only, or +Haiku/+Opus for style range), and the cost projection.
+      Output: docs/risk-llm/corpus-spec.md ready for architect sign-off.
+    points: 3
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-2
+    type: chore
+  - id: E2-4
+    title: Execute full corpus collection run
+    description: |
+      Run the corpus collection per E2-3 spec. Likely a multi-day operation;
+      the harness's resume + retry survives rate-limit interruption.
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-3
+    type: chore
+  - id: E2-5
+    title: Training-data prep pipeline (corpus -> training examples)
+    description: |
+      Build the transformer that turns per-turn transcript entries into
+      training examples. Includes: prompt+completion shaping, quality
+      filters (drop forfeits, drop hung games), train/eval split, and a
+      manifest describing the dataset version.
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E2-4
+    type: feature
+  - id: E2-6
+    title: Fine-tune candidate model + evaluate vs held-out diagnostic
+    description: |
+      Run the fine-tune (target: an open-weights base model we can self-host,
+      or Anthropic's fine-tune API depending on E2-3 cost outcome). Evaluate
+      against the held-out games using the same chi-square diagnostic and
+      report whether style fidelity improved over the base model.
+    points: 8
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-5
+    type: feature
+  - id: E2-7
+    title: Integrate fine-tuned model into live Risk (A/B vs Sonnet)
+    description: |
+      Wire the fine-tuned model into the live Risk orchestrator path. Run
+      it side-by-side with the current Sonnet baseline for human-facing
+      games and capture style preference signal (subjective for now).
+    points: 5
+    priority: p3
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E2-6
+    type: feature
+  - id: E2-3-alt
+    title: Per-persona failure analysis from pilot diagnostic
+    description: |
+      Read the pilot transcripts; figure out which metric collapsed and
+      why. Was it attack-when-available collapsing toward 100% (all
+      personas hyper-aggressive)? Did the shortlist scorer drown out
+      persona voice? Identify the root cause before iterating prompts.
+    points: 3
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-2
+    type: chore
+  - id: E2-4-alt
+    title: Revised system-prompt set + pilot rerun
+    description: |
+      Apply the E2-3-alt findings to the persona system prompts (data/ai-personas/),
+      bump BUILD_TURN_PROMPT_VERSION, and rerun the 150-game pilot. Loop
+      back to E2-2 with the new result.
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: trivial
+    depends_on: E2-3-alt
+    type: chore
