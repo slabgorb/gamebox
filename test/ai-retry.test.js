@@ -31,6 +31,14 @@ test('isRateLimitError: false on error without stderr field', () => {
   assert.equal(isRateLimitError(new Error('something else')), false);
 });
 
+test('isRateLimitError: matches 429 in err.message (Ollama plain Error)', () => {
+  assert.equal(isRateLimitError(new Error('OllamaClient: HTTP 429: rate exceeded')), true);
+});
+
+test('isRateLimitError: matches "too many requests" in err.message', () => {
+  assert.equal(isRateLimitError(new Error('Too Many Requests')), true);
+});
+
 test('runWithRateLimitRetry: returns value on first success', async () => {
   const r = await runWithRateLimitRetry(() => Promise.resolve('ok'));
   assert.equal(r, 'ok');

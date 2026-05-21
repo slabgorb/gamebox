@@ -13,8 +13,10 @@ const RATE_LIMIT_PATTERNS = [
 export function isRateLimitError(err) {
   if (!err) return false;
   const stderr = typeof err.stderr === 'string' ? err.stderr : '';
-  if (!stderr) return false;
-  return RATE_LIMIT_PATTERNS.some(re => re.test(stderr));
+  const message = typeof err.message === 'string' ? err.message : '';
+  const haystack = stderr || message;
+  if (!haystack) return false;
+  return RATE_LIMIT_PATTERNS.some(re => re.test(haystack));
 }
 
 const defaultSleep = ms => new Promise(resolve => setTimeout(resolve, ms));
