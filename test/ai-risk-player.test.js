@@ -52,3 +52,37 @@ test('no legal moves throws', async () => {
   const s = attackState(); s.phase = 'gameover';
   await assert.rejects(() => chooseAction({ llm, persona, sessionId: null, state: s, botPlayerIdx: 0 }));
 });
+
+test('chooseAction shortlist always includes end-attack in attack phase', async () => {
+  // Construct an attack-phase state where 6+ attacks all out-score end-attack,
+  // so the unfixed slice(0,6) would drop end-attack.
+  const territories = {};
+  for (const id of allTerritories()) territories[id] = { owner: 1, armies: 1 };
+  // Six high-army frontier territories — each generates one or more attacks
+  // whose `armies - target_armies` advantage > -0.5 (end-attack's score).
+  territories.alaska   = { owner: 0, armies: 8 };
+  territories.alberta  = { owner: 1, armies: 1 };  // alaska -> alberta
+  territories.nwt      = { owner: 1, armies: 1 };  // alaska -> nwt
+  territories.ontario  = { owner: 0, armies: 8 };
+  territories.greenland = { owner: 1, armies: 1 }; // ontario -> greenland
+  territories.quebec   = { owner: 1, armies: 1 };  // ontario -> quebec
+  territories.brazil   = { owner: 0, armies: 8 };
+  territories.venezuela = { owner: 1, armies: 1 }; // brazil -> venezuela
+  territories.north_africa = { owner: 1, armies: 1 }; // brazil -> north_africa
+  const state = {
+    phase: 'attack', currentPlayer: 0, territories,
+    reinforcePool: 0, setupPools: [0, 0], sides: { a: 7, b: 8 }, activeUserId: 7,
+  };
+
+  // Capture the prompt text so we can confirm what shortlist the model saw.
+  let capturedPrompt = '';
+  const llm = {
+    async send({ prompt }) {
+      capturedPrompt = prompt;
+      return { text: '{"moveId":"end-attack","banter":"enough"}', sessionId: 's' };
+    },
+  };
+  const r = await chooseAction({ llm, persona, sessionId: null, state, botPlayerIdx: 0 });
+  assert.match(capturedPrompt, /end-attack/, 'shortlist must include end-attack');
+  assert.equal(r.action.type, 'end-attack');
+});
