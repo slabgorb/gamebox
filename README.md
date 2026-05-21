@@ -186,6 +186,24 @@ just backup     # timestamped copy of game.db
 npm test        # node --test, runs test/**/*.test.js
 ```
 
+## Risk Bot Tournament Harness
+
+Run N headless Risk games between two LLM-backed bots to evaluate one against another. Writes per-turn transcripts to JSONL (usable as training data later) and prints win-rate with Wilson 95% CIs.
+
+```bash
+node scripts/risk-tourney.mjs \
+  --a claude:claude-haiku-4-5-20251001 \
+  --b ollama:llama3.1:8b \
+  --persona-a admiral-vonnegut \
+  --persona-b admiral-vonnegut \
+  --games 20 \
+  --seed 42 \
+  --max-turns 500 \
+  --out results/run.jsonl
+```
+
+Backends: `claude:<model-id>` (uses the `claude` CLI), `ollama:<model-tag>` (HTTP to `localhost:11434`). Sides alternate game-to-game to cancel side-A advantage. Design: `docs/superpowers/specs/2026-05-21-risk-bot-tourney-harness-design.md`.
+
 ## Reference
 
 - Spec: `docs/superpowers/specs/2026-05-05-multiplayer-design.md`
