@@ -147,7 +147,8 @@ stories:
     description: 'Implement canonical Risk territory cards in the 2-player engine. 44-card deck (42 territory cards typed Infantry/Cavalry/Artillery + 2 wild). Award one card at end of turn IFF the player captured >=1 territory that turn. Trade-in at reinforcement: valid sets (3-of-a-kind, 3-distinct, or 2+wild) yield escalating bonus armies (4,6,8,10,12,15, then +5 each) plus +2 on a held territory matching a card in the set. Forced trade-in when holding >=5 cards at reinforcement start. Hands are PRIVATE - view.js redacts opponent card identities (count only). State gains deck, per-player hands, tradeInCount. NOTE: invalidates the 46 cardless pilot games on disk; they will be discarded.'
     points: 8
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-05-21'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
@@ -159,6 +160,7 @@ stories:
       - Player holding >=5 cards at reinforcement start MUST trade before deploying (forced trade-in enforced)
       - view.js exposes own hand fully but only opponent card COUNT, never identities
       - reinforcementFor includes traded bonus armies; deck reshuffles from discard when exhausted
+    completed: '2026-05-21'
     review_findings: 'HIGH: AC-8 reshuffle unimplemented (drawCard re-stacks discard without shuffling; docstring lies; predictable draw order). MEDIUM: 4 rejection tests use assert.ok(r.error) not assert.match (rule #8); missing capturedThisTurn-reset test. LOW: truthy checks (rule #4), view contract drift, isValidCardSet wild handling.'
     review_verdict: approved
   - id: E2-9
