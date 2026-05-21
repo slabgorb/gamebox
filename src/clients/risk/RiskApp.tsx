@@ -1,18 +1,19 @@
 // src/clients/risk/RiskApp.tsx
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useGameState } from "../shared/useGameState";
 import type { RiskView, RiskAction } from "../shared/contracts/risk";
 import { adjust } from "./deploy-plan";
-import { shouldReplay } from "./combat-signature";
+import { combatSignature, shouldReplay } from "./combat-signature";
 import { Board } from "./Board";
 import { ActionBar, type Pending } from "./ActionBar";
 import { ContinentRail } from "./ContinentRail";
 import { History } from "./History";
 import { EndScreen } from "./EndScreen";
-import { ExitControls } from "./ExitControls";
+import { Header } from "./Header";
 import { CombatReveal } from "./CombatReveal";
 import { OpponentCard } from "../shared/OpponentCard";
 import { OpponentBanter } from "../shared/OpponentBanter";
+import { play, primeAudio } from "./sounds";
 
 export function RiskApp() {
   const { view, post, ctx } = useGameState<RiskView, RiskAction>();
@@ -21,6 +22,65 @@ export function RiskApp() {
     null,
   );
   const seenSig = useRef<string | null | undefined>(undefined);
+  // Track turn ownership so we can chime when control flips to us.
+  const wasMyTurn = useRef<boolean | null>(null);
+
+  // Browsers gate Audio.play() until the user interacts; warm the cache
+  // on the first pointer/key event so the bot's move actually plays.
+  useEffect(() => {
+    const prime = () => {
+      primeAudio();
+      window.removeEventListener("pointerdown", prime);
+      window.removeEventListener("keydown", prime);
+    };
+    window.addEventListener("pointerdown", prime, { once: true });
+    window.addEventListener("keydown", prime, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", prime);
+      window.removeEventListener("keydown", prime);
+    };
+  }, []);
+
+  // "Your turn" chime when control flips to the local player.
+  useEffect(() => {
+    if (!view) return;
+    const isMyTurn =
+      view.youAre != null && view.currentPlayer === view.youAre;
+    if (wasMyTurn.current === false && isMyTurn) play("your-turn");
+    wasMyTurn.current = isMyTurn;
+  }, [view?.currentPlayer, view?.youAre]);
+
+  // Capture/repulsed chime on every new resolved combat (including the
+  // bot's attacks — shouldReplay tracks the signature for us).
+  const lastCombatSig = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const lc = view?.lastCombat;
+    if (!lc) {
+      lastCombatSig.current = null;
+      return;
+    }
+    const sig = `${lc.from}|${lc.to}|${lc.captured ? "1" : "0"}|${lc.rounds?.length ?? 0}`;
+    if (sig !== lastCombatSig.current) {
+      lastCombatSig.current = sig;
+      // Skip the chime on the very first render (initial state load) —
+      // wasMyTurn starts null and lastCombatSig starts undefined, so we
+      // only chime once the user has actually participated.
+      if (wasMyTurn.current !== null) {
+        play(lc.captured ? "capture" : "repulsed");
+      }
+    }
+  }, [view?.lastCombat]);
+
+  // Victory cue when the phase transitions into gameover.
+  const wasGameOver = useRef<boolean>(false);
+  useEffect(() => {
+    if (!view) return;
+    const isGameOver = view.phase === "gameover";
+    if (isGameOver && !wasGameOver.current && view.winner === view.youAre) {
+      play("victory");
+    }
+    wasGameOver.current = isGameOver;
+  }, [view?.phase, view?.winner, view?.youAre]);
 
   if (!view) return <div className="banner">Loading…</div>;
   if (view.phase === "gameover") return <EndScreen view={view} />;
@@ -40,11 +100,13 @@ export function RiskApp() {
           plan: adjust(pending.plan ?? {}, id, 1, pool),
           deployTarget: id,
         });
+        play("place");
       }
     } else if (ph === "attack" || ph === "fortify") {
       if (!pending.from) setPending({ from: id });
       else if (!pending.to) setPending({ ...pending, to: id });
       else setPending({ from: id });
+      play("click");
     }
   }
 
@@ -54,22 +116,20 @@ export function RiskApp() {
 
   return (
     <div>
-      <div className="banner">
-        {`Phase: ${view.phase} · ${
-          view.youAre === view.currentPlayer ? "Your move" : "Opponent"
-        }`}
-        <ExitControls
-          onResign={() => {
-            if (
-              window.confirm(
-                "Resign this game? You forfeit — your opponent wins.",
-              )
-            ) {
-              post({ type: "resign" });
-            }
-          }}
-        />
-      </div>
+      <Header
+        view={view}
+        factionName={ctx.yourFriendlyName ?? "You"}
+        factionColor={ctx.yourColor}
+        onResign={() => {
+          if (
+            window.confirm(
+              "Resign this game? You forfeit — your opponent wins.",
+            )
+          ) {
+            post({ type: "resign" });
+          }
+        }}
+      />
 
       <ContinentRail view={view} />
 
@@ -107,6 +167,20 @@ export function RiskApp() {
           onResolved={(resolved) => {
             setLive(null);
             setPending({});
+            // Pre-seed the replay-suppression signature: the lastCombat the
+            // server is about to store has these exact fields, and we just
+            // drove the dice live — a replay mount would re-render with
+            // random-faced 3D dice (replay has no throwParams) and the
+            // user would see numbers that don't match the chronicle.
+            seenSig.current = combatSignature({
+              from: live.from,
+              to: live.to,
+              force: live.force,
+              captured: !!resolved.captured,
+              rounds: resolved.rounds,
+              attackerSurvivors: resolved.attackerSurvivors,
+              defenderSurvivors: resolved.defenderSurvivors,
+            });
             post({
               type: "attack",
               payload: { from: live.from, to: live.to, resolved },
@@ -128,6 +202,17 @@ export function RiskApp() {
           defenderColor={attackerColor}
           onResolved={(resolved) => {
             const pc = view.pendingCombat!;
+            // Same replay-suppression seed as the attacker path — the
+            // server uses pc.force as the committed force.
+            seenSig.current = combatSignature({
+              from: pc.from,
+              to: pc.to,
+              force: pc.force,
+              captured: !!resolved.captured,
+              rounds: resolved.rounds,
+              attackerSurvivors: resolved.attackerSurvivors,
+              defenderSurvivors: resolved.defenderSurvivors,
+            });
             post({
               type: "attack",
               payload: {
@@ -161,10 +246,16 @@ export function RiskApp() {
         onAttack={(from, to) => {
           const f = view.territories[from];
           setLive({ from, to, force: f.armies - 1 });
+          play("cannon");
         }}
       />
 
-      <History log={view.log} />
+      <History
+        log={view.log}
+        youAre={view.youAre}
+        yourName={ctx.yourFriendlyName}
+        opponentName={ctx.opponentFriendlyName}
+      />
     </div>
   );
 }

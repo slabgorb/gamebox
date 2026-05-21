@@ -1,25 +1,43 @@
+// src/clients/risk/ContinentRail.tsx
+// Six parchment plaques across the top of the board — one per continent.
+// Each plaque shows the continent name, +bonus, and a pip roster of who
+// owns each of its territories. A muted brass band runs down the left
+// edge when you hold the continent; muted navy when the opponent does.
 import type { RiskView } from "../shared/contracts/risk";
-import { CONTINENT_BONUS, CONTINENTS_META, TERRITORIES } from "./map-geometry.js";
+import { CONTINENTS_META, TERRITORIES } from "./map-geometry.js";
+
+type TerritoryGeom = { continent: string };
+type ContinentMeta = { name: string; bonus: number; color: string };
+
+const T = TERRITORIES as Record<string, TerritoryGeom>;
+const C = CONTINENTS_META as Record<string, ContinentMeta>;
 
 export function ContinentRail({ view }: { view: RiskView }) {
   return (
     <div className="continent-rail">
-      {Object.entries(CONTINENT_BONUS as Record<string, number>).map(
-        ([key, bonus]) => {
-          const ids = Object.keys(TERRITORIES).filter(
-            (t: string) => (TERRITORIES as any)[t].continent === key,
-          );
-          const held = ids.every(
-            (t) => view.territories[t]?.owner === view.youAre,
-          );
-          const name = (CONTINENTS_META as any)[key]?.name ?? key;
-          return (
-            <span key={key} className={`cont-chip${held ? " held" : ""}`}>
-              {name} +{bonus}
-            </span>
-          );
-        },
-      )}
+      {Object.entries(C).map(([key, meta]) => {
+        const ids = Object.entries(T)
+          .filter(([, g]) => g.continent === key)
+          .map(([id]) => id);
+        const owners = ids.map((id) => view.territories[id]?.owner ?? null);
+        const allMine = ids.length > 0 && owners.every((o) => o === view.youAre);
+        const allTheirs =
+          ids.length > 0 && owners.every((o) => o != null && o !== view.youAre);
+        const heldClass = allMine ? " held mine" : allTheirs ? " held theirs" : "";
+        return (
+          <div key={key} className={`cont-plaque${heldClass}`}>
+            <span className="name">{meta.name}</span>
+            <span className="bonus">+{meta.bonus}</span>
+            <div className="roster" aria-hidden="true">
+              {ids.map((id) => {
+                const o = view.territories[id]?.owner ?? null;
+                const cls = o === 0 ? " p0" : o === 1 ? " p1" : "";
+                return <span key={id} className={`pip${cls}`} title={id} />;
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
