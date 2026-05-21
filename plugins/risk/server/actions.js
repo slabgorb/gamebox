@@ -1,5 +1,5 @@
 import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
-import { validateDeploy, validateAttack, validateFortify } from './validate.js';
+import { validateDeploy, validateAttack, validateFortify, validateTradeIn } from './validate.js';
 import { replayAttack } from './combat.js';
 import { playerIndex, userIdOf } from './state.js';
 
@@ -122,27 +122,13 @@ function tradeBonus(n) {
   return n < TRADE_BONUSES.length ? TRADE_BONUSES[n] : 15 + 5 * (n - (TRADE_BONUSES.length - 1));
 }
 
-function isValidSet(cards) {
-  if (cards.some(c => c.type === 'wild')) return true; // any 2 + a wild
-  const types = new Set(cards.map(c => c.type));
-  return types.size === 1 || types.size === 3; // three-of-a-kind or three-distinct
-}
-
 function applyTradeIn(s, playerIdx, payload) {
-  const hand = s.hands?.[playerIdx];
-  if (!Array.isArray(hand)) return 'no hand to trade from';
   const idxs = payload?.cardIndices;
-  if (!Array.isArray(idxs) || idxs.length !== 3) return 'a trade-in must be exactly three cards';
-  const seen = new Set();
-  for (const i of idxs) {
-    if (!Number.isInteger(i) || i < 0 || i >= hand.length) return `card index ${i} not in hand`;
-    if (seen.has(i)) return `duplicate card index ${i}`;
-    seen.add(i);
-  }
+  const verr = validateTradeIn(s, playerIdx, idxs);
+  if (verr) return verr;
+  const hand = s.hands[playerIdx];
+  const remove = new Set(idxs);
   const cards = idxs.map(i => hand[i]);
-  if (!isValidSet(cards)) {
-    return 'not a valid set (need three of a kind, three distinct, or two cards plus a wild)';
-  }
 
   s.reinforcePool += tradeBonus(s.tradeInCount ?? 0);
   s.tradeInCount = (s.tradeInCount ?? 0) + 1;
@@ -156,7 +142,7 @@ function applyTradeIn(s, playerIdx, payload) {
   }
 
   s.discard = s.discard ?? [];
-  s.hands[playerIdx] = hand.filter((_, i) => !seen.has(i));
+  s.hands[playerIdx] = hand.filter((_, i) => !remove.has(i));
   for (const c of cards) s.discard.push(c);
   s.log.push({ kind: 'trade-in', player: playerIdx });
   return null;

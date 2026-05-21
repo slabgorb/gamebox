@@ -40,3 +40,29 @@ export function validateFortify(state, playerIdx, { from, to, count }) {
   }
   return null;
 }
+
+// A trade-in is three distinct, in-hand cards forming a valid set: three of a
+// kind, three distinct troop types, or any two cards plus a wild.
+function isValidCardSet(cards) {
+  if (cards.some(c => c.type === 'wild')) return true; // any 2 + a wild
+  const types = new Set(cards.map(c => c.type));
+  return types.size === 1 || types.size === 3; // three-of-a-kind or three-distinct
+}
+
+export function validateTradeIn(state, playerIdx, cardIndices) {
+  const hand = state.hands?.[playerIdx];
+  if (!Array.isArray(hand)) return 'no hand to trade from';
+  if (!Array.isArray(cardIndices) || cardIndices.length !== 3) {
+    return 'a trade-in must be exactly three cards';
+  }
+  const seen = new Set();
+  for (const i of cardIndices) {
+    if (!Number.isInteger(i) || i < 0 || i >= hand.length) return `card index ${i} not in hand`;
+    if (seen.has(i)) return `duplicate card index ${i}`;
+    seen.add(i);
+  }
+  if (!isValidCardSet(cardIndices.map(i => hand[i]))) {
+    return 'not a valid set (need three of a kind, three distinct, or two cards plus a wild)';
+  }
+  return null;
+}
