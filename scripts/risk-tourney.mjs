@@ -29,7 +29,7 @@ import { ClaudeCliClient } from '../src/server/ai/llm-client.js';
 import { OllamaClient } from '../src/server/ai/ollama-client.js';
 import { loadPersonaCatalog } from '../src/server/ai/persona-catalog.js';
 import { runGame, wilsonInterval } from '../src/server/ai/headless-game.js';
-import { runWithRateLimitRetry } from '../src/server/ai/retry.js';
+import { runWithRateLimitRetry, isRateLimitError } from '../src/server/ai/retry.js';
 import { BUILD_TURN_PROMPT_VERSION } from '../plugins/risk/server/ai/prompts.js';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -138,12 +138,23 @@ async function main() {
         mode: args.mode,
       }));
     } catch (err) {
-      // Second consecutive rate-limit failure. Checkpoint and exit cleanly
-      // — the user re-runs the same command to resume.
-      out.end();
-      console.error(`[rate-limited twice in a row] checkpointing at game ${i}`);
-      console.error(`[resume with: node scripts/risk-tourney.mjs ${process.argv.slice(2).join(' ')}]`);
-      process.exit(0);
+      // Always flush the write stream fully before exiting — WriteStream.end()
+      // is async and process.exit() can race past an unflushed buffer, which
+      // would corrupt the corpus by losing already-written lines.  Wrapping in
+      // a Promise makes the flush synchronous from our perspective.
+      //
+      // Design intent: only rate-limit errors get a clean checkpoint exit (0).
+      // Any other error (network glitch, JSON parse failure, engine assertion)
+      // is a real bug and must surface as exit 1 with a clear message so CI
+      // and the operator are not misled.
+      await new Promise(resolve => out.end(resolve));
+      if (isRateLimitError(err)) {
+        console.error(`[rate-limited twice in a row] checkpointing at game ${i}`);
+        console.error(`[resume with: node scripts/risk-tourney.mjs ${process.argv.slice(2).join(' ')}]`);
+        process.exit(0);
+      }
+      console.error(`[error during game ${i}] ${err.message}`);
+      process.exit(1);
     }
 
     let winnerBackend = null;
