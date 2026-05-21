@@ -1,5 +1,10 @@
 import { CONTINENTS } from '../map.js';
 
+// Bump this when the text of buildTurnPrompt changes in a way that could
+// affect the LLM's response distribution. Manual bump rather than auto-hash
+// so whitespace-only edits don't invalidate corpora.
+export const BUILD_TURN_PROMPT_VERSION = 1;
+
 function renderBoard(state, p) {
   const lines = [];
   for (const key of Object.keys(CONTINENTS)) {
@@ -27,17 +32,22 @@ function trashTalkBlock(messages) {
   return `Your opponent just said:\n${lines}\nReact in your banter — stay in character.`;
 }
 
-const RESPONSE_FOOTER =
+const LIVE_FOOTER =
   'Respond with a single JSON object (and nothing else): ' +
   '{"moveId": "<one of the candidate ids above>", "banter": "<one short in-character line, max ~12 words, never empty>"}';
 
-export function buildTurnPrompt({ state, shortlist, botPlayerIdx, userMessages = [] }) {
+const COLLECTION_FOOTER =
+  'Respond with a single JSON object (and nothing else): ' +
+  '{"moveId": "<one of the candidate ids above>"}';
+
+export function buildTurnPrompt({ state, shortlist, botPlayerIdx, userMessages = [], mode = 'live' }) {
+  const footer = mode === 'collection' ? COLLECTION_FOOTER : LIVE_FOOTER;
   const blocks = [
     `You are playing Risk as player ${botPlayerIdx}. Current phase: ${state.phase}.`,
     renderBoard(state, botPlayerIdx),
   ];
   if (userMessages.length > 0) blocks.push(trashTalkBlock(userMessages));
-  blocks.push(shortlistBlock(shortlist), RESPONSE_FOOTER);
+  blocks.push(shortlistBlock(shortlist), footer);
   return blocks.join('\n\n');
 }
 
