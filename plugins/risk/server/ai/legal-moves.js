@@ -52,7 +52,7 @@ function deployCandidates(state, p, pool, type) {
 function findTradeInSet(hand) {
   if (!Array.isArray(hand) || hand.length < 3) return null;
   const byType = { infantry: [], cavalry: [], artillery: [], wild: [] };
-  hand.forEach((c, i) => { (byType[c.type] ?? (byType[c.type] = [])).push(i); });
+  hand.forEach((c, i) => { byType[c.type].push(i); });
 
   for (const t of ['infantry', 'cavalry', 'artillery']) {
     if (byType[t].length >= 3) return byType[t].slice(0, 3);
