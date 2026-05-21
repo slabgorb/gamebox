@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ClaudeCliClient } from '../src/server/ai/llm-client.js';
+import { ClaudeCliClient, DEFAULT_MODEL, modelForGameType } from '../src/server/ai/llm-client.js';
 import { FakeLlmClient } from '../src/server/ai/fake-llm-client.js';
 
 function fakeSpawn({ stdout = '', stderr = '', exitCode = 0, delayMs = 0 } = {}) {
@@ -130,4 +130,32 @@ test('FakeLlmClient: can also be configured to throw on demand', async () => {
     { throw: new Error('simulated timeout') },
   ]);
   await assert.rejects(fake.send({ prompt: 'x', sessionId: null, systemPrompt: 's' }), /simulated timeout/);
+});
+
+test('modelForGameType: Risk resolves to Sonnet, others fall back to Haiku default', () => {
+  assert.equal(modelForGameType('risk'), 'claude-sonnet-4-6');
+  assert.equal(modelForGameType('cribbage'), DEFAULT_MODEL);
+  assert.equal(modelForGameType('backgammon'), DEFAULT_MODEL);
+  assert.equal(modelForGameType('words'), DEFAULT_MODEL);
+  assert.equal(modelForGameType('unknown-game'), DEFAULT_MODEL);
+});
+
+test('ClaudeCliClient: exposes its configured model and uses it as the --model arg', async () => {
+  const sonnet = new ClaudeCliClient({ model: 'claude-sonnet-4-6' });
+  assert.equal(sonnet.model, 'claude-sonnet-4-6');
+  assert.equal(new ClaudeCliClient({}).model, DEFAULT_MODEL);
+
+  let captured;
+  const spawn = (cmd, args) => {
+    captured = args;
+    return {
+      stdoutChunks: [JSON.stringify({ result: 'ok', session_id: 's' })],
+      stderrChunks: [''],
+      async wait() { return 0; },
+      kill() {},
+    };
+  };
+  const client = new ClaudeCliClient({ spawn, model: 'claude-sonnet-4-6' });
+  await client.send({ prompt: 'hi', sessionId: null, systemPrompt: 'sys' });
+  assert.deepEqual(captured.slice(0, 2), ['--model', 'claude-sonnet-4-6']);
 });

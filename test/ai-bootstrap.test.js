@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openDb } from '../src/server/db.js';
 import { bootAiSubsystem } from '../src/server/ai/index.js';
+import { DEFAULT_MODEL } from '../src/server/ai/llm-client.js';
 import { createAiSession } from '../src/server/ai/agent-session.js';
 import cribbagePlugin from '../plugins/cribbage/plugin.js';
 import { buildInitialState as cribbageBuildInitialState } from '../plugins/cribbage/server/state.js';
@@ -32,6 +33,20 @@ test('bootAiSubsystem: seeds at least one bot user if none exist', () => {
   bootAiSubsystem({ db, sse, llm, personaDir });
   const bots = db.prepare("SELECT * FROM users WHERE is_bot = 1").all();
   assert.ok(bots.length >= 1);
+});
+
+test('bootAiSubsystem: builds a per-game-type client map (Risk → Sonnet, others → Haiku)', () => {
+  const { dbPath, personaDir } = tmp();
+  const db = openDb(dbPath);
+  // No injected llm: bootAiSubsystem constructs real clients per game type
+  // at their resolved model. (No subprocess is launched until .send.)
+  const { llmByGameType } = bootAiSubsystem({
+    db, sse: { broadcast: () => {} }, personaDir,
+  });
+  assert.equal(llmByGameType.risk.model, 'claude-sonnet-4-6');
+  assert.equal(llmByGameType.cribbage.model, DEFAULT_MODEL);
+  assert.equal(llmByGameType.backgammon.model, DEFAULT_MODEL);
+  assert.equal(llmByGameType.words.model, DEFAULT_MODEL);
 });
 
 test('bootAiSubsystem: returns orchestrator that can be invoked', () => {

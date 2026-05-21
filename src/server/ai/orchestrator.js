@@ -77,7 +77,7 @@ function botPlayerIdxOf(state, botUserId) {
   return state.sides.a === botUserId ? 0 : 1;
 }
 
-export function createOrchestrator({ db, llm, sse, personas, adapters, logger = console }) {
+export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adapters, logger = console }) {
   const inFlight = new Map();
 
   async function _runOnce(gameId, depth = 0) {
@@ -130,6 +130,10 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
       return;
     }
     const botSide = botPlayerIdx === 0 ? 'a' : 'b';
+
+    // Select the LLM client for this game type (Risk → Sonnet, others →
+    // Haiku). Falls back to the shared client when no per-type map is wired.
+    const gameLlm = llmByGameType?.[gameRow.game_type] ?? llm;
 
     // Mechanical phases (e.g., backgammon initial-roll) bypass the LLM.
     const phaseKey = state.turn?.phase ?? state.phase;
@@ -184,7 +188,7 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
       if (autoEntry.banter && typeof adapter.chooseBanter === 'function') {
         Promise.resolve()
           .then(() => adapter.chooseBanter({
-            llm, persona, state: newState, botPlayerIdx, hint: autoEntry.banter.hint,
+            llm: gameLlm, persona, state: newState, botPlayerIdx, hint: autoEntry.banter.hint,
           }))
           .then(({ banter }) => {
             if (banter) sse.broadcast(gameId, {
@@ -281,7 +285,7 @@ export function createOrchestrator({ db, llm, sse, personas, adapters, logger = 
         const resuming = session.claudeSessionId
           && (session.resumeCount ?? 0) < MAX_RESUMES_PER_SESSION;
         const r = await adapter.chooseAction({
-          llm, persona, sessionId: resuming ? session.claudeSessionId : null,
+          llm: gameLlm, persona, sessionId: resuming ? session.claudeSessionId : null,
           state, botPlayerIdx, rng: rngFor(gameId),
           userMessages,
         });

@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { loadPersonaCatalog } from './persona-catalog.js';
 import { createOrchestrator } from './orchestrator.js';
 import { listStalledOrInFlight } from './agent-session.js';
-import { ClaudeCliClient } from './llm-client.js';
+import { ClaudeCliClient, modelForGameType } from './llm-client.js';
 import cribbagePlugin from '../../../plugins/cribbage/plugin.js';
 import { chooseAction as cribbageChoose, chooseBanter as cribbageBanter } from '../../../plugins/cribbage/server/ai/cribbage-player.js';
 import backgammonPlugin from '../../../plugins/backgammon/plugin.js';
@@ -45,13 +45,20 @@ export function bootAiSubsystem({ db, sse, llm, personaDir = DEFAULT_PERSONA_DIR
     words:      { plugin: wordsPlugin,      chooseAction: wordsChoose },
     risk:       { plugin: riskPlugin,       chooseAction: riskChoose },
   };
+  // Per-game-type client map: each adapter gets a client at its resolved
+  // model (Risk → Sonnet, others → Haiku). An injected `llm` (tests) is
+  // reused for every game type so fakes still drive all adapters.
+  const llmByGameType = {};
+  for (const gameType of Object.keys(adapters)) {
+    llmByGameType[gameType] = llm ?? new ClaudeCliClient({ model: modelForGameType(gameType) });
+  }
   const orchestrator = createOrchestrator({
-    db, llm: client, sse, personas: catalog, adapters,
+    db, llm: client, llmByGameType, sse, personas: catalog, adapters,
   });
 
   for (const sess of listStalledOrInFlight(db)) {
     orchestrator.scheduleTurn(sess.gameId);
   }
 
-  return { orchestrator, personas: catalog };
+  return { orchestrator, personas: catalog, llmByGameType };
 }
