@@ -73,6 +73,9 @@ export interface RiskView {
   // count of the opponent's. Absent in games with no card state.
   hand?: Card[];
   opponentCardCount?: number;
+  // Bonus armies the viewer's next trade-in would grant (escalating). Derived
+  // server-side from the private trade counter; present when cards are in play.
+  nextTradeBonus?: number;
   // Set when a bot's attack is awaiting client-side dice resolution. The
   // defender's client mounts a live CombatReveal and POSTs the resolved
   // payload back so the server can apply the outcome.

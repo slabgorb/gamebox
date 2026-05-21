@@ -1,4 +1,5 @@
 import { playerIndex } from './state.js';
+import { tradeBonus } from './actions.js';
 
 export function riskPublicView({ state, viewerId }) {
   const youAre = playerIndex(state, viewerId);
@@ -13,6 +14,10 @@ export function riskPublicView({ state, viewerId }) {
     view.hand = isPlayer ? (hands[youAre] ?? []) : [];
     const oppIdx = youAre === 0 ? 1 : youAre === 1 ? 0 : null;
     view.opponentCardCount = oppIdx === null ? 0 : (hands[oppIdx]?.length ?? 0);
+    // Derived: how many bonus armies the NEXT trade-in grants. The raw
+    // tradeInCount counter stays private; the client only needs the figure
+    // to label the trade-in control (AC: "shows the bonus it will grant").
+    view.nextTradeBonus = tradeBonus(tradeInCount ?? 0);
   }
   return view;
 }

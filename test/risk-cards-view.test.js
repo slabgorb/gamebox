@@ -58,6 +58,18 @@ test('a non-participant viewer learns no card identities', () => {
     'a spectator holds no revealed cards');
 });
 
+test('nextTradeBonus reflects the escalating bonus for the next trade, counter stays private', () => {
+  const fresh = riskPublicView({ state: stateWithHands(), viewerId: 7 });
+  assert.equal(fresh.nextTradeBonus, 4, 'first trade-in (count 0) grants 4 armies');
+  assert.equal(fresh.tradeInCount, undefined, 'the raw trade counter must not leak');
+
+  const mid = stateWithHands();
+  mid.tradeInCount = 2;
+  const v = riskPublicView({ state: mid, viewerId: 7 });
+  assert.equal(v.nextTradeBonus, 8, 'third trade-in (count 2) grants 8 armies');
+  assert.equal(v.tradeInCount, undefined, 'counter still redacted');
+});
+
 // The board itself stays fully public — redaction is scoped to hands only.
 test('redaction does not disturb the public board view', () => {
   const state = stateWithHands();

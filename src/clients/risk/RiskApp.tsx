@@ -7,6 +7,7 @@ import { combatSignature, shouldReplay } from "./combat-signature";
 import { Board } from "./Board";
 import { ActionBar, type Pending } from "./ActionBar";
 import { ContinentRail } from "./ContinentRail";
+import { CardTray } from "./CardTray";
 import { History } from "./History";
 import { EndScreen } from "./EndScreen";
 import { Header } from "./Header";
@@ -132,6 +133,8 @@ export function RiskApp() {
       />
 
       <ContinentRail view={view} />
+
+      <CardTray view={view} post={post} />
 
       <OpponentCard
         personaId={ctx.opponentPersonaId ?? null}

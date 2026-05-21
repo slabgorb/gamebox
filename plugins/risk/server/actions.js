@@ -119,7 +119,7 @@ function handSize(s, playerIdx) {
 // Escalating trade-in bonus: trade #1 (n=0) -> 4, then 6,8,10,12,15, then +5
 // each (20, 25, ...). n is the number of trades already made (tradeInCount).
 const TRADE_BONUSES = [4, 6, 8, 10, 12, 15];
-function tradeBonus(n) {
+export function tradeBonus(n) {
   return n < TRADE_BONUSES.length ? TRADE_BONUSES[n] : 15 + 5 * (n - (TRADE_BONUSES.length - 1));
 }
 

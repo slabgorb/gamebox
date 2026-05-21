@@ -770,3 +770,56 @@ body::before {
     margin: 0.5rem auto;
   }
 }
+
+/* --- Card tray (E2-10): hand, opponent count, trade-in, must-trade modal --- */
+#risk-root .card-tray {
+  margin: 0.5rem auto;
+  max-width: 760px;
+  padding: 8px 12px 10px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #fbf3df, #f1e2b8);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6), 0 2px 6px rgba(0,0,0,0.25);
+}
+#risk-root .card-tray__head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--serif-display); font-weight: 700;
+}
+#risk-root .card-tray__title { font-size: 13px; letter-spacing: 0.06em; }
+#risk-root .card-tray__opp { font-size: 11px; opacity: 0.75; }
+#risk-root .card-tray__empty { font-size: 12px; font-style: italic; opacity: 0.7; margin: 6px 2px; }
+#risk-root .card-tray__hand {
+  list-style: none; display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 8px 0 0; padding: 0;
+}
+#risk-root .hand-card {
+  padding: 6px 9px; border-radius: 3px; cursor: pointer;
+  font-size: 11px; font-weight: 600;
+  border: 1px solid rgba(58,33,4,0.45);
+  background: #fffdf5; color: #3a2104;
+}
+#risk-root .hand-card.selected {
+  background: linear-gradient(180deg, #f4d488, #d9a542);
+  box-shadow: 0 0 0 2px rgba(58,33,4,0.5);
+}
+#risk-root .hand-card:disabled { cursor: default; opacity: 0.55; }
+#risk-root .card-tray__actions {
+  display: flex; align-items: center; gap: 12px; margin-top: 9px;
+}
+#risk-root .card-tray__bonus {
+  font-family: var(--serif-display); font-size: 12px; font-weight: 700; color: #5a3a0a;
+}
+#risk-root .trade-modal {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(20,12,2,0.62);
+}
+#risk-root .trade-modal__panel {
+  max-width: 480px; width: 90%;
+  padding: 16px 18px 18px; border-radius: 5px;
+  background: linear-gradient(180deg, #fbf3df, #ecd9a8);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+#risk-root .trade-modal__title {
+  font-family: var(--serif-display); font-size: 16px; margin: 0 0 6px;
+}
+#risk-root .trade-modal__msg { font-size: 12px; margin: 0 0 6px; }
