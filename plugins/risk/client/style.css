@@ -1,159 +1,770 @@
 /* plugins/risk/client/style.css — antique campaign-map theme.
-   Game styling is scoped under #risk-root. The only intentional globals are
-   a box-sizing reset and the page backdrop on <body>; typography and colours
-   live on #risk-root so the shared opponent-card keeps its own styling. */
-@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap");
+   Game styling is scoped under #risk-root. The only intentional globals
+   are a box-sizing reset and the page backdrop on <body>; typography and
+   colours live on #risk-root so the shared opponent-card keeps its own
+   styling. */
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800;900&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600;8..60,700&family=JetBrains+Mono:wght@500;600&family=IM+Fell+English:ital@0;1&family=IM+Fell+English+SC&display=swap");
 * { box-sizing: border-box; }
-body { margin: 0; background: #2b2417; }
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background:
+    radial-gradient(ellipse at top, rgba(243,231,197,0.25) 0%, rgba(120,90,40,0.20) 55%, rgba(40,30,15,0.45) 100%),
+    #2b2417;
+}
+/* Page paper noise overlay — gives the dark backdrop a tactile grain. */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  opacity: 0.22;
+  mix-blend-mode: overlay;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 0.6  0 0 0 0 0.5  0 0 0 0 0.3  0 0 0 0.18 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  z-index: 0;
+}
 
-#risk-root { font-family: Georgia, 'Times New Roman', serif; color: #f3e8c8;
+#risk-root {
+  position: relative;
+  z-index: 1;
+  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  color: #f3e8c8;
+
+  /* Player factions */
   --p0: #a8432b; --p1: #2c647f; --neutral: #8a7c5c;
-  --ink: #5e4a28; --brass: #d4a93a; --parch: #e3d4ad;
-  /* Antique campaign-map palette (board renderer). */
+  --ink: #5e4a28;
+  --ink-soft: #5a3a1f;
+  --ink-faint: #8a6a4a;
+  --ink-blue: #1f4e6e;
+
+  /* Antique campaign-map palette (board renderer + plaques). */
+  --paper-1: #f6e7c1;
   --paper-2: #ecd9a8;
-  --p0-1: #b04030; --p0-ink: #4a1108;
-  --p1-1: #2a5d80; --p1-ink: #0a2438;
+  --paper-3: #d8c089;
+
+  /* Wood, leather, brass */
+  --wood-1: #6b3e22;
+  --wood-2: #5a3318;
+  --wood-3: #4a2810;
+  --wood-edge: #2a1608;
+  --brass: #d4a93a;
   --brass-1: #fbe79a; --brass-2: #c9a14e; --brass-3: #6a4a14;
+  --brass-edge: #4a3208;
+  --leather-1: #d4986a;
+  --leather-2: #b07748;
+  --leather-3: #8a5a30;
+
+  /* Player ink */
+  --p0-1: #b04030; --p0-ink: #4a1108; --p0-2: #8a2a20;
+  --p1-1: #2a5d80; --p1-ink: #0a2438; --p1-2: #1c4361;
+
   --serif-display: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --serif-body: "Source Serif 4", "Iowan Old Style", Cambria, Georgia, serif;
   --serif-map: "IM Fell English", "Iowan Old Style", Georgia, serif;
   --serif-map-sc: "IM Fell English SC", "Iowan Old Style", Georgia, serif;
-  max-width: 860px; margin: 0 auto; padding: 1rem; }
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-#risk-root .banner { padding: .5rem .75rem; background: #3a2f1c;
-  border: 1px solid var(--ink); border-radius: .3rem; margin-bottom: .5rem;
-  letter-spacing: .03em; }
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 0 18px 36px;
+}
 
-#risk-root .continent-rail { display: flex; flex-wrap: wrap; gap: .4rem;
-  margin: .25rem 0 .75rem; }
-#risk-root .cont-chip { font-size: .75rem; text-transform: capitalize;
-  padding: .25rem .5rem; border: 1px solid var(--ink); border-radius: .3rem;
-  background: #3a2f1c; opacity: .7; }
-#risk-root .cont-chip.held { opacity: 1; border-color: var(--brass);
-  color: var(--brass); }
+/* =========================================================
+   HEADER — wood plank + brass plate + leather phase tag
+   ========================================================= */
+#risk-root .risk-header {
+  position: relative;
+  margin: 16px -18px 14px;
+  padding: 18px 28px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 14px;
+  background:
+    linear-gradient(180deg, var(--wood-1) 0%, var(--wood-2) 55%, var(--wood-3) 100%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0 1px, transparent 1px 130px);
+  background-blend-mode: multiply;
+  box-shadow:
+    inset 0 1px 0 rgba(255,220,170,0.18),
+    inset 0 -3px 0 rgba(0,0,0,0.45),
+    0 3px 0 var(--wood-edge),
+    0 8px 18px rgba(0,0,0,0.28);
+  overflow: hidden;
+}
+#risk-root .risk-header::before {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='100'><filter id='g'><feTurbulence type='turbulence' baseFrequency='0.012 0.85' numOctaves='3' seed='3'/><feColorMatrix values='0 0 0 0 0.18  0 0 0 0 0.08  0 0 0 0 0.04  0 0 0 0.9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23g)'/></svg>");
+}
+#risk-root .screw {
+  position: absolute; top: 9px;
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d8c895 0%, #8a7234 55%, #3a2a08 100%);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.5), 0 1px 1px rgba(0,0,0,0.5);
+  z-index: 2;
+}
+#risk-root .screw.tl { left: 11px; }
+#risk-root .screw.tr { right: 11px; }
+#risk-root .screw.bl { top: auto; bottom: 9px; left: 11px; }
+#risk-root .screw.br { top: auto; bottom: 9px; right: 11px; }
+#risk-root .screw::after {
+  content: ""; position: absolute; inset: 45% 18%;
+  height: 1px; background: rgba(0,0,0,0.55);
+  transform: rotate(35deg);
+}
 
-/* Map mat — leather frame with brass corner screws around the SVG. */
-#risk-root .map-frame { position: relative; border-radius: 8px; padding: 14px;
+#risk-root .brass-plate {
+  position: relative; z-index: 1;
+  padding: 9px 20px 10px;
+  display: inline-flex; align-items: center; gap: 14px;
+  border: 1px solid var(--brass-edge);
+  border-radius: 5px;
+  background:
+    linear-gradient(170deg, var(--brass-1) 0%, #efc966 18%, var(--brass-2) 52%, #997620 88%, var(--brass-3) 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.55),
+    inset 0 -1.5px 0 rgba(58,33,4,0.55),
+    inset 1px 0 0 rgba(255,255,255,0.18),
+    inset -1px 0 0 rgba(0,0,0,0.18),
+    0 2px 0 rgba(0,0,0,0.35),
+    0 5px 12px rgba(0,0,0,0.4);
+  font-family: var(--serif-display);
+  font-weight: 900;
+  letter-spacing: 0.32em;
+  font-size: 19px;
+  color: #2a1808;
+  text-shadow: 0 1px 0 rgba(255,238,180,0.55), 0 -1px 0 rgba(40,20,4,0.4);
+}
+#risk-root .brass-plate::before {
+  content: ""; position: absolute; inset: 1px;
+  border-radius: 4px;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.28) 45%, transparent 60%);
+  pointer-events: none;
+}
+#risk-root .brass-plate .rivet {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #3a2408;
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.4);
+}
+#risk-root .brass-plate .rivet.tl { top: 5px; left: 5px; }
+#risk-root .brass-plate .rivet.tr { top: 5px; right: 5px; }
+#risk-root .brass-plate .rivet.bl { bottom: 5px; left: 5px; }
+#risk-root .brass-plate .rivet.br { bottom: 5px; right: 5px; }
+#risk-root .brass-plate .star {
+  font-size: 14px;
+  color: #3a2408;
+  filter: drop-shadow(0 1px 0 rgba(255,238,180,0.5));
+}
+
+/* Phase tag — leather strap */
+#risk-root .phase-tag {
+  position: relative;
+  padding: 8px 16px 9px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, var(--leather-1), var(--leather-2) 60%, var(--leather-3));
+  box-shadow:
+    inset 0 1px 0 rgba(255,228,200,0.4),
+    inset 0 -1px 0 rgba(40,20,5,0.5),
+    inset 0 0 0 1px rgba(40,20,5,0.5),
+    0 2px 0 rgba(0,0,0,0.3),
+    0 4px 10px rgba(0,0,0,0.25);
+  color: #2a1808;
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  text-align: center;
+  text-shadow: 0 1px 0 rgba(255,228,200,0.4);
+}
+#risk-root .phase-tag::before,
+#risk-root .phase-tag::after {
+  content: ""; position: absolute; left: 6px; right: 6px;
+  height: 1px; border-top: 1px dashed rgba(40,20,5,0.55);
+  pointer-events: none;
+}
+#risk-root .phase-tag::before { top: 3px; }
+#risk-root .phase-tag::after { bottom: 3px; }
+#risk-root .phase-tag .turn-pip {
+  display: inline-block;
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: -1px;
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.45);
+}
+#risk-root .phase-tag .turn-pip.p0 { background: var(--p0-1); }
+#risk-root .phase-tag .turn-pip.p1 { background: var(--p1-1); }
+#risk-root .phase-tag .phase-name {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--serif-map);
+  font-style: italic;
+  font-weight: 600;
+}
+#risk-root .phase-tag .phase-divider {
+  margin: 0 8px;
+  opacity: 0.55;
+}
+
+#risk-root .faction-card {
+  position: relative;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, #fffbe9, #f4ead0);
+  border: 1px solid rgba(80,50,20,0.35);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(60,30,5,0.18),
+    0 2px 0 rgba(60,30,5,0.18),
+    0 6px 14px rgba(60,30,5,0.22);
+  font-family: var(--serif-body);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2a1810;
+  display: flex; align-items: center; gap: 10px;
+}
+#risk-root .faction-card .crest {
+  width: 22px; height: 22px;
+  display: inline-block;
+  filter: drop-shadow(0 1px 0 rgba(255,255,255,0.6));
+}
+#risk-root .faction-card .crest svg { display: block; }
+
+/* Right-side header slot — mute toggle + exit controls share a row. */
+#risk-root .header-controls {
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Exit controls — slim brass pill row, anchored to the header right slot. */
+#risk-root .exit-controls {
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Mute toggle — matches the lobby-link/resign-btn brass pill family. */
+#risk-root .mute-btn {
+  font-size: 14px;
+  line-height: 1;
+  padding: 6px 9px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,228,180,0.35);
+  background: rgba(20,12,4,0.35);
+  color: var(--brass-1);
+  cursor: pointer;
+}
+#risk-root .mute-btn:hover {
+  border-color: var(--brass-2);
+  background: rgba(40,24,8,0.45);
+}
+#risk-root .mute-btn[aria-pressed="true"] {
+  opacity: 0.75;
+}
+#risk-root .lobby-link,
+#risk-root .resign-btn {
+  font-family: var(--serif-display);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(255,228,180,0.35);
+  background: rgba(20,12,4,0.35);
+  color: var(--brass-1);
+  text-decoration: none;
+  cursor: pointer;
+  font-weight: 700;
+}
+#risk-root .lobby-link:hover,
+#risk-root .resign-btn:hover {
+  border-color: var(--brass-2);
+  background: rgba(40,24,8,0.45);
+}
+
+/* =========================================================
+   CONTINENT RAIL — parchment plaques with pip rosters
+   ========================================================= */
+#risk-root .continent-rail {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  margin: 14px 0 14px;
+}
+#risk-root .cont-plaque {
+  position: relative;
+  padding: 8px 10px 7px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #fbf3df, #f1e2b8);
+  border: 1px solid rgba(80,50,20,0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.45),
+    0 1px 0 rgba(60,30,5,0.12);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 3px 6px;
+  color: #2a1810;
+}
+#risk-root .cont-plaque .name {
+  grid-column: 1;
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  color: #2a1810;
+}
+#risk-root .cont-plaque .bonus {
+  grid-column: 2; grid-row: 1 / span 2;
+  font-family: var(--serif-display);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--ink-soft);
+  line-height: 1;
+}
+#risk-root .cont-plaque .roster {
+  grid-column: 1;
+  display: flex; gap: 4px; align-items: center;
+}
+#risk-root .cont-plaque .pip {
+  width: 6px; height: 6px;
+  border-radius: 2px;
+  background: rgba(80,50,20,0.18);
+  border: 1px solid rgba(80,50,20,0.32);
+}
+#risk-root .cont-plaque .pip.p0 { background: var(--p0-1); border-color: var(--p0-ink); }
+#risk-root .cont-plaque .pip.p1 { background: var(--p1-1); border-color: var(--p1-ink); }
+
+#risk-root .cont-plaque.held.mine {
+  background: linear-gradient(180deg, #f7ecc4, #ead394);
+  border-color: rgba(140,100,30,0.55);
+  border-left: 3px solid var(--brass-2);
+  padding-left: 10px;
+}
+#risk-root .cont-plaque.held.mine .bonus { color: var(--brass-3); }
+#risk-root .cont-plaque.held.theirs {
+  background: linear-gradient(180deg, #e3dabb, #cdc1a0);
+  border-color: rgba(40,30,15,0.45);
+  border-left: 3px solid var(--p1-2);
+  padding-left: 10px;
+}
+#risk-root .cont-plaque.held.theirs .name { font-style: italic; }
+#risk-root .cont-plaque.held.theirs .bonus {
+  color: var(--ink-soft);
+  opacity: 0.55;
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+  text-decoration-color: rgba(176,64,48,0.6);
+}
+
+/* =========================================================
+   MAP CONTAINER
+   ========================================================= */
+#risk-root .map-frame {
+  position: relative;
+  border-radius: 8px;
+  padding: 14px;
   background: linear-gradient(180deg, #c89556 0%, #8a5a2c 100%);
-  box-shadow: inset 0 1px 0 rgba(255,228,180,.35),
-    inset 0 -2px 6px rgba(40,20,5,.5), 0 4px 0 rgba(40,20,5,.45),
-    0 18px 36px rgba(40,20,5,.30); overflow: hidden; }
-#risk-root .map-corner-screw { position: absolute; width: 12px; height: 12px;
-  border-radius: 50%; z-index: 4;
+  box-shadow:
+    inset 0 1px 0 rgba(255,228,180,0.35),
+    inset 0 -2px 6px rgba(40,20,5,0.5),
+    0 4px 0 rgba(40,20,5,0.45),
+    0 18px 36px rgba(40,20,5,0.30);
+  overflow: hidden;
+}
+#risk-root .map-frame::before {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0.4;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='l'><feTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='2' seed='9'/><feColorMatrix values='0 0 0 0 0.20  0 0 0 0 0.10  0 0 0 0 0.04  0 0 0 0.55 0'/></filter><rect width='100%25' height='100%25' filter='url(%23l)'/></svg>");
+}
+#risk-root .map-corner-screw {
+  position: absolute;
+  width: 12px; height: 12px;
+  border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #f3e6a5 0%, #c9a14e 45%, #6a4a14 100%);
-  box-shadow: inset 0 -1px 0 rgba(0,0,0,.5), 0 1px 2px rgba(0,0,0,.5); }
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.5), 0 1px 2px rgba(0,0,0,0.5);
+  z-index: 4;
+}
+#risk-root .map-corner-screw::after {
+  content: ""; position: absolute; inset: 30% 38%;
+  background: rgba(40,20,5,0.8);
+}
 #risk-root .map-corner-screw.tl { top: 6px; left: 6px; }
 #risk-root .map-corner-screw.tr { top: 6px; right: 6px; }
 #risk-root .map-corner-screw.bl { bottom: 6px; left: 6px; }
 #risk-root .map-corner-screw.br { bottom: 6px; right: 6px; }
 
-/* The antique engraving sits behind the transparent SVG overlay. */
-#risk-root .map-image { position: absolute; inset: 14px;
-  width: calc(100% - 28px); height: auto; display: block;
-  border-radius: 4px; z-index: 1;
-  box-shadow: inset 0 0 0 1px rgba(40,20,5,.4),
-    inset 0 0 30px rgba(120,80,30,.25); }
-#risk-root .risk-map { position: relative; z-index: 2; width: 100%;
-  height: auto; display: block; border-radius: 4px; background: transparent; }
+#risk-root .map-image {
+  position: absolute;
+  inset: 14px;
+  width: calc(100% - 28px);
+  height: auto;
+  display: block;
+  border-radius: 4px;
+  z-index: 1;
+  box-shadow:
+    inset 0 0 0 1px rgba(40,20,5,0.4),
+    inset 0 0 30px rgba(120,80,30,0.25);
+}
+#risk-root .risk-map {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+  background: transparent;
+}
 #risk-root .risk-map .region.clickable .hit { cursor: pointer; }
 #risk-root .risk-map .region.clickable:hover .hit {
-  fill: rgba(251,232,160,.12); }
+  fill: rgba(251,232,160,0.12);
+}
 
-/* Last-resort error boundary (app.js render() catch). */
-#risk-root .render-error { margin: 1rem 0; padding: 1rem 1.25rem;
-  background: #3a2f1c; border: 1px solid var(--brass-3);
-  border-left: 3px solid var(--p0-1); border-radius: .3rem; }
-#risk-root .render-error__msg { font-weight: bold; letter-spacing: .03em;
-  color: var(--brass-1); margin: 0 0 .35rem; }
-#risk-root .render-error__detail { font-size: .8rem; opacity: .75;
-  font-family: var(--mono, monospace); margin: 0 0 .75rem;
-  word-break: break-word; }
-#risk-root .render-error__actions { display: flex; gap: .5rem;
-  align-items: center; }
+/* =========================================================
+   ACTION TRAY — leather strap with brass buttons
+   ========================================================= */
+#risk-root .action-tray {
+  position: relative;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--leather-1) 0%, var(--leather-2) 60%, var(--leather-3) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,228,200,0.4),
+    inset 0 -2px 6px rgba(40,20,5,0.45),
+    0 3px 0 rgba(40,20,5,0.4),
+    0 10px 22px rgba(40,20,5,0.25);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: #2a1808;
+}
+#risk-root .action-tray::before {
+  content: "";
+  position: absolute; inset: 6px;
+  border: 1px dashed rgba(40,20,5,0.55);
+  border-radius: 4px;
+  pointer-events: none;
+}
+#risk-root .action-tray .lead {
+  flex: 1 1 auto;
+  min-width: 200px;
+  font-family: var(--serif-body);
+  font-size: 14px;
+  letter-spacing: 0.02em;
+  z-index: 1;
+}
+#risk-root .action-tray .lead .order {
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  margin-right: 8px;
+  text-transform: uppercase;
+}
+#risk-root .action-tray .lead em {
+  font-family: var(--serif-map);
+  font-style: italic;
+  color: rgba(40,20,5,0.85);
+}
+#risk-root .action-tray .lead .from,
+#risk-root .action-tray .lead .to {
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 1px 6px;
+  background: rgba(255,228,180,0.5);
+  border: 1px solid rgba(40,20,5,0.4);
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+#risk-root .action-tray .lead .from.empty,
+#risk-root .action-tray .lead .to.empty {
+  background: transparent;
+  border-style: dashed;
+  color: rgba(40,20,5,0.5);
+}
+#risk-root .action-tray .controls {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  z-index: 1;
+}
 
-#risk-root .combat-reveal { margin: .75rem 0; padding: .6rem;
-  background: #3a2f1c; border: 1px solid var(--ink); border-radius: .3rem;
-  text-align: center; }
+#risk-root .deploy-row {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(255,228,180,0.5);
+  border: 1px solid rgba(40,20,5,0.45);
+  border-radius: 3px;
+  color: #2a1810;
+  z-index: 1;
+}
+#risk-root .deploy-row button.step {
+  padding: 1px 7px;
+  font-size: 12px;
+  line-height: 1;
+  background: rgba(40,20,5,0.15);
+  border: 1px solid rgba(40,20,5,0.45);
+  color: #2a1810;
+  border-radius: 2px;
+  cursor: pointer;
+}
+#risk-root .deploy-row button.step:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+#risk-root .brass-btn {
+  position: relative;
+  padding: 8px 16px 9px;
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #2a1808;
+  text-shadow: 0 1px 0 rgba(255,238,180,0.55);
+  border: 1px solid var(--brass-edge);
+  border-radius: 4px;
+  background: linear-gradient(170deg, var(--brass-1) 0%, #efc966 18%, var(--brass-2) 52%, #997620 88%, var(--brass-3) 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.55),
+    inset 0 -1.5px 0 rgba(58,33,4,0.55),
+    0 2px 0 rgba(0,0,0,0.35),
+    0 5px 12px rgba(0,0,0,0.32);
+  cursor: pointer;
+  transition: transform 110ms ease, box-shadow 110ms ease;
+}
+#risk-root .brass-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.55),
+    inset 0 -1.5px 0 rgba(58,33,4,0.55),
+    0 3px 0 rgba(0,0,0,0.4),
+    0 8px 16px rgba(0,0,0,0.36);
+}
+#risk-root .brass-btn:active:not(:disabled) { transform: translateY(0); }
+#risk-root .brass-btn::before {
+  content: ""; position: absolute; inset: 1px;
+  border-radius: 3px;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.28) 45%, transparent 60%);
+  pointer-events: none;
+}
+#risk-root .brass-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.4);
+}
+#risk-root .brass-btn.ghost {
+  background: linear-gradient(180deg, #fffbe9, #ead9b0);
+  color: var(--ink-soft);
+  text-shadow: none;
+  border-color: rgba(80,50,20,0.45);
+}
+
+/* =========================================================
+   CHRONICLE (history log)
+   ========================================================= */
+#risk-root .chronicle {
+  margin-top: 14px;
+  padding: 12px 16px 14px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #fffbe9, #f1e2b8);
+  border: 1px solid rgba(80,50,20,0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(60,30,5,0.18),
+    0 2px 0 rgba(60,30,5,0.16),
+    0 6px 14px rgba(60,30,5,0.14);
+  color: #2a1810;
+}
+#risk-root .chronicle h3 {
+  font-family: var(--serif-display);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border-bottom: 1px dashed rgba(80,50,20,0.3);
+  padding-bottom: 6px;
+  margin: 0 0 8px;
+  display: flex; justify-content: space-between; align-items: baseline;
+}
+#risk-root .chronicle h3 .turn-no {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+#risk-root .chronicle ol {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: grid;
+  gap: 4px;
+  font-family: var(--serif-map);
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+#risk-root .chronicle li {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: baseline;
+  gap: 8px;
+}
+#risk-root .chronicle .turn-marker {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+#risk-root .chronicle .verdict-pip {
+  font-family: var(--mono);
+  font-size: 10px; letter-spacing: 0.08em;
+  padding: 1px 6px;
+  border-radius: 2px;
+  background: rgba(80,50,20,0.10);
+  color: var(--ink-soft);
+}
+#risk-root .chronicle .verdict-pip.win { background: rgba(176,64,48,0.15); color: var(--p0-2); }
+#risk-root .chronicle .verdict-pip.lose { background: rgba(80,50,20,0.12); color: var(--ink-faint); }
+#risk-root .chronicle li b {
+  font-family: var(--serif-display);
+  font-weight: 700;
+  color: #2a1810;
+}
+#risk-root .chronicle li .from,
+#risk-root .chronicle li .to {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: #2a1810;
+}
+#risk-root .chronicle .chronicle-empty {
+  font-family: var(--serif-map);
+  font-style: italic;
+  color: var(--ink-faint);
+  padding: 4px 0;
+}
+
+/* =========================================================
+   LAST-RESORT ERROR BOUNDARY
+   ========================================================= */
+#risk-root .render-error {
+  margin: 1rem 0;
+  padding: 1rem 1.25rem;
+  background: #3a2f1c;
+  border: 1px solid var(--brass-3);
+  border-left: 3px solid var(--p0-1);
+  border-radius: 0.3rem;
+}
+#risk-root .render-error__msg {
+  font-weight: bold;
+  letter-spacing: 0.03em;
+  color: var(--brass-1);
+  margin: 0 0 0.35rem;
+}
+#risk-root .render-error__detail {
+  font-size: 0.8rem;
+  opacity: 0.75;
+  font-family: var(--mono);
+  margin: 0 0 0.75rem;
+  word-break: break-word;
+}
+#risk-root .render-error__actions {
+  display: flex; gap: 0.5rem; align-items: center;
+}
+
+/* =========================================================
+   COMBAT REVEAL — dice tray (dice treatment left untouched
+   per design handoff; only the surrounding chrome is here)
+   ========================================================= */
+#risk-root .combat-reveal {
+  margin: 12px 0;
+  padding: 12px 14px;
+  background: #3a2f1c;
+  border: 1px solid var(--ink);
+  border-radius: 0.3rem;
+  text-align: center;
+  color: #f3e8c8;
+}
 #risk-root .combat-reveal__head { font-size: .8rem; opacity: .8; }
-#risk-root .combat-reveal__dice { font-size: 1.8rem; letter-spacing: .15rem;
-  margin: .3rem 0; }
+#risk-root .combat-reveal__dice { font-size: 1.8rem; letter-spacing: .15rem; margin: .3rem 0; }
 #risk-root .combat-reveal__dice .atk { color: var(--p0); }
 #risk-root .combat-reveal__dice .def { color: var(--p1); }
-#risk-root .combat-reveal__dice .vs { font-size: .9rem; opacity: .6;
-  margin: 0 .5rem; }
+#risk-root .combat-reveal__dice .vs { font-size: .9rem; opacity: .6; margin: 0 .5rem; }
 #risk-root .combat-reveal__result { font-weight: bold; letter-spacing: .05em; }
 #risk-root .combat-reveal__result.won { color: var(--brass); }
 #risk-root .combat-reveal__result.lost { color: #8a7c5c; }
 
-/* Round-by-round CombatReveal (React) — trays + pip readouts beside each
-   3D dice tray. The 3D tray itself is themed by the <dice-tray> bundle; the
-   wrapper here gives each side a color-tinted frame and a textual pip
-   summary, matching the parchment/brass idiom of the rest of the panel. */
-#risk-root .combat-reveal__trays { display: flex; align-items: center;
-  justify-content: center; gap: .6rem; margin: .4rem 0; flex-wrap: wrap; }
-#risk-root .combat-reveal__trays .tray { flex: 1 1 200px; min-width: 180px;
-  border: 1px solid var(--ink); border-radius: .3rem; padding: .35rem;
-  background: rgba(74, 58, 30, .25); }
-#risk-root .combat-reveal__trays .tray.atk { --die: var(--p0);
-  border-color: var(--p0); }
-#risk-root .combat-reveal__trays .tray.def { --die: var(--p1);
-  border-color: var(--p1); }
-#risk-root .combat-reveal__trays .pips { display: block;
+#risk-root .combat-reveal__trays {
+  display: flex; align-items: center; justify-content: center;
+  gap: .6rem; margin: .4rem 0; flex-wrap: wrap;
+}
+#risk-root .combat-reveal__trays .tray {
+  flex: 1 1 200px; min-width: 180px;
+  border: 1px solid var(--ink); border-radius: .3rem;
+  padding: .35rem;
+  background: rgba(74, 58, 30, .25);
+}
+#risk-root .combat-reveal__trays .tray.atk { --die: var(--p0); border-color: var(--p0); }
+#risk-root .combat-reveal__trays .tray.def { --die: var(--p1); border-color: var(--p1); }
+#risk-root .combat-reveal__trays .pips {
+  display: block;
   font-family: var(--serif-map-sc, Georgia, serif);
-  font-size: 1.1rem; color: var(--die, var(--brass));
-  text-align: center; margin-top: .25rem; letter-spacing: .25rem;
-  min-height: 1.2em; }
-#risk-root .combat-reveal__trays .vs { font-family: var(--serif-map-sc, serif);
-  font-size: 1.1rem; opacity: .6; align-self: center; }
+  font-size: 1.1rem;
+  color: var(--die, var(--brass));
+  text-align: center;
+  margin-top: .25rem;
+  letter-spacing: .25rem;
+  min-height: 1.2em;
+}
+#risk-root .combat-reveal__trays .vs {
+  font-family: var(--serif-map-sc, serif);
+  font-size: 1.1rem;
+  opacity: .6;
+  align-self: center;
+}
 
-#risk-root .bar { display: flex; flex-wrap: wrap; gap: .5rem;
-  margin: 1rem 0; align-items: center; }
-#risk-root button { font: inherit; padding: .5rem .8rem; border-radius: .3rem;
-  border: 1px solid var(--ink); background: #4a3a1e; color: #f3e8c8;
-  cursor: pointer; }
-#risk-root button:hover:not(:disabled) { border-color: var(--brass); }
-#risk-root button:disabled { opacity: .4; cursor: not-allowed; }
-#risk-root .deploy-row { display: inline-flex; align-items: center;
-  gap: .3rem; padding: .15rem .4rem; border: 1px solid var(--ink);
-  border-radius: .3rem; background: rgba(74, 58, 30, .4); }
-#risk-root button.step { padding: .15rem .5rem; line-height: 1;
-  min-width: 1.8rem; }
-#risk-root .log { font-size: .8rem; opacity: .8; max-height: 9rem;
-  overflow: auto; border-top: 1px solid var(--ink); padding-top: .4rem; }
+/* End-screen */
 #risk-root .end { text-align: center; padding: 2rem; }
-#risk-root .end h1 { color: var(--brass); letter-spacing: .08em; }
-
-/* Leave / exit affordances */
-#risk-root .banner { display: flex; align-items: center; justify-content: space-between; }
-#risk-root .exit-controls { display: flex; align-items: center; gap: .5rem;
-  margin-left: 1rem; flex: none; }
-#risk-root .lobby-link { font-size: .8rem; padding: .3rem .6rem;
-  border: 1px solid var(--ink); border-radius: .3rem; color: var(--brass);
-  text-decoration: none; opacity: .85; }
-#risk-root .lobby-link:hover { opacity: 1; border-color: var(--brass); }
-#risk-root .resign-btn { font-size: .8rem; padding: .3rem .6rem; opacity: .85; }
-#risk-root .resign-btn:hover { opacity: 1; }
-#risk-root .end-lobby { display: inline-block; margin-top: 1.5rem; padding: .5rem 1rem;
-  border: 1px solid var(--ink); border-radius: .3rem; color: var(--brass);
-  text-decoration: none; }
+#risk-root .end h1 { color: var(--brass); letter-spacing: 0.08em; }
+#risk-root .end-lobby {
+  display: inline-block;
+  margin-top: 1.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ink);
+  border-radius: 0.3rem;
+  color: var(--brass);
+  text-decoration: none;
+}
 #risk-root .end-lobby:hover { border-color: var(--brass); }
 
-/* Opponent persona card — shared CSS pins .opp-card to bottom-right of the
-   viewport. In Risk the bottom edge holds the action bar / history log, so
-   lift the card to the top-right instead. Scoped to #risk-root so cribbage
-   keeps its original positioning. */
+/* =========================================================
+   OPPONENT CARD — pin to top-right of the viewport (the
+   bottom edge holds the action tray + chronicle in Risk).
+   ========================================================= */
 #risk-root .opp-card {
   top: 16px;
   right: 12px;
   bottom: auto;
 }
 
-/* Narrow viewports: drop the card into normal block flow under the continent
-   rail so it doesn't crowd Asia/Australia territory pins on mobile. */
+/* Narrow viewports: drop the card into block flow so it doesn't
+   crowd the map. */
 @media (max-width: 959px) {
   #risk-root .opp-card {
     position: static;
-    top: auto;
-    right: auto;
+    top: auto; right: auto;
     width: 100%;
     max-width: 280px;
     margin: 0.5rem auto;
