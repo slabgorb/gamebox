@@ -53,6 +53,52 @@ test('no legal moves throws', async () => {
   await assert.rejects(() => chooseAction({ llm, persona, sessionId: null, state: s, botPlayerIdx: 0 }));
 });
 
+test('chooseAction returns chosenMoveId matching the shortlist id', async () => {
+  const llm = new FakeLlmClient([{ text: '{"moveId":"attack:alaska->alberta","banter":"go"}', sessionId: 's' }]);
+  const r = await chooseAction({ llm, persona, sessionId: null, state: attackState(), botPlayerIdx: 0 });
+  assert.equal(r.chosenMoveId, 'attack:alaska->alberta');
+});
+
+test('chooseAction returns shortlist with id/summary/score per entry', async () => {
+  const llm = new FakeLlmClient([{ text: '{"moveId":"attack:alaska->alberta","banter":"go"}', sessionId: 's' }]);
+  const r = await chooseAction({ llm, persona, sessionId: null, state: attackState(), botPlayerIdx: 0 });
+  assert.ok(Array.isArray(r.shortlist));
+  assert.ok(r.shortlist.length >= 1);
+  for (const entry of r.shortlist) {
+    assert.equal(typeof entry.id, 'string');
+    assert.equal(typeof entry.summary, 'string');
+    assert.equal(typeof entry.score, 'number');
+  }
+});
+
+test('chooseAction mode=collection passes mode to buildTurnPrompt (no banter in prompt)', async () => {
+  let capturedPrompt = '';
+  const llm = {
+    async send({ prompt }) {
+      capturedPrompt = prompt;
+      return { text: '{"moveId":"attack:alaska->alberta"}', sessionId: 's' };
+    },
+  };
+  await chooseAction({
+    llm, persona, sessionId: null, state: attackState(), botPlayerIdx: 0, mode: 'collection',
+  });
+  assert.doesNotMatch(capturedPrompt, /banter/);
+});
+
+test('chooseAction default mode is live (banter still required)', async () => {
+  let capturedPrompt = '';
+  const llm = {
+    async send({ prompt }) {
+      capturedPrompt = prompt;
+      return { text: '{"moveId":"attack:alaska->alberta","banter":"go"}', sessionId: 's' };
+    },
+  };
+  await chooseAction({
+    llm, persona, sessionId: null, state: attackState(), botPlayerIdx: 0,
+  });
+  assert.match(capturedPrompt, /banter/);
+});
+
 test('chooseAction shortlist always includes end-attack in attack phase', async () => {
   // Construct an attack-phase state where 6+ attacks all out-score end-attack,
   // so the unfixed slice(0,6) would drop end-attack.

@@ -9,7 +9,9 @@ export { InvalidLlmResponse, InvalidLlmMove };
 const MAX_SHORTLIST = 6;
 const TERMINATORS_BY_PHASE = { attack: 'end-attack', fortify: 'end-turn' };
 
-export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, userMessages = [] }) {
+export async function chooseAction({
+  llm, persona, sessionId, state, botPlayerIdx, userMessages = [], mode = 'live',
+}) {
   const moves = enumerateLegalMoves(state, botPlayerIdx);
   if (moves.length === 0) {
     throw new Error(`no legal moves for phase '${state.phase}'`);
@@ -20,18 +22,14 @@ export async function chooseAction({ llm, persona, sessionId, state, botPlayerId
     .sort((a, b) => b.score - a.score);
   const shortlist = scored.slice(0, MAX_SHORTLIST);
 
-  // Force-include the phase terminator (end-attack / end-turn) if it was
-  // pushed out of the top-N by higher-scoring moves. Phase terminators
-  // are not optional — the bot must always be able to signal "I'm done
-  // with this phase," and silent omission causes forfeits when the LLM
-  // picks the terminator anyway.
+  // Phase terminators are not optional — force-include them.
   const terminatorId = TERMINATORS_BY_PHASE[state.phase];
   if (terminatorId && !shortlist.some(m => m.id === terminatorId)) {
     const terminator = scored.find(m => m.id === terminatorId);
     if (terminator) shortlist.push(terminator);
   }
 
-  const prompt = buildTurnPrompt({ state, shortlist, botPlayerIdx, userMessages });
+  const prompt = buildTurnPrompt({ state, shortlist, botPlayerIdx, userMessages, mode });
   const r = await llm.send({
     prompt,
     sessionId,
@@ -45,8 +43,19 @@ export async function chooseAction({ llm, persona, sessionId, state, botPlayerId
   const match = shortlist.find(m => m.id === parsed.moveId);
   if (!match) throw new InvalidLlmMove(parsed.moveId, shortlist.map(m => m.id));
 
+  // Serialize shortlist to a slim {id, summary, score} shape suitable for
+  // training-corpus consumption — drop the full action payload (derivable
+  // from state + id at training-prep time) to keep transcript lines small.
+  const slimShortlist = shortlist.map(m => ({
+    id: m.id,
+    summary: m.summary,
+    score: m.score,
+  }));
+
   return {
     action: match.action,
+    chosenMoveId: match.id,
+    shortlist: slimShortlist,
     banter: parsed.banter,
     sessionId: r.sessionId,
     sequenceTail: [],
