@@ -792,10 +792,24 @@ body::before {
   margin: 8px 0 0; padding: 0;
 }
 #risk-root .hand-card {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 2px;
+  min-width: 66px; text-align: center;
   padding: 6px 9px; border-radius: 3px; cursor: pointer;
   font-size: 11px; font-weight: 600;
   border: 1px solid rgba(58,33,4,0.45);
   background: #fffdf5; color: #3a2104;
+}
+/* Troop-type illustration above each card's label (E2-10 follow-on). */
+#risk-root .hand-card::before {
+  content: ""; display: block;
+  width: 46px; height: 34px;
+  background-repeat: no-repeat; background-position: center; background-size: contain;
+}
+#risk-root .hand-card.type-infantry::before  { background-image: url(assets/infantry.png); }
+#risk-root .hand-card.type-cavalry::before   { background-image: url(assets/cavalry.png); }
+#risk-root .hand-card.type-artillery::before { background-image: url(assets/artillery.png); }
+#risk-root .hand-card.type-wild::before {
+  content: "★"; font-size: 26px; line-height: 34px; color: #b8860b;
 }
 #risk-root .hand-card.selected {
   background: linear-gradient(180deg, #f4d488, #d9a542);
