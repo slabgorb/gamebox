@@ -159,6 +159,8 @@ stories:
       - Player holding >=5 cards at reinforcement start MUST trade before deploying (forced trade-in enforced)
       - view.js exposes own hand fully but only opponent card COUNT, never identities
       - reinforcementFor includes traded bonus armies; deck reshuffles from discard when exhausted
+    review_findings: 'HIGH: AC-8 reshuffle unimplemented (drawCard re-stacks discard without shuffling; docstring lies; predictable draw order). MEDIUM: 4 rejection tests use assert.ok(r.error) not assert.match (rule #8); missing capturedThisTurn-reset test. LOW: truthy checks (rule #4), view contract drift, isValidCardSet wild handling.'
+    review_verdict: rejected
   - id: E2-9
     title: Cards-aware AI + diagnostic re-validation (legal moves, prompt bump, board-eval)
     description: "Make the AI and pilot harness cards-aware so the rerun corpus reflects carded play. Extend legal-move enumeration to include trade-in options; update the LLM turn prompt to surface the bot's hand + trade-in choices and bump BUILD_TURN_PROMPT_VERSION; teach board-eval to value held cards / near-complete sets. Re-validate the GO/NO-GO diagnostic: attack-when-available is now distorted by the card-per-turn incentive, so confirm or revise the metric (candidates: post-card-secured aggression, trade-in timing) in scripts/risk-style-diag.mjs."
