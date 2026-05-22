@@ -55,7 +55,7 @@ test('computePersonaMetrics still reports legacy attack-when-available', () => {
 
 test('AC-5: a card-robust post-card-secured aggression metric is computed', () => {
   const m = computePersonaMetrics([bankerGame]);
-  assert.ok(m.banker.postCardSecuredAggression,
+  assert.ok('postCardSecuredAggression' in m.banker,
     'persona metrics must expose postCardSecuredAggression');
   // banker had one post-card-secured attack opportunity and declined it.
   assert.deepEqual(m.banker.postCardSecuredAggression, { attacked: 0, total: 1 });

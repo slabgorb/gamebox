@@ -59,15 +59,31 @@ test('holding cards scores higher than holding none on an identical board', () =
     'a held card is a strategic asset and must add positive value');
 });
 
-test('a near-complete set scores higher than the same number of unsetlike cards', () => {
-  // Two cards that complete-with-one (a near 3-distinct: inf + cav, needs art)
-  // should be valued at least as high as two identical cards that need a third
-  // of the same type. Both are two-card hands; the contribution must reward
-  // progression toward a tradeable set, not merely card count.
-  const nearSet = evaluateBoard(boardWithHand([inf('egypt'), cav('japan')]), 0).total;
+test('more held cards score higher than fewer (card-count value)', () => {
+  const twoCards = evaluateBoard(boardWithHand([inf('egypt'), cav('japan')]), 0).total;
   const oneCard = evaluateBoard(boardWithHand([inf('egypt')]), 0).total;
-  assert.ok(nearSet > oneCard,
-    'progressing toward a complete set must increase board value');
+  assert.ok(twoCards > oneCard,
+    'each held card adds value, so a larger hand scores higher');
+});
+
+test('a complete set scores higher than the same number of non-combinable cards', () => {
+  // [inf,cav,art] is a tradeable 3-distinct set; [inf,inf,cav] is three cards
+  // that form no set. The completable-set bonus must reward the former.
+  const set = evaluateBoard(boardWithHand([inf('egypt'), cav('japan'), art('peru')]), 0).total;
+  const noSet = evaluateBoard(boardWithHand([inf('egypt'), inf('japan'), cav('peru')]), 0).total;
+  assert.ok(set > noSet,
+    'a completable set carries a bonus beyond raw card count');
+});
+
+test('near-completeness is NOT separately rewarded — equal-count non-set hands score equally', () => {
+  // AC-4 "near-complete sets" is satisfied by a card-count proxy, not explicit
+  // one-away detection (see Architect spec-reconcile note). A near-3-distinct
+  // pair and a same-type pair are both two non-set cards and must score the
+  // same; only a *completed* set earns the bonus. This pins the accepted proxy.
+  const nearDistinct = evaluateBoard(boardWithHand([inf('egypt'), cav('japan')]), 0).total;
+  const pair = evaluateBoard(boardWithHand([inf('egypt'), inf('japan')]), 0).total;
+  assert.equal(nearDistinct, pair,
+    'set-proximity does not affect score; only card count and completed sets do');
 });
 
 test('evaluateBoard breakdown exposes a dedicated card-value term', () => {

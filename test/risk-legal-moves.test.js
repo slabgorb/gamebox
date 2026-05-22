@@ -104,3 +104,21 @@ test('reinforce: holding five cards forces a trade — deploys are suppressed', 
   assert.ok(!moves.some(m => m.action.type === 'deploy'),
     'no deploy is legal until the forced trade is made');
 });
+
+const wild = () => ({ territory: null, type: 'wild' });
+
+test('reinforce: a three-of-a-kind set is offered as a trade-in', () => {
+  const moves = enumerateLegalMoves(
+    st('reinforce', { hands: [[inf('egypt'), inf('japan'), inf('peru')], []] }), 0);
+  const trades = moves.filter(m => m.action.type === 'trade-in');
+  assert.equal(trades.length, 1, '3-of-a-kind is a tradeable set');
+  assert.equal(trades[0].action.payload.cardIndices.length, 3);
+});
+
+test('reinforce: a wild plus two other cards is offered as a trade-in', () => {
+  const moves = enumerateLegalMoves(
+    st('reinforce', { hands: [[wild(), inf('egypt'), inf('japan')], []] }), 0);
+  // Two same-type cards alone are not a set, but with a wild they are.
+  assert.ok(moves.some(m => m.action.type === 'trade-in'),
+    'any two cards plus a wild form a tradeable set');
+});
