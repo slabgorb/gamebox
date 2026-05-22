@@ -87,6 +87,9 @@ test('a full game between two AI strategies terminates with a winner', async () 
 // E2-9 AC-6: the carded engine + cards-aware bot must exercise a trade-in
 // end-to-end. Without this, the rerun corpus could be collected on a pipeline
 // where cards are never actually traded.
+// Seed 12345 was verified to drive a full game (hundreds of turns) in which the
+// fakeLlm/scoring heuristic accumulates and trades at least one card set; the
+// forced trade at >=5 cards also guarantees a trade if voluntary ones never fire.
 test('a full carded game exercises at least one trade-in', async () => {
   const rng = rngFrom(12345);
   let state = riskPlugin.initialState({
@@ -106,6 +109,11 @@ test('a full carded game exercises at least one trade-in', async () => {
 
     const actorId = state.activeUserId;
     const botIdx = state.sides.a === actorId ? 0 : 1;
+    // Guard mirrors the real server loop and the sibling test: an empty
+    // shortlist would otherwise crash inside chooseAction with an opaque error
+    // rather than pointing at the engine state that produced no legal moves.
+    const moves = enumerateLegalMoves(state, botIdx);
+    assert.ok(moves.length > 0, `no legal moves in phase ${state.phase}`);
     const r = await chooseAction({
       llm: fakeLlm, persona: { systemPrompt: 's' }, sessionId: null,
       state, botPlayerIdx: botIdx,

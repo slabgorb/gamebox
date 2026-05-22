@@ -155,6 +155,38 @@ test('runGame transcript includes shortlist with id/summary/score on every turn'
   }
 });
 
+test('runGame transcript flags cardSecuredThisTurn correctly (the diagnostic instrument)', async () => {
+  // E2-9: the post-card-secured aggression metric depends on the harness
+  // recording cardSecuredThisTurn per turn. This tests the instrument itself,
+  // not just computation over hand-labelled fixtures.
+  const r = await runGame({
+    llmA: firstMoveLlm(), llmB: firstMoveLlm(),
+    personaA: STUB_PERSONA, personaB: STUB_PERSONA,
+    seed: 7, maxTurns: 1000,
+  });
+
+  let sawSecured = false;
+  for (const entry of r.transcript) {
+    // Wiring contract: the flag is exactly stateBefore.capturedThisTurn === true.
+    assert.equal(
+      entry.cardSecuredThisTurn,
+      entry.stateBefore.capturedThisTurn === true,
+      `turn ${entry.turn}: flag must mirror stateBefore.capturedThisTurn`,
+    );
+    // A card can only be secured by an attack capture, which happens in the
+    // attack phase; capturedThisTurn is reset before each reinforce/setup turn.
+    if (entry.phase === 'reinforce' || entry.phase === 'setup') {
+      assert.equal(entry.cardSecuredThisTurn, false,
+        `turn ${entry.turn} (${entry.phase}): no card can be secured before the attack phase`);
+    }
+    if (entry.cardSecuredThisTurn === true) sawSecured = true;
+  }
+  // The instrument must actually fire in a real game — otherwise the metric is
+  // silently dead (all-zero) and no fixture test would catch it.
+  assert.ok(sawSecured,
+    'a full game must contain at least one post-card-secured decision');
+});
+
 test('runGame passes mode to chooseAction (collection mode prompts have no banter clause)', async () => {
   // Capture the prompt to confirm collection mode reaches all the way down.
   const prompts = [];

@@ -48,7 +48,12 @@ function shortlistBlock(shortlist) {
 }
 
 function trashTalkBlock(messages) {
-  const lines = messages.map(m => `  - "${m.replace(/"/g, '\\"')}"`).join('\n');
+  // Collapse newlines before escaping quotes so a chat message can't inject a
+  // fake prompt block (e.g. a counterfeit "Candidate moves" section) by
+  // smuggling in the `\n\n` section separator buildTurnPrompt joins on.
+  const lines = messages
+    .map(m => `  - "${m.replace(/[\r\n]+/g, ' ').replace(/"/g, '\\"')}"`)
+    .join('\n');
   return `Your opponent just said:\n${lines}\nReact in your banter — stay in character.`;
 }
 
