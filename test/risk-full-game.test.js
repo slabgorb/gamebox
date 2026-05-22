@@ -83,3 +83,38 @@ test('a full game between two AI strategies terminates with a winner', async () 
   const ownerSet = new Set(Object.values(state.territories).map(t => t.owner));
   assert.equal(ownerSet.size, 1); // one player owns everything
 });
+
+// E2-9 AC-6: the carded engine + cards-aware bot must exercise a trade-in
+// end-to-end. Without this, the rerun corpus could be collected on a pipeline
+// where cards are never actually traded.
+test('a full carded game exercises at least one trade-in', async () => {
+  const rng = rngFrom(12345);
+  let state = riskPlugin.initialState({
+    participants: [{ userId: 1, side: 'a' }, { userId: 2, side: 'b' }],
+    rng,
+  });
+
+  let tradeIns = 0;
+  let guard = 0;
+  while (state.phase !== 'gameover') {
+    if (++guard > 4000) throw new Error('game did not terminate');
+
+    if (state.pendingCombat) {
+      state = resolveBotCombat(state, rng).state;
+      continue;
+    }
+
+    const actorId = state.activeUserId;
+    const botIdx = state.sides.a === actorId ? 0 : 1;
+    const r = await chooseAction({
+      llm: fakeLlm, persona: { systemPrompt: 's' }, sessionId: null,
+      state, botPlayerIdx: botIdx,
+    });
+    if (r.action.type === 'trade-in') tradeIns += 1;
+    const out = riskPlugin.applyAction({ state, action: r.action, actorId, rng });
+    assert.equal(out.error, undefined, `engine rejected ${JSON.stringify(r.action)}: ${out.error}`);
+    state = out.state;
+  }
+
+  assert.ok(tradeIns >= 1, `expected at least one trade-in in a full carded game, saw ${tradeIns}`);
+});

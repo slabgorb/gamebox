@@ -1,4 +1,16 @@
 import { CONTINENTS, continentBonus, neighborsOf } from '../map.js';
+import { findTradeInSet } from './legal-moves.js';
+
+// Held cards are a strategic asset: each guarantees future reinforcements and a
+// completable set unlocks an escalating army bonus. Valued modestly (per-card +
+// a set bonus) so it informs card-economy play without overriding territory and
+// continent decisions — AC-4 requires it present but not dominating. Reuses the
+// engine's set-detector so "what counts as a tradeable set" lives in one place.
+function cardValue(hand) {
+  if (!Array.isArray(hand) || hand.length === 0) return 0;
+  const completeSet = findTradeInSet(hand) !== null;
+  return 0.5 * hand.length + (completeSet ? 1 : 0);
+}
 
 export function evaluateBoard(state, p) {
   const terr = state.territories;
@@ -30,12 +42,14 @@ export function evaluateBoard(state, p) {
     partialProgress,
     frontierRatio: frontierRatio * 0.2,
     exposurePenalty: -exposedBorders * 0.5,
+    cardValue: cardValue(state.hands?.[p]),
   };
   const total = breakdown.territories
     + breakdown.continentScore
     + breakdown.partialProgress
     + breakdown.frontierRatio
-    + breakdown.exposurePenalty;
+    + breakdown.exposurePenalty
+    + breakdown.cardValue;
   return { total, breakdown };
 }
 
