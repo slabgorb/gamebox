@@ -64,3 +64,59 @@ test('BUILD_TURN_PROMPT_VERSION is a positive integer', () => {
   assert.ok(Number.isInteger(BUILD_TURN_PROMPT_VERSION));
   assert.ok(BUILD_TURN_PROMPT_VERSION >= 1);
 });
+
+// ---- E2-9 AC-2 + AC-3: cards-aware turn prompt ----------------------------
+
+const inf = (t) => ({ territory: t, type: 'infantry' });
+const cav = (t) => ({ territory: t, type: 'cavalry' });
+const art = (t) => ({ territory: t, type: 'artillery' });
+
+// A reinforce-phase state where the bot (player 0) holds a tradeable set.
+// Pool is 7 (not the 4-army trade-in bonus) and the deploy summary places 7,
+// so a literal "4" can only appear if the prompt computes the trade-in bonus.
+const reinforceState = {
+  phase: 'reinforce', currentPlayer: 0,
+  territories,
+  reinforcePool: 7,
+  hands: [[inf('alaska'), cav('japan'), art('peru')], []],
+  tradeInCount: 0,
+  sides: { a: 7, b: 8 },
+};
+const reinforceShortlist = [
+  { id: 'trade-in', summary: 'trade in card set', score: 5 },
+  { id: 'deploy:0', summary: 'deploy {"alaska":7}', score: 3 },
+];
+
+test('AC-2: turn prompt lists the bot\'s own card hand', () => {
+  const p = buildTurnPrompt({
+    state: reinforceState, shortlist: reinforceShortlist, botPlayerIdx: 0, userMessages: [],
+  });
+  assert.match(p, /hand/i, 'prompt names the bot\'s hand');
+  // Each held card type should be visible so the model can reason about sets.
+  assert.match(p, /infantry/i);
+  assert.match(p, /cavalry/i);
+  assert.match(p, /artillery/i);
+});
+
+test('AC-2: turn prompt surfaces the available trade-in and its bonus armies', () => {
+  const p = buildTurnPrompt({
+    state: reinforceState, shortlist: reinforceShortlist, botPlayerIdx: 0, userMessages: [],
+  });
+  assert.match(p, /trade.?in/i, 'prompt frames the trade-in decision');
+  // With tradeInCount=0 the next set is worth 4 armies — the count must be shown.
+  assert.match(p, /\b4\b/, 'prompt states the bonus army count the set would grant');
+});
+
+test('AC-2: turn prompt omits a hand block when the bot holds no cards', () => {
+  const empty = { ...reinforceState, hands: [[], []] };
+  const p = buildTurnPrompt({
+    state: empty, shortlist: [reinforceShortlist[1]], botPlayerIdx: 0, userMessages: [],
+  });
+  assert.doesNotMatch(p, /your hand:/i,
+    'no hand block is rendered for an empty hand');
+});
+
+test('AC-3: BUILD_TURN_PROMPT_VERSION is bumped past 1 for the cards prompt shape', () => {
+  assert.ok(BUILD_TURN_PROMPT_VERSION >= 2,
+    'the cards-aware prompt change must bump the version so corpora are distinguishable');
+});

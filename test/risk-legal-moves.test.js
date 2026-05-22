@@ -68,3 +68,39 @@ test('fortify: candidate moves plus end-turn', () => {
 test('gameover yields no moves', () => {
   assert.deepEqual(enumerateLegalMoves(st('gameover'), 0), []);
 });
+
+// ---- E2-9 AC-1: trade-in actions in legal-move enumeration ----------------
+
+const inf = (t) => ({ territory: t, type: 'infantry' });
+const cav = (t) => ({ territory: t, type: 'cavalry' });
+const art = (t) => ({ territory: t, type: 'artillery' });
+
+test('reinforce: a tradeable set yields exactly one trade-in move alongside deploys', () => {
+  const moves = enumerateLegalMoves(
+    st('reinforce', { hands: [[inf('egypt'), cav('japan'), art('peru')], []] }), 0);
+  const trades = moves.filter(m => m.action.type === 'trade-in');
+  assert.equal(trades.length, 1, 'one trade-in move offered for a tradeable set');
+  assert.equal(trades[0].action.payload.cardIndices.length, 3,
+    'trade-in proposes a three-card set by hand index');
+  assert.ok(moves.some(m => m.action.type === 'deploy'),
+    'deploys still offered when not forced to trade');
+});
+
+test('reinforce: no trade-in move when the hand holds no valid set', () => {
+  // Two infantry + one cavalry is not a set (not 3-same, not 3-distinct, no wild).
+  const moves = enumerateLegalMoves(
+    st('reinforce', { hands: [[inf('egypt'), inf('japan'), cav('peru')], []] }), 0);
+  assert.ok(!moves.some(m => m.action.type === 'trade-in'),
+    'no trade-in offered for an untradeable hand');
+});
+
+test('reinforce: holding five cards forces a trade — deploys are suppressed', () => {
+  const moves = enumerateLegalMoves(
+    st('reinforce', {
+      hands: [[inf('egypt'), inf('japan'), inf('peru'), cav('china'), art('india')], []],
+    }), 0);
+  assert.ok(moves.some(m => m.action.type === 'trade-in'),
+    'a trade-in move is offered at the >=5 forced-trade threshold');
+  assert.ok(!moves.some(m => m.action.type === 'deploy'),
+    'no deploy is legal until the forced trade is made');
+});
