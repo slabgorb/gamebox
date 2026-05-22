@@ -49,7 +49,7 @@ function deployCandidates(state, p, pool, type) {
 // Find the indices of one tradeable set in a hand (3-of-a-kind, 3-distinct,
 // or two cards plus a wild), or null if none exists. Proposes a set for the
 // engine to validate — it does not re-implement validation.
-function findTradeInSet(hand) {
+export function findTradeInSet(hand) {
   if (!Array.isArray(hand) || hand.length < 3) return null;
   const byType = { infantry: [], cavalry: [], artillery: [], wild: [] };
   hand.forEach((c, i) => { byType[c.type].push(i); });
