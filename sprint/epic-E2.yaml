@@ -168,7 +168,8 @@ stories:
     description: "Make the AI and pilot harness cards-aware so the rerun corpus reflects carded play. Extend legal-move enumeration to include trade-in options; update the LLM turn prompt to surface the bot's hand + trade-in choices and bump BUILD_TURN_PROMPT_VERSION; teach board-eval to value held cards / near-complete sets. Re-validate the GO/NO-GO diagnostic: attack-when-available is now distorted by the card-per-turn incentive, so confirm or revise the metric (candidates: post-card-secured aggression, trade-in timing) in scripts/risk-style-diag.mjs."
     points: 5
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-05-22'
     repos: g-1
     workflow: tdd
     depends_on: E2-8
@@ -179,6 +180,8 @@ stories:
       - board-eval assigns positive value to held cards and near-complete sets
       - 'risk-style-diag.mjs reviewed: attack-when-available confirmed valid under cards OR replaced/supplemented with a card-robust style metric, rationale documented'
       - risk-full-game bot-vs-bot test passes end-to-end on the carded engine with at least one trade-in occurring
+    completed: '2026-05-22'
+    review_verdict: approved
   - id: E2-10
     title: Risk cards client UI (hand tray, trade-in, must-trade prompt)
     description: Client UI for cards. Hand tray showing the player's cards (type + territory), a trade-in selector that validates set shape before enabling submit, and a blocking must-trade prompt when holding >=5 cards. Opponent hand shows count only. NOT required for the headless pilot rerun - p2, does not block E2-1.
