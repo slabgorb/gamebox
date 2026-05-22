@@ -40,6 +40,13 @@ export function computePersonaMetrics(games) {
         turns: 0,
         moveTypeCounts: {},
         attackWhenAvailable: { attacked: 0, total: 0 },
+        // Card-robust style metric (E2-9). A card is earned by capturing >=1
+        // territory per turn, so attack-when-available is inflated toward 100%
+        // for every persona once cards exist. Persona voice survives in the
+        // *post-card-secured* choice: once the turn's card is locked in
+        // (cardSecuredThisTurn), does the persona keep pressing or bank it?
+        // This segments attack-when-available to just those decisions.
+        postCardSecuredAggression: { attacked: 0, total: 0 },
         attackForce: { forceCommitted: 0, attackerArmies: 0, count: 0 },
       };
     }
@@ -62,6 +69,10 @@ export function computePersonaMetrics(games) {
         if (hasGoodAttack) {
           p.attackWhenAvailable.total += 1;
           if (actionType === 'attack') p.attackWhenAvailable.attacked += 1;
+          if (t.cardSecuredThisTurn === true) {
+            p.postCardSecuredAggression.total += 1;
+            if (actionType === 'attack') p.postCardSecuredAggression.attacked += 1;
+          }
         }
       }
 
@@ -148,6 +159,10 @@ function printReport(personaIds, metrics, gate, gameCount, model) {
     ['attack%',           id => pct(metrics[id].moveTypeMix.attack ?? 0)],
     ['attack-when-avail', id => {
       const a = metrics[id].attackWhenAvailable;
+      return a.total > 0 ? pctInt(a.attacked / a.total) : 'n/a';
+    }],
+    ['post-card-aggr', id => {
+      const a = metrics[id].postCardSecuredAggression;
       return a.total > 0 ? pctInt(a.attacked / a.total) : 'n/a';
     }],
     ['mean-force-frac',   id => {

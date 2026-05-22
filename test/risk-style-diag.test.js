@@ -67,10 +67,13 @@ test('AC-5: post-card metric separates personas the legacy metric blurs', () => 
   // Both personas attack-when-available at the same 100% legacy rate, but only
   // one keeps pressing after the card is secured. The card-robust metric must
   // tell them apart where attack-when-available cannot.
+  // Both attack on exactly one of two good-attack turns -> identical legacy
+  // rate of 0.5. They differ only in WHICH turn: hawk presses post-card,
+  // pragmatist presses pre-card and banks once the card is secured.
   const blurGame = {
     personaA: 'hawk', personaB: 'pragmatist',
     transcript: [
-      attackTurn('a', { chosen: 'attack:alaska->nwt', cardSecured: false }),
+      attackTurn('a', { chosen: 'end-attack', cardSecured: false }),
       attackTurn('a', { chosen: 'attack:alaska->nwt', cardSecured: true }),
       attackTurn('b', { chosen: 'attack:alaska->nwt', cardSecured: false }),
       attackTurn('b', { chosen: 'end-attack', cardSecured: true }),

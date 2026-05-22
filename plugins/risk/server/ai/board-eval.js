@@ -1,5 +1,20 @@
 import { CONTINENTS, continentBonus, neighborsOf } from '../map.js';
 
+// Held cards are a strategic asset: each guarantees future reinforcements and a
+// completable set unlocks an escalating army bonus. Valued modestly (per-card +
+// a set bonus) so it informs card-economy play without overriding territory and
+// continent decisions — AC-4 requires it present but not dominating.
+function cardValue(hand) {
+  if (!Array.isArray(hand) || hand.length === 0) return 0;
+  const byType = { infantry: 0, cavalry: 0, artillery: 0, wild: 0 };
+  for (const c of hand) byType[c.type] = (byType[c.type] ?? 0) + 1;
+  const completeSet =
+    byType.infantry >= 3 || byType.cavalry >= 3 || byType.artillery >= 3 ||
+    (byType.infantry >= 1 && byType.cavalry >= 1 && byType.artillery >= 1) ||
+    (byType.wild >= 1 && hand.length >= 3);
+  return 0.5 * hand.length + (completeSet ? 1 : 0);
+}
+
 export function evaluateBoard(state, p) {
   const terr = state.territories;
   const owned = Object.keys(terr).filter(id => terr[id].owner === p);
@@ -30,12 +45,14 @@ export function evaluateBoard(state, p) {
     partialProgress,
     frontierRatio: frontierRatio * 0.2,
     exposurePenalty: -exposedBorders * 0.5,
+    cardValue: cardValue(state.hands?.[p]),
   };
   const total = breakdown.territories
     + breakdown.continentScore
     + breakdown.partialProgress
     + breakdown.frontierRatio
-    + breakdown.exposurePenalty;
+    + breakdown.exposurePenalty
+    + breakdown.cardValue;
   return { total, breakdown };
 }
 

@@ -121,6 +121,10 @@ export async function runGame({
       banter: result.banter,
       stateBefore: structuredClone(state),
       action: result.action,
+      // True when the active player already captured a territory this turn —
+      // i.e. their per-turn card is locked in. Feeds the diagnostic's
+      // post-card-secured aggression metric (E2-9).
+      cardSecuredThisTurn: state.capturedThisTurn === true,
     });
 
     const actorId = sideIdx === 0 ? FAKE_USER_A : FAKE_USER_B;

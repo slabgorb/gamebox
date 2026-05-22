@@ -1,9 +1,11 @@
 import { CONTINENTS } from '../map.js';
+import { tradeBonus } from '../actions.js';
 
 // Bump this when the text of buildTurnPrompt changes in a way that could
 // affect the LLM's response distribution. Manual bump rather than auto-hash
 // so whitespace-only edits don't invalidate corpora.
-export const BUILD_TURN_PROMPT_VERSION = 1;
+// v2 (E2-9): added the card hand + trade-in blocks.
+export const BUILD_TURN_PROMPT_VERSION = 2;
 
 function renderBoard(state, p) {
   const lines = [];
@@ -17,6 +19,24 @@ function renderBoard(state, p) {
     lines.push(`${c.name} (+${c.bonus}): ${cells.join('  ')}`);
   }
   return lines.join('\n');
+}
+
+function handBlock(state, p) {
+  const hand = state.hands?.[p];
+  if (!Array.isArray(hand) || hand.length === 0) return null;
+  const cards = hand.map((c, i) =>
+    `  [${i}] ${c.type}${c.territory ? ` (${c.territory})` : ''}`).join('\n');
+  return `Your hand (${hand.length} cards):\n${cards}`;
+}
+
+// Surfaced only when a trade-in is actually offered this turn (the shortlist
+// carries the legal trade-in move). States the bonus the next set would grant
+// so the model can weigh trading now vs. holding — a phase-locked decision.
+function tradeInBlock(state, shortlist) {
+  const offered = shortlist.some(m => typeof m.id === 'string' && m.id.startsWith('trade-in'));
+  if (!offered) return null;
+  const bonus = tradeBonus(state.tradeInCount ?? 0);
+  return `Trade-in available (reinforcement phase only): turning in a card set now grants ${bonus} bonus armies.`;
 }
 
 function shortlistBlock(shortlist) {
@@ -46,6 +66,10 @@ export function buildTurnPrompt({ state, shortlist, botPlayerIdx, userMessages =
     `You are playing Risk as player ${botPlayerIdx}. Current phase: ${state.phase}.`,
     renderBoard(state, botPlayerIdx),
   ];
+  const hand = handBlock(state, botPlayerIdx);
+  if (hand) blocks.push(hand);
+  const trade = tradeInBlock(state, shortlist);
+  if (trade) blocks.push(trade);
   if (userMessages.length > 0) blocks.push(trashTalkBlock(userMessages));
   blocks.push(shortlistBlock(shortlist), footer);
   return blocks.join('\n\n');
