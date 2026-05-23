@@ -29,10 +29,11 @@ stories:
       RERUN on the carded engine (cards-first decision, 2026-05-21). The 46 cardless games in data/risk-corpus/pilot/ are DISCARDED. Execute scripts/risk-pilot.sh end-to-end: 6 pairings x 25 games = 150 games of Sonnet 4.6 in collection mode on the card-enabled engine. Then run scripts/risk-style-diag.mjs (per E2-9's possibly-revised metric) and capture GO/NO-GO + per-persona table. Deliverable: pilot-meta.json + 6 corpus JSONLs + docs/risk-llm/pilot-report.md with diagnostic output verbatim and a one-line recommendation.
     points: 2
     priority: p1
-    status: backlog
-    started: '2026-05-21'
+    status: in_progress
+    started: '2026-05-22'
     repos: g-1
     workflow: trivial
+    branch: feat/E2-1-run-pilot-corpus-diagnostic
     depends_on: E2-9
     type: chore
   - id: E2-2
