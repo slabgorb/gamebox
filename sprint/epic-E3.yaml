@@ -59,10 +59,13 @@ stories:
     title: AI adapter + prompts + two personas + adapter/persona registration
     points: 3
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-05-28'
     repos: g-1
     workflow: tdd
     depends_on: E3-4
+    completed: '2026-05-28'
+    review_verdict: approved
   - id: E3-6
     title: Client UI (board, card flip, move interaction, win banner) + orchestrator integration + playtest
     points: 3
