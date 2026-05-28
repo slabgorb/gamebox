@@ -5,7 +5,7 @@
 // drawn cell.
 import type { SorryView, SorrySide, LegalMove } from "../shared/contracts/sorry";
 import { Board4P } from "./Board4P";
-import { pawnCenter, parkCenter, moveDestCenter, toPct } from "./board-geometry.js";
+import { pawnCenter, parkCenter, moveDestCenter, toPct, boardRotation } from "./board-geometry.js";
 
 export interface BoardProps {
   view: SorryView;
@@ -29,6 +29,12 @@ export function Board({ view, onPick }: BoardProps) {
   const legalMoves: LegalMove[] = view.legalMoves ?? [];
   const turnSide = view.currentPlayer;
 
+  // Viewer-relative orientation: rotate the entire surface (board + overlay, as
+  // one unit so cells and pawns stay aligned) so the human's colour sits at the
+  // bottom. The board is drawn into board-geometry's coordinate space; rotating
+  // the wrapper leaves that math untouched.
+  const rotation = boardRotation(view.youAre);
+
   // Pawns that can move this turn — ringed so it's obvious which pieces are live.
   const movableIds = new Set(
     legalMoves.map(movePawnId).filter((id): id is number => id != null),
@@ -48,8 +54,8 @@ export function Board({ view, onPick }: BoardProps) {
   }
 
   return (
-    <div className="board-surface">
-      <Board4P />
+    <div className="board-surface" style={{ transform: `rotate(${rotation}deg)` }}>
+      <Board4P rotation={rotation} />
 
       {/* Live pawns — every pawn of both sides, placed from the public view.
           Parked pawns (start/home) are laid out as a centred cluster keyed to

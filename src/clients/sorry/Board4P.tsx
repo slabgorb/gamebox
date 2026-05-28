@@ -189,16 +189,24 @@ function SafetyZone({ side }: { side: Side }) {
   );
 }
 
+// START labels face their own seat: the two top sides (a, b) read toward the
+// top edge, the two bottom sides (c, d) toward the bottom. Baked into the art
+// independent of the viewer — the whole-board flip then lands the viewer's own
+// label upright and the opponent's flipped toward them.
+const LABEL_ROT: Record<Side, number> = { a: 180, b: 180, c: 0, d: 0 };
+
 function StartCircle({ side }: { side: Side }) {
   const s = START[side];
   const color = SIDE_COLOR[side];
   const cx = CX(s.col), cy = CY(s.row);
+  const rot = LABEL_ROT[side];
   return (
     <g>
       <circle cx={cx} cy={cy} r="128" fill={color.mid} stroke={color.deep} strokeWidth="6" />
       <circle cx={cx} cy={cy} r="128" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
       <circle cx={cx} cy={cy} r="112" fill="none" stroke={color.deep} strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
       <text
+        data-testid={`start-label-${side}`}
         x={cx}
         y={cy + 12}
         textAnchor="middle"
@@ -207,6 +215,7 @@ function StartCircle({ side }: { side: Side }) {
         fontFamily='"Playfair Display", Georgia, serif'
         fill={color.ink}
         letterSpacing="0.22em"
+        transform={`rotate(${rot} ${cx} ${cy})`}
         style={{ textShadow: "0 2px 0 rgba(0,0,0,0.35)" }}
       >
         START
@@ -232,7 +241,7 @@ function HomeStar({ side }: { side: Side }) {
 
 const ALL_SIDES: Side[] = ["a", "b", "c", "d"];
 
-export function Board4P() {
+export function Board4P({ rotation = 0 }: { rotation?: number }) {
   const cells = trackCells();
   return (
     <svg
@@ -293,46 +302,54 @@ export function Board4P() {
       {ALL_SIDES.map((side) => <HomeStar key={side} side={side} />)}
       {ALL_SIDES.map((side) => <StartCircle key={side} side={side} />)}
 
-      <circle cx={SIZE / 2} cy={SIZE / 2} r="190" fill="#1a1208" />
-      <circle cx={SIZE / 2} cy={SIZE / 2} r="180" fill="url(#medallion)" stroke="#8a6a2a" strokeWidth="3" />
-      <text
-        x={SIZE / 2}
-        y={SIZE / 2 + 26}
-        textAnchor="middle"
-        fontSize="92"
-        fontWeight="800"
-        fontStyle="italic"
-        fontFamily='"Playfair Display", Georgia, serif'
-        fill="#7a1a08"
-        letterSpacing="0.04em"
-        style={{ textShadow: "2px 2px 0 rgba(0,0,0,0.18)" }}
+      {/* Neutral centre chrome. The board surface rotates per viewer (so the
+          human sits at the bottom), but the wordmark is not seat furniture —
+          counter-rotate it so it never reads upside-down. */}
+      <g
+        data-testid="board-medallion"
+        transform={`rotate(${-rotation} ${SIZE / 2} ${SIZE / 2})`}
       >
-        SORRY!
-      </text>
-      <text
-        x={SIZE / 2}
-        y={SIZE / 2 - 100}
-        textAnchor="middle"
-        fontSize="14"
-        fontWeight="700"
-        fontFamily='"Playfair Display", Georgia, serif'
-        fill="#5a3a18"
-        letterSpacing="0.32em"
-      >
-        ·  GAMEBOX  ·
-      </text>
-      <text
-        x={SIZE / 2}
-        y={SIZE / 2 + 90}
-        textAnchor="middle"
-        fontSize="13"
-        fontStyle="italic"
-        fontFamily="Georgia, serif"
-        fill="#5a3a18"
-        letterSpacing="0.06em"
-      >
-        the slidy diagonal chasing game · for two to four
-      </text>
+        <circle cx={SIZE / 2} cy={SIZE / 2} r="190" fill="#1a1208" />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r="180" fill="url(#medallion)" stroke="#8a6a2a" strokeWidth="3" />
+        <text
+          x={SIZE / 2}
+          y={SIZE / 2 + 26}
+          textAnchor="middle"
+          fontSize="92"
+          fontWeight="800"
+          fontStyle="italic"
+          fontFamily='"Playfair Display", Georgia, serif'
+          fill="#7a1a08"
+          letterSpacing="0.04em"
+          style={{ textShadow: "2px 2px 0 rgba(0,0,0,0.18)" }}
+        >
+          SORRY!
+        </text>
+        <text
+          x={SIZE / 2}
+          y={SIZE / 2 - 100}
+          textAnchor="middle"
+          fontSize="14"
+          fontWeight="700"
+          fontFamily='"Playfair Display", Georgia, serif'
+          fill="#5a3a18"
+          letterSpacing="0.32em"
+        >
+          ·  GAMEBOX  ·
+        </text>
+        <text
+          x={SIZE / 2}
+          y={SIZE / 2 + 90}
+          textAnchor="middle"
+          fontSize="13"
+          fontStyle="italic"
+          fontFamily="Georgia, serif"
+          fill="#5a3a18"
+          letterSpacing="0.06em"
+        >
+          the slidy diagonal chasing game · for two to four
+        </text>
+      </g>
     </svg>
   );
 }

@@ -122,6 +122,15 @@ export function moveDestCenter(side, move) {
   return pawnCenter(side, dest.zone, dest.index, move.pawnId ?? 0);
 }
 
+// Viewer-relative board orientation, in degrees. The human's colour is always
+// anchored at the bottom. The two live sides are 180° point-symmetric — side a
+// starts on the top edge, side b on the bottom — so this is a clean flip: side
+// b is already the bottom seat (0°); side a is rotated 180° to bring it down;
+// a spectator (no seat) keeps the default orientation.
+export function boardRotation(youAre) {
+  return youAre === "a" ? 180 : 0;
+}
+
 // Convert an absolute pixel point to a percentage of the board, so the overlay
 // scales with the responsive <img>.
 export function toPct({ x, y }) {

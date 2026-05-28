@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { Board } from "../../src/clients/sorry/Board";
+import { Board4P } from "../../src/clients/sorry/Board4P";
 
 // A view with one pawn in each zone per side, and a single legal move so the
 // active player has exactly one clickable target.
@@ -142,5 +143,50 @@ describe("Sorry Board", () => {
       <Board view={idle} onPick={() => {}} />,
     );
     expect(container.querySelector("[data-pick]")).toBeNull();
+  });
+
+  // Viewer-relative orientation: the human's colour is always anchored at the
+  // bottom. Side a starts on the top edge, so its viewer sees the whole surface
+  // (SVG board + pawn overlay, rotated as one unit so they stay aligned) flipped
+  // 180°. Side b is already the bottom seat, so its board stays upright.
+  it("flips the whole board surface 180° for side a, so the human sits at the bottom", () => {
+    const { container } = render(<Board view={view} onPick={() => {}} />);
+    const surface = container.querySelector(".board-surface") as HTMLElement;
+    expect(surface.style.transform).toContain("rotate(180deg)");
+  });
+
+  it("leaves the board surface upright for side b (already the bottom seat)", () => {
+    const asB = { ...view, youAre: "b" } as any;
+    const { container } = render(<Board view={asB} onPick={() => {}} />);
+    const surface = container.querySelector(".board-surface") as HTMLElement;
+    expect(surface.style.transform).not.toContain("180deg");
+  });
+
+  it("keeps the neutral centre wordmark upright when the board is flipped", () => {
+    // Per-seat furniture (START/SAFETY) legitimately flips to face each seat,
+    // but the central SORRY! medallion is neutral chrome — it counter-rotates so
+    // it never reads upside-down to the side-a viewer.
+    const { container } = render(<Board view={view} onPick={() => {}} />);
+    const medallion = container.querySelector(
+      '[data-testid="board-medallion"]',
+    ) as SVGGElement;
+    expect(medallion).not.toBeNull();
+    expect(medallion.getAttribute("transform")).toContain("rotate(-180");
+  });
+
+  // START labels face their own seat: top sides (a, b) read toward the top edge
+  // (180°), bottom sides (c, d) read toward the bottom (0°). This is baked into
+  // the board art independent of the viewer, so the whole-board flip lands every
+  // viewer's own START upright and the opponent's flipped toward them.
+  it("orients each START label toward its own seat", () => {
+    const { container } = render(<Board4P />);
+    const labelTransform = (side: string) =>
+      container
+        .querySelector(`[data-testid="start-label-${side}"]`)
+        ?.getAttribute("transform") ?? "";
+    expect(labelTransform("a")).toContain("rotate(180");
+    expect(labelTransform("b")).toContain("rotate(180");
+    expect(labelTransform("c")).not.toContain("rotate(180");
+    expect(labelTransform("d")).not.toContain("rotate(180");
   });
 });
