@@ -36,11 +36,13 @@ stories:
     title: Slide traversal + bumping rules
     points: 2
     priority: p2
-    status: in_progress
+    status: done
     started: '2026-05-28'
     repos: g-1
     workflow: tdd
     depends_on: E3-1
+    completed: '2026-05-28'
+    review_verdict: approved
   - id: E3-4
     title: 'Turn engine (applyAction): apply moves, bumps, swap, Sorry!, win + auto-pass'
     points: 3
