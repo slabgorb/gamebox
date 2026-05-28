@@ -1,156 +1,623 @@
-/* plugins/sorry/client/style.css — Sorry! client theme.
-   Game styling is scoped under #sorry-root. The board surface itself is a
-   pre-baked image (assets/sorry-board.png); the DOM only overlays pawns,
-   move hotspots, the drawn card, and banners. */
+/* plugins/sorry/client/style.css — Sorry! "The Cabinet" theme.
+   Ported from the Claude Design handoff (variants-a.css). The board itself is
+   an inline SVG (src/clients/sorry/Board4P.tsx); the DOM overlays pawns, move
+   hotspots, and banners on top of it. */
 * { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
 body {
-  margin: 0;
   min-height: 100dvh;
-  background:
-    radial-gradient(ellipse at top, rgba(243, 231, 197, 0.18) 0%, rgba(80, 60, 30, 0.20) 55%, rgba(30, 22, 12, 0.5) 100%),
-    #241c12;
-  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
-  color: #f3e8c8;
+  font-family: "Source Serif 4", Georgia, serif;
+  background: radial-gradient(ellipse at top, #fbf3df 0%, #f3e8c9 60%, #e9d9a8 100%);
+  background-attachment: fixed;
+  color: #2a1810;
+}
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 0.6  0 0 0 0 0.5  0 0 0 0 0.3  0 0 0 0.18 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
 }
 
+/* The mount is the stage; SorryApp renders .va-root inside it. */
 #sorry-root {
-  position: relative;
-  max-width: 760px;
+  display: block;
+  max-width: 820px;
   margin: 0 auto;
-  padding: 16px;
-
-  --side-a: #a8432b;
-  --side-b: #2c647f;
+  padding: 28px 16px 60px;
+  position: relative;
 }
 
-.sorry-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.sorry-title {
-  margin: 0;
-  font-size: 2rem;
-  letter-spacing: 0.06em;
-  color: #f0d9a8;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-.turn-pill {
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(243, 232, 200, 0.25);
-  font-size: 0.9rem;
-}
-.turn-pill.mine {
-  background: var(--side-a);
-  border-color: transparent;
-  font-weight: 700;
+.banner {
+  text-align: center;
+  padding: 40px;
+  font-size: 1.4rem;
 }
 
-/* ── Drawn card + deck ─────────────────────────────────────────────── */
-.sorry-deck {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin: 12px 0;
-}
-.deck-stack {
-  width: 60px;
-  height: 84px;
-  border-radius: 8px;
-  background: linear-gradient(160deg, #6b4a2a, #3a2614);
-  border: 2px solid #2a1a0e;
-  display: grid;
-  place-items: center;
-  font-size: 0.9rem;
-  color: #e8d4a8;
-  box-shadow: 2px 2px 0 #2a1a0e, 4px 4px 0 rgba(0, 0, 0, 0.3);
-}
-.sorry-card {
-  width: 96px;
-  height: 84px;
-  border-radius: 8px;
-  background: #f6efdc;
-  color: #b02d18;
-  display: grid;
-  place-items: center;
-  font-size: 2.2rem;
-  font-weight: 900;
-  border: 2px solid #b02d18;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-}
-/* Re-keyed on each new drawnCard value → remounts → replays the flip. */
-.sorry-card.flip {
-  animation: card-flip 360ms ease-out;
-  transform-origin: center;
-  backface-visibility: hidden;
-}
-@keyframes card-flip {
-  0% { transform: rotateY(90deg); opacity: 0.2; }
-  60% { transform: rotateY(-12deg); opacity: 1; }
-  100% { transform: rotateY(0deg); }
-}
-
-/* ── Board surface + overlay ───────────────────────────────────────── */
-.sorry-board {
+/* ============================================================
+   Board surface — inline SVG board + pawn/hotspot overlays
+   ============================================================ */
+.board-surface {
   position: relative;
   width: 100%;
   aspect-ratio: 1 / 1;
-  border-radius: 10px;
+  border-radius: 6px;
   overflow: hidden;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  background: #f7eccb;
 }
-.board-image {
+.board-svg {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.pawn {
+  position: absolute;
+  width: 5.8%;
+  aspect-ratio: 1 / 1;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.55));
+  pointer-events: none;
+}
+.pawn-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-.sorry-pawn {
-  position: absolute;
-  width: 5.2%;
-  aspect-ratio: 1 / 1;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  font-size: 0.8rem;
-  font-weight: 800;
-  color: #fff;
-  border: 2px solid rgba(0, 0, 0, 0.45);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-  pointer-events: none;
-  z-index: 2;
-}
-.sorry-pawn.side-a { background: var(--side-a); }
-.sorry-pawn.side-b { background: var(--side-b); }
-.sorry-pawn .pawn-id { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.6); }
-
+/* Legal-move hotspots sit above the pawns and are the only interactive layer. */
 .sorry-target {
   position: absolute;
-  width: 7%;
+  width: 7.4%;
   aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%);
   border-radius: 50%;
-  background: rgba(255, 235, 120, 0.35);
-  border: 2.5px solid #ffe14d;
+  background: rgba(255, 235, 120, 0.45);
+  border: 3px solid #ffdf3d;
   cursor: pointer;
   padding: 0;
-  z-index: 3;
-  animation: target-pulse 1.2s ease-in-out infinite;
+  z-index: 4;
+  animation: target-pulse 1.15s ease-in-out infinite;
 }
-.sorry-target:hover { background: rgba(255, 235, 120, 0.6); }
+.sorry-target:hover { background: rgba(255, 235, 120, 0.75); transform: translate(-50%, -50%) scale(1.08); }
 @keyframes target-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 225, 77, 0.6); }
-  50% { box-shadow: 0 0 0 6px rgba(255, 225, 77, 0); }
+  0%, 100% { box-shadow: 0 0 6px 1px rgba(255, 223, 61, 0.7), 0 0 0 0 rgba(255, 223, 61, 0.55); }
+  50% { box-shadow: 0 0 8px 2px rgba(255, 223, 61, 0.8), 0 0 0 9px rgba(255, 223, 61, 0); }
 }
 
-/* ── End banner ────────────────────────────────────────────────────── */
+/* Pawns that can move this turn get a pulsing ring so it's obvious which pieces
+   are live and where the glowing targets come from. */
+.pawn.movable::after {
+  content: "";
+  position: absolute;
+  inset: -16%;
+  border-radius: 50%;
+  border: 3px solid #ffdf3d;
+  box-shadow: 0 0 8px 2px rgba(255, 223, 61, 0.7);
+  animation: pawn-ring 1.15s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes pawn-ring {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.07); }
+}
+
+/* Turn prompt — states whose turn it is and what to do. */
+.va-turn {
+  margin-top: 14px;
+  text-align: center;
+  font-family: var(--serif-body);
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  padding: 9px 14px;
+  border-radius: 6px;
+  background: rgba(80, 50, 20, 0.05);
+  border: 1px dashed rgba(80, 50, 20, 0.25);
+}
+.va-turn.is-mine {
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(201, 100, 66, 0.14), rgba(201, 100, 66, 0.05));
+  border: 1px solid rgba(161, 59, 42, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+}
+.va-turn strong { font-family: var(--serif-display); letter-spacing: 0.02em; }
+.va-turn-card {
+  display: inline-block;
+  min-width: 1.3em;
+  padding: 1px 7px;
+  margin: 0 1px;
+  border-radius: 3px;
+  background: #f6efdc;
+  color: var(--brick);
+  border: 1px solid var(--brick);
+  font-weight: 800;
+}
+.va-pass-btn {
+  margin-left: 6px;
+  padding: 4px 16px;
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #fff5dc;
+  background: linear-gradient(180deg, var(--leather-1) 0%, var(--leather-2) 55%, var(--leather-3) 100%);
+  border: 1px solid #3a1f0a;
+  border-radius: 4px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 222, 180, 0.45), 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.va-pass-btn:hover { filter: brightness(1.08); }
+.va-lastevent {
+  margin-top: 8px;
+  text-align: center;
+  font-family: var(--serif-body);
+  font-style: italic;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+/* ============================================================
+   The Cabinet root
+   ============================================================ */
+.va-root {
+  --wood-1: #6b3e22;
+  --wood-2: #5a3318;
+  --wood-3: #4a2810;
+  --wood-edge: #2a1608;
+  --brass-1: #fbe79a;
+  --brass-2: #c9a14e;
+  --brass-3: #6a4a14;
+  --brass-edge: #4a3208;
+  --leather-1: #d4986a;
+  --leather-2: #b07748;
+  --leather-3: #8a5a30;
+  --paper-1: #fbf3df;
+  --paper-2: #f3e8c9;
+  --paper-card: #fffbe9;
+  --ink: #2a1810;
+  --ink-soft: #5a3a1f;
+  --ink-faint: #8a6a4a;
+  --accent: #c96442;
+  --brick: #a13b2a;
+  --serif-display: "Playfair Display", "Iowan Old Style", Georgia, serif;
+  --serif-body: "Source Serif 4", "Iowan Old Style", Cambria, Georgia, serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  width: 100%;
+  padding: 0;
+  font-family: var(--serif-body);
+  color: var(--ink);
+  position: relative;
+}
+
+/* ── Wood plank header ─────────────────────────── */
+.va-plank {
+  position: relative;
+  padding: 18px 22px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background:
+    linear-gradient(180deg, var(--wood-1) 0%, var(--wood-2) 55%, var(--wood-3) 100%),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.06) 0 1px, transparent 1px 130px);
+  background-blend-mode: multiply;
+  border-radius: 6px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,220,170,0.18),
+    inset 0 -3px 0 rgba(0,0,0,0.45),
+    0 3px 0 var(--wood-edge),
+    0 6px 14px rgba(0,0,0,0.22);
+  overflow: hidden;
+}
+.va-plank::before {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='100'><filter id='g'><feTurbulence type='turbulence' baseFrequency='0.012 0.85' numOctaves='3' seed='3'/><feColorMatrix values='0 0 0 0 0.18  0 0 0 0 0.08  0 0 0 0 0.04  0 0 0 0.9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23g)'/></svg>");
+}
+.va-screw {
+  position: absolute;
+  top: 10px;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d8c895 0%, #8a7234 55%, #3a2a08 100%);
+  box-shadow: inset 0 -1px 0 rgba(0,0,0,0.5), 0 1px 1px rgba(0,0,0,0.5);
+}
+.va-screw-l { left: 12px; }
+.va-screw-r { right: 12px; }
+.va-screw::before {
+  content: "";
+  position: absolute; inset: 45% 15%;
+  height: 1px; background: rgba(0,0,0,0.55);
+}
+
+.va-plate {
+  position: relative;
+  padding: 12px 30px 13px;
+  border: 1px solid var(--brass-edge);
+  border-radius: 5px;
+  background: linear-gradient(170deg, var(--brass-1) 0%, #efc966 18%, var(--brass-2) 52%, #997620 88%, var(--brass-3) 100%);
+  box-shadow:
+    inset 0 1.5px 0 rgba(255,255,255,0.55),
+    inset 0 -1.5px 0 rgba(58,33,4,0.55),
+    inset 1px 0 0 rgba(255,255,255,0.18),
+    inset -1px 0 0 rgba(0,0,0,0.18),
+    0 2px 0 rgba(0,0,0,0.35),
+    0 5px 12px rgba(0,0,0,0.4);
+}
+.va-plate::after {
+  content: "";
+  position: absolute; inset: 1px;
+  border-radius: 4px;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.28) 45%, transparent 60%);
+  pointer-events: none;
+}
+.va-plate-text {
+  font-family: var(--serif-display);
+  font-weight: 800;
+  font-size: 26px;
+  letter-spacing: 0.28em;
+  color: #2a1808;
+  text-shadow: 0 1px 0 rgba(255,238,180,0.55), 0 -1px 0 rgba(40,20,4,0.4);
+}
+.va-rivet {
+  position: absolute;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #3a2408;
+  box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.4);
+}
+.va-rivet-tl { top: 5px; left: 5px; }
+.va-rivet-tr { top: 5px; right: 5px; }
+.va-rivet-bl { bottom: 5px; left: 5px; }
+.va-rivet-br { bottom: 5px; right: 5px; }
+
+.va-plank-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+  font-family: var(--serif-body);
+  color: #f3d9a8;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.6);
+}
+.va-plank-meta .va-eyebrow {
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #f3d9a8;
+}
+.va-plank-meta em {
+  font-family: var(--serif-body);
+  font-style: italic;
+  font-size: 12px;
+  color: rgba(243, 217, 168, 0.75);
+  letter-spacing: 0.02em;
+}
+.va-lobby-link {
+  align-self: flex-end;
+  margin-bottom: 4px;
+  display: inline-block;
+  padding: 3px 10px 4px;
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #2a1808;
+  background: linear-gradient(170deg, var(--brass-1) 0%, var(--brass-2) 60%, var(--brass-3) 100%);
+  border: 1px solid var(--brass-edge);
+  border-radius: 3px;
+  text-shadow: 0 1px 0 rgba(255, 238, 180, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.va-lobby-link:hover { filter: brightness(1.08); }
+
+/* ── Control rail (deck + drawn card) ──────────── */
+.va-rail {
+  position: relative;
+  margin-top: 18px;
+}
+.va-deck-group {
+  background: var(--paper-card);
+  border: 1px solid rgba(80,50,20,0.28);
+  border-radius: 6px;
+  padding: 14px 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(60,30,5,0.18),
+    0 2px 0 rgba(60,30,5,0.18),
+    0 6px 14px rgba(60,30,5,0.18);
+}
+
+.va-deck-stack {
+  position: relative;
+  width: 64px;
+  height: 90px;
+  flex-shrink: 0;
+}
+.va-deck-back {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: #0a0604 center/cover no-repeat url("assets/card-back.png");
+  border: 1.5px solid #1a0d04;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    0 1px 2px rgba(0,0,0,0.4);
+}
+.va-deck-back-3 { transform: translate(-3px, 3px) rotate(-2deg); opacity: 0.92; }
+.va-deck-back-2 { transform: translate(-1px, 1px) rotate(0.5deg); }
+.va-deck-back-1 {
+  display: grid;
+  place-items: end stretch;
+  padding: 5px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.1),
+    2px 2px 0 #1a0d04,
+    4px 4px 0 rgba(0,0,0,0.4);
+}
+.va-deck-pip {
+  justify-self: end;
+  align-self: end;
+  display: inline-block;
+  padding: 2px 6px 3px;
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #2a1808;
+  background: linear-gradient(170deg, var(--brass-1) 0%, var(--brass-2) 60%, var(--brass-3) 100%);
+  border: 1px solid var(--brass-edge);
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.4),
+    0 1px 2px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 0 rgba(255,238,180,0.55);
+}
+
+.va-card {
+  position: relative;
+  width: 116px;
+  height: 90px;
+  border-radius: 4px;
+  background: #f6efdc;
+  color: var(--brick);
+  border: 1.5px solid var(--brick);
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,0.8) inset,
+    0 4px 10px rgba(0,0,0,0.3);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.va-card.is-empty { opacity: 0.45; }
+.va-card::before {
+  content: "";
+  position: absolute; inset: 4px;
+  border: 0.5px solid rgba(161,59,42,0.4);
+  border-radius: 2px;
+}
+.va-card-glyph {
+  font-family: var(--serif-display);
+  font-weight: 800;
+  font-size: 52px;
+  line-height: 0.8;
+}
+.va-card-corner {
+  position: absolute;
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-style: italic;
+  font-size: 10px;
+}
+.va-card-corner.tl { top: 6px; left: 8px; }
+.va-card-corner.br { bottom: 6px; right: 8px; transform: rotate(180deg); }
+/* Re-keyed on each new drawnCard value → remounts → replays the deal. The card
+   is dealt server-side; this animation makes that draw visible — it flies out of
+   the deck stack (to its left) and flips face-up in place. */
+.va-card.flip {
+  animation: card-deal 560ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  transform-origin: left center;
+  backface-visibility: hidden;
+}
+@keyframes card-deal {
+  0%   { transform: translate(-92px, -8px) rotate(-14deg) rotateY(88deg); opacity: 0; }
+  30%  { opacity: 1; }
+  70%  { transform: translate(0, 0) rotate(0) rotateY(-12deg); }
+  100% { transform: translate(0, 0) rotate(0) rotateY(0); }
+}
+.va-rail-meta {
+  flex: 1;
+  margin: 0;
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ink-faint);
+  line-height: 1.4;
+}
+
+/* ── Board frame ───────────────────────────────── */
+.va-frame {
+  position: relative;
+  margin-top: 18px;
+  padding: 14px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, #6b3e22, #4a2810 60%, #2a1608);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    inset 0 -2px 6px rgba(0,0,0,0.30),
+    0 18px 36px rgba(34,22,8,0.30);
+}
+.va-frame::after {
+  content: "";
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: 0.35;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='600'><filter id='g'><feTurbulence type='turbulence' baseFrequency='0.012 0.85' numOctaves='3' seed='3'/><feColorMatrix values='0 0 0 0 0.18  0 0 0 0 0.08  0 0 0 0 0.04  0 0 0 0.9 0'/></filter><rect width='100%25' height='100%25' filter='url(%23g)'/></svg>");
+  border-radius: 10px;
+}
+.va-corner {
+  position: absolute;
+  width: 26px; height: 26px;
+  border-radius: 4px;
+  background: linear-gradient(155deg, var(--brass-1), var(--brass-2) 55%, var(--brass-3));
+  border: 1px solid var(--brass-edge);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.5),
+    inset 0 -1px 0 rgba(0,0,0,0.4),
+    0 2px 4px rgba(0,0,0,0.4);
+  z-index: 5;
+}
+.va-corner::before {
+  content: "";
+  position: absolute; inset: 5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #d8c895 0%, #8a7234 55%, #3a2a08 100%);
+}
+.va-corner.tl { top: 4px; left: 4px; }
+.va-corner.tr { top: 4px; right: 4px; }
+.va-corner.bl { bottom: 4px; left: 4px; }
+.va-corner.br { bottom: 4px; right: 4px; }
+
+/* ── Player roster ─────────────────────────────── */
+.va-roster-wrap {
+  margin-top: 18px;
+  background: var(--paper-card);
+  border: 1px solid rgba(80,50,20,0.28);
+  border-radius: 6px;
+  padding: 12px 16px 14px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    inset 0 -1px 0 rgba(60,30,5,0.18),
+    0 2px 0 rgba(60,30,5,0.18),
+    0 6px 14px rgba(60,30,5,0.18);
+}
+.va-roster-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  margin-bottom: 6px;
+  border-bottom: 1px dashed rgba(80,50,20,0.3);
+}
+.va-roster-head .va-eyebrow {
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.va-roster-head em {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.va-roster {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 18px;
+}
+.va-roster-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px 4px 0;
+  border-radius: 4px;
+}
+.va-roster-row.is-you {
+  background: linear-gradient(180deg, rgba(201, 100, 66, 0.08), rgba(201, 100, 66, 0.02));
+  border: 1px dashed rgba(161, 59, 42, 0.4);
+  padding: 4px 6px 4px 4px;
+}
+.va-roster-row.is-open { opacity: 0.5; }
+.va-roster-pip {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: rgba(0,0,0,0.08);
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+}
+.va-roster-pip img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.va-roster-name {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  min-width: 0;
+}
+.va-roster-name strong {
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink);
+}
+.va-roster-name em {
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.va-roster-turn {
+  font-family: var(--serif-display);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #fff5dc;
+  padding: 4px 9px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--leather-1) 0%, var(--leather-2) 55%, var(--leather-3) 100%);
+  border: 1px solid #3a1f0a;
+  text-shadow: 0 1px 1px rgba(40,15,5,0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255,222,180,0.45),
+    inset 0 -1px 0 rgba(40,15,5,0.5),
+    0 1px 2px rgba(0,0,0,0.3);
+}
+
+/* ── End banner ────────────────────────────────── */
 .sorry-endbanner {
   position: fixed;
   inset: 0;
@@ -159,6 +626,7 @@ body {
   height: max-content;
   padding: 28px 48px;
   border-radius: 14px;
+  font-family: var(--serif-display, "Playfair Display", Georgia, serif);
   font-size: 2.4rem;
   font-weight: 900;
   text-align: center;
@@ -167,9 +635,3 @@ body {
 }
 .sorry-endbanner.win { background: #2e7d32; color: #fff; border: 3px solid #a5d6a7; }
 .sorry-endbanner.lose { background: #7a1f12; color: #f3d9d2; border: 3px solid #c98a7c; }
-
-.banner {
-  text-align: center;
-  padding: 40px;
-  font-size: 1.4rem;
-}

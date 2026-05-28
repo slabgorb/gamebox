@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 // Mutable, hoisted handles so each test can swap the view/post the mocked
 // useGameState hook returns before rendering SorryApp.
@@ -93,6 +93,60 @@ describe("SorryApp", () => {
       type: "move",
       payload: { moveId: "out:0" },
     });
+  });
+
+  it("prompts you to move on your turn and names the drawn card", () => {
+    h.view = baseView({
+      youAre: "a",
+      currentPlayer: "a",
+      drawnCard: 11,
+      legalMoves: [{ id: "forward:0:11", kind: "forward", pawnId: 0, to: { zone: "track", index: 15 } }],
+    });
+    render(<SorryApp />);
+    const prompt = screen.getByTestId("turn-prompt");
+    expect(prompt).toHaveTextContent(/your turn/i);
+    expect(prompt).toHaveTextContent(/11/);
+  });
+
+  it("says the opponent is thinking when it is not your turn", () => {
+    h.view = baseView({ youAre: "a", currentPlayer: "b" });
+    render(<SorryApp />);
+    expect(screen.getByTestId("turn-prompt")).toHaveTextContent(/the bully/i);
+  });
+
+  // Pause-for-acknowledgement: an unplayable card stops on the player, who must
+  // tap Pass (legalMoves is an empty array on their turn → no move available).
+  it("shows a Pass button on your turn when you have no legal move, and posts a pass", () => {
+    h.view = baseView({ youAre: "a", currentPlayer: "a", drawnCard: 3, legalMoves: [] });
+    render(<SorryApp />);
+    const btn = screen.getByTestId("pass-button");
+    fireEvent.click(btn);
+    expect(h.post).toHaveBeenCalledWith({ type: "pass" });
+  });
+
+  it("shows no Pass button when you have a legal move", () => {
+    h.view = baseView({
+      youAre: "a",
+      currentPlayer: "a",
+      legalMoves: [{ id: "out:0", kind: "out", pawnId: 0, to: { zone: "track", index: 4 } }],
+    });
+    render(<SorryApp />);
+    expect(screen.queryByTestId("pass-button")).toBeNull();
+  });
+
+  it("renders a note when the opponent had no move and passed", () => {
+    h.view = baseView({ youAre: "a", currentPlayer: "a", lastEvent: { kind: "pass", side: "b", card: 4 } });
+    render(<SorryApp />);
+    const note = screen.getByTestId("last-event");
+    expect(note).toHaveTextContent(/no legal move, passed/i);
+    expect(note).toHaveTextContent(/4/);
+  });
+
+  it("renders a link back to the lobby", () => {
+    h.view = baseView();
+    render(<SorryApp />);
+    const link = screen.getByRole("link", { name: /lobby/i });
+    expect(link).toHaveAttribute("href", "/");
   });
 
   // AC #5 — win banner when youAre === winner.
