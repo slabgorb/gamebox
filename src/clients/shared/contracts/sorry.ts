@@ -34,6 +34,14 @@ export interface LegalMove {
   legs?: MoveLeg[];
 }
 
+// The breadcrumb of the most recent notable transition. Set when a player has
+// no legal move and passes (server/actions.js); cleared to null on a real move.
+export interface SorryPassEvent {
+  kind: "pass";
+  side: SorrySide;
+  card: SorryCard;
+}
+
 export interface SorryView {
   sides: Record<SorrySide, number>;
   pawns: Record<SorrySide, PawnLoc[]>;
@@ -41,15 +49,16 @@ export interface SorryView {
   drawnCard: SorryCard;
   currentPlayer: SorrySide;
   winner: SorrySide | null;
-  lastEvent: unknown;
+  lastEvent: SorryPassEvent | null;
   activeUserId: number | null;
   deckCount: number;
   youAre: SorrySide | null;
-  // Present only on the active viewer's view (server/view.js).
+  // Present only on the active viewer's view (server/view.js). An empty array
+  // means it is the viewer's turn but they have no legal move and must pass.
   legalMoves?: LegalMove[];
 }
 
-export type SorryAction = {
-  type: "move";
-  payload: { moveId: string };
-};
+export type SorryAction =
+  | { type: "move"; payload: { moveId: string } }
+  // A pass — only legal when the player on turn has no legal move.
+  | { type: "pass" };
