@@ -36,7 +36,8 @@ stories:
     title: Slide traversal + bumping rules
     points: 2
     priority: p2
-    status: backlog
+    status: in_progress
+    started: '2026-05-28'
     repos: g-1
     workflow: tdd
     depends_on: E3-1
