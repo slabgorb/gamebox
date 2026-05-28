@@ -38,12 +38,17 @@ test('draw returns the top card and shrinks the deck without touching discard', 
 });
 
 test('draw reshuffles the discard into a fresh deck when the deck is empty', () => {
-  const { card, deck, discard } = draw({ deck: [], discard: [5, 7], rng: () => 0 });
-  assert.ok([5, 7].includes(card), 'drawn card comes from the reshuffled discard');
+  // rng = () => 0 makes the reshuffle deterministic: shuffle([5,7]) -> [7,5],
+  // so the drawn card and remaining deck are exact, not merely "one of".
+  const inDiscard = [5, 7];
+  const { card, deck, discard } = draw({ deck: [], discard: inDiscard, rng: () => 0 });
+  assert.equal(card, 7, 'exact reshuffled draw');
+  assert.deepEqual(deck, [5], 'remaining reshuffled card');
   assert.deepEqual(discard, [], 'discard is emptied after reshuffle');
-  // The one card not drawn remains in the deck.
-  const remaining = card === 5 ? 7 : 5;
-  assert.deepEqual(deck, [remaining]);
+  // The reshuffle branch passes the discard to the (in-place mutating) shared
+  // shuffle via a .slice() copy — assert that load-bearing copy holds and the
+  // caller's input array is untouched.
+  assert.deepEqual(inDiscard, [5, 7], 'reshuffle must not mutate the input discard');
 });
 
 test('draw does not mutate the input deck or discard arrays', () => {

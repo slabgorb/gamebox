@@ -27,9 +27,11 @@ test('initial pawns are uniquely identified within a side', () => {
   assert.equal(new Set(aIds).size, 4, 'pawn ids are distinct within side a');
 });
 
-test('injected rng makes the first draw deterministic', () => {
-  const s1 = buildInitialState({ participants, options: { rng: () => 0 } });
-  const s2 = buildInitialState({ participants, options: { rng: () => 0 } });
+test('top-level rng (the engine call convention) makes the first draw deterministic', () => {
+  // The host engine calls initialState({ participants, rng, variant }) — rng is
+  // passed at the top level, matching cribbage/buraco/words. Exercise that interface.
+  const s1 = buildInitialState({ participants, rng: () => 0 });
+  const s2 = buildInitialState({ participants, rng: () => 0 });
   assert.equal(s1.drawnCard, s2.drawnCard);
   assert.deepEqual(s1.deck, s2.deck);
 });
@@ -50,9 +52,17 @@ test("buildInitialState rejects a missing side 'a' or 'b'", () => {
   );
 });
 
-test('buildInitialState rejects a participant missing userId', () => {
+test('buildInitialState rejects a participant missing userId (side a)', () => {
   assert.throws(
     () => buildInitialState({ participants: [{ side: 'a' }, { side: 'b', userId: 22 }] }),
+    /userId/i,
+  );
+});
+
+test('buildInitialState rejects a participant missing userId (side b)', () => {
+  // Symmetric case — guards against the `||` being mistyped as `&&`.
+  assert.throws(
+    () => buildInitialState({ participants: [{ side: 'a', userId: 11 }, { side: 'b' }] }),
     /userId/i,
   );
 });
