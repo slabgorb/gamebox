@@ -41,6 +41,14 @@ The business goal is a playable, server-authoritative engine that correctly enfo
 - Orchestrator integration test (`test/sorry/orchestrator-turn.test.js`) — that is Task 10 in the plan, landing with E3-6.
 - Geometry constants or `path()` changes — all movement math derives from the already-implemented `path()` in `geometry.js`.
 
+## Inherited from E3-3 (review findings)
+
+E3-3's code review (verdict APPROVED) deferred three findings to E3-4 because they live at the *caller* of `resolveLanding`, not in the pure helper itself. Full detail in `sprint/archive/E3-3-session.md`.
+
+- **Mover-exclusion is a contract E3-4 must uphold (silent-bug risk).** `resolveLanding({ pawns, side, landingIndex })` does **not** know which pawn is moving — it bumps *every* `zone:'track'` pawn sitting on a swept square. It assumes the mover is **not** present in `pawns` at a swept square when called. If E3-4 places the moving pawn at its destination *before* calling `resolveLanding` (or otherwise leaves it on the swept path), the mover will appear in `bumped` and self-bump back to Start — a silent rules bug with no error. **Guidance:** resolve the landing using a pawn map where the mover is still at its origin (or removed), then place the mover at `finalIndex` *after*. This matters most for `back` moves and the `11`-swap, where the mover can land on a slide start *from ahead* of the swept path. Add an explicit test: a mover whose own move lands it on a foreign-slide start must end at `finalIndex` and must **not** appear in its own bump list.
+- **`resolveLanding` does no input validation — E3-4 owns the trust boundary.** An out-of-enum `side` makes every slide read as "foreign"; a non-array `pawns.a`/`pawns.b` throws an uncontextualized `TypeError` mid-loop. `applySorryAction` already validates actor/turn/move-legality before reaching slide resolution, so a malformed `side`/`pawns` should be impossible by the time `resolveLanding` is called — keep it that way (validate before resolving). Do not push defensive guards down into the pure helper; the boundary belongs here.
+- **Wrap-around (`% TRACK_LEN`) is untested at the geometry level (informational).** No slide in the current `geometry.js` crosses index 59, so `resolveLanding`'s modular arithmetic is structurally unexercised. Not an E3-4 concern unless geometry gains a wrapping slide; noted so the assumption is visible.
+
 ## AC Context
 
 1. **Unknown/illegal `moveId` is rejected without mutation.** Calling `applySorryAction` with a `moveId` not present in `legalMoves(state)` returns `{ error: 'move is not legal' }`. The returned object has no `state` key. The original state object is unmodified.
