@@ -21,12 +21,13 @@ test('buildDeck produces exactly 45 cards matching RANK_COUNTS', () => {
 
 test('buildDeck shuffles deterministically given an injected rng', () => {
   // Same rng sequence ⇒ identical deck (pure, no hidden Math.random).
+  // Each rng needs its own counter so the second build replays from the start.
   const seq = [0.1, 0.9, 0.3, 0.7, 0.2];
-  let i = 0;
-  const rng1 = () => seq[i++ % seq.length];
-  i = 0;
-  const rng2 = () => seq[i++ % seq.length];
-  assert.deepEqual(buildDeck(rng1), buildDeck(rng2));
+  const makeRng = () => {
+    let i = 0;
+    return () => seq[i++ % seq.length];
+  };
+  assert.deepEqual(buildDeck(makeRng()), buildDeck(makeRng()));
 });
 
 test('draw returns the top card and shrinks the deck without touching discard', () => {

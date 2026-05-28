@@ -7,6 +7,7 @@ import backgammonPlugin from '../../plugins/backgammon/plugin.js';
 import cribbagePlugin from '../../plugins/cribbage/plugin.js';
 import buracoPlugin from '../../plugins/buraco/plugin.js';
 import riskPlugin from '../../plugins/risk/plugin.js';
+import sorryPlugin from '../../plugins/sorry/plugin.js';
 
 export const plugins = {
   words: wordsPlugin,
@@ -15,4 +16,5 @@ export const plugins = {
   cribbage: cribbagePlugin,
   buraco: buracoPlugin,
   risk: riskPlugin,
+  sorry: sorryPlugin,
 };
