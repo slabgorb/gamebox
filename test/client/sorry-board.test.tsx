@@ -33,7 +33,7 @@ describe("Sorry Board", () => {
   // not as a per-cell DOM grid.
   it("renders the board from a single baked board image, not a per-cell DOM grid", () => {
     const { container } = render(
-      <Board view={view} onPick={() => {}} selected={null} />,
+      <Board view={view} onPick={() => {}} />,
     );
     const img = container.querySelector(
       "img.board-image",
@@ -44,7 +44,7 @@ describe("Sorry Board", () => {
 
   it("places all eight pawns, each tagged with its side, zone and index", () => {
     const { container } = render(
-      <Board view={view} onPick={() => {}} selected={null} />,
+      <Board view={view} onPick={() => {}} />,
     );
     expect(container.querySelectorAll("[data-pawn]").length).toBe(8);
     // Placement is data-driven from the public view, not hard-coded.
@@ -64,7 +64,7 @@ describe("Sorry Board", () => {
   it("exposes one clickable hotspot per legal move and reports its moveId on click", () => {
     const onPick = vi.fn();
     const { container } = render(
-      <Board view={view} onPick={onPick} selected={null} />,
+      <Board view={view} onPick={onPick} />,
     );
     const hit = container.querySelector('[data-pick="out:0"]') as HTMLElement;
     expect(hit).not.toBeNull();
@@ -75,7 +75,7 @@ describe("Sorry Board", () => {
   it("renders no legal-move hotspots when the viewer has no legalMoves (not their turn)", () => {
     const idle = { ...view, legalMoves: undefined };
     const { container } = render(
-      <Board view={idle} onPick={() => {}} selected={null} />,
+      <Board view={idle} onPick={() => {}} />,
     );
     expect(container.querySelector("[data-pick]")).toBeNull();
   });

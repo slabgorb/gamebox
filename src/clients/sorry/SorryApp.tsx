@@ -62,7 +62,6 @@ export function SorryApp() {
       <Board
         view={view}
         onPick={(moveId) => post({ type: "move", payload: { moveId } })}
-        selected={null}
       />
 
       {view.winner !== null && (

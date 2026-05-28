@@ -145,7 +145,6 @@ body {
   animation: target-pulse 1.2s ease-in-out infinite;
 }
 .sorry-target:hover { background: rgba(255, 235, 120, 0.6); }
-.sorry-target.selected { background: rgba(255, 235, 120, 0.8); }
 @keyframes target-pulse {
   0%, 100% { box-shadow: 0 0 0 0 rgba(255, 225, 77, 0.6); }
   50% { box-shadow: 0 0 0 6px rgba(255, 225, 77, 0); }

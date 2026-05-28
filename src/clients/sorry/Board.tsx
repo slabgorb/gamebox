@@ -14,12 +14,11 @@ import {
 export interface BoardProps {
   view: SorryView;
   onPick: (moveId: string) => void;
-  selected: string | null;
 }
 
 const SIDES: SorrySide[] = ["a", "b"];
 
-export function Board({ view, onPick, selected }: BoardProps) {
+export function Board({ view, onPick }: BoardProps) {
   const legalMoves: LegalMove[] = view.legalMoves ?? [];
   const turnSide = view.currentPlayer;
 
@@ -52,12 +51,11 @@ export function Board({ view, onPick, selected }: BoardProps) {
         const center = moveDestCenter(turnSide, move);
         if (!center) return null;
         const pos = toPct(center);
-        const isSelected = selected === move.id;
         return (
           <button
             key={`pick-${move.id}`}
             type="button"
-            className={`sorry-target${isSelected ? " selected" : ""}`}
+            className="sorry-target"
             data-pick={move.id}
             style={{ left: pos.left, top: pos.top }}
             onClick={() => onPick(move.id)}
