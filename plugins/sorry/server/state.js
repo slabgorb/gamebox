@@ -17,6 +17,9 @@ export function buildInitialState({ participants, rng = Math.random } = {}) {
   const fullDeck = buildDeck(rng);
   const { card, deck, discard } = draw({ deck: fullDeck, discard: [], rng });
 
+  // Deal the opening card; side a is always on turn. If a cannot use the card
+  // (every pawn in Start, only a 1/2 leaves Start) it has no legal moves and a
+  // will pass — no silent settling.
   return {
     sides: { a: pA.userId, b: pB.userId },
     pawns: { a: mkPawns(), b: mkPawns() },
