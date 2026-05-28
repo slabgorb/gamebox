@@ -1,15 +1,8 @@
+import { shuffle } from '../../../src/shared/cards/deck.js';
+
 // The canonical Sorry! deck: 45 cards. Rank 1 appears five times; every other
 // rank four times. Standard Sorry! has no 6 or 9.
 export const RANK_COUNTS = { 1: 5, 2: 4, 3: 4, 4: 4, 5: 4, 7: 4, 8: 4, 10: 4, 11: 4, 12: 4, sorry: 4 };
-
-function shuffle(cards, rng) {
-  const a = cards.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 export function buildDeck(rng = Math.random) {
   const cards = [];
