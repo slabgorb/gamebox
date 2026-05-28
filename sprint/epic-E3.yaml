@@ -1,0 +1,63 @@
+id: E3
+type: epic
+title: Sorry! game plugin (full ruleset, 2P, vs AI)
+description: |-
+  Add a full-ruleset, 2-player Sorry! game plugin to Gamebox, playable vs two contrasting AI personas (The Bully, The Tortoise).
+
+  Design:  docs/superpowers/specs/2026-05-27-sorry-plugin-design.md
+  Plan:    docs/superpowers/plans/2026-05-27-sorry-plugin.md
+
+  Self-contained plugin at plugins/sorry/ mirroring backgammon. Server-authoritative engine; card draw is an automatic server-side rule (no client RNG handshake). AI adapter enumerates legal moves and asks the LLM to pick a moveId, random-legal-move fallback on bad output. Two personas gate on games: [sorry].
+
+  Out of scope: >2 players (Gamebox is 2P-only); additional personas beyond the initial two.
+priority: p2
+status: ready
+repos: g-1
+stories:
+  - id: E3-1
+    title: 'Engine foundations: plugin skeleton, deck, geometry + initial state'
+    points: 3
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+  - id: E3-2
+    title: Legal-move enumeration for all cards (out, forward, back, 7-split, 11-swap, Sorry!)
+    points: 3
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E3-1
+  - id: E3-3
+    title: Slide traversal + bumping rules
+    points: 2
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E3-1
+  - id: E3-4
+    title: 'Turn engine (applyAction): apply moves, bumps, swap, Sorry!, win + auto-pass'
+    points: 3
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E3-2
+  - id: E3-5
+    title: AI adapter + prompts + two personas + adapter/persona registration
+    points: 3
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E3-4
+  - id: E3-6
+    title: Client UI (board, card flip, move interaction, win banner) + orchestrator integration + playtest
+    points: 3
+    priority: p3
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    depends_on: E3-5
