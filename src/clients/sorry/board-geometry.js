@@ -23,6 +23,24 @@ export const SLIDES = {
   b: [{ start: 39, length: 4 }, { start: 4, length: 5 }],
 };
 
+// The drawn slide arrows, derived from the engine SLIDES above so they always
+// land on the squares where a slide actually fires. Each segment runs from the
+// slide's start square to its end (start+length), tagged with its owner side
+// (engine a → red quadrant, engine b → blue quadrant). The board renders these
+// instead of hand-placed arrows, so a painted arrow can never disagree with the
+// engine — landing on one always triggers the slide for a foreign-colour pawn.
+export function slideSegments() {
+  const segs = [];
+  for (const side of ["a", "b"]) {
+    for (const s of SLIDES[side]) {
+      const from = trackCell(s.start);
+      const to = trackCell((s.start + s.length) % 60);
+      segs.push({ side, from: [from.row, from.col], to: [to.row, to.col] });
+    }
+  }
+  return segs;
+}
+
 // Absolute track index (0..59) → {row, col} on the perimeter ring, clockwise
 // from the top-left corner: across the top, down the right, back along the
 // bottom, up the left. 16 + 15 + 15 + 14 = 60 distinct cells.

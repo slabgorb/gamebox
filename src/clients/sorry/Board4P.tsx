@@ -12,6 +12,13 @@
 //   b → green  (top-right start, safety along top, home at mid-top)      [decor]
 //   c → blue   (bottom-right start, safety up the right, home at mid-right)
 //   d → orange (bottom-left start, safety along bottom, home at mid-bottom)[decor]
+//
+// Slides are the one piece of board art that must match game logic, so they are
+// derived from the engine geometry (slideSegments) rather than hand-placed: the
+// engine has 4 slides, on the top and bottom edges only (engine side a → red,
+// b → blue). The green/orange edges carry no slides because the engine has none
+// there — painting decorative arrows would make pawns "fail" to slide.
+import { slideSegments } from "./board-geometry.js";
 
 const CELL = 100;
 const N = 16;
@@ -56,12 +63,10 @@ export const HOME: Record<Side, { row: number; col: number }> = {
   d: { row: 14, col: 7.5 },
 };
 
-// ── Slides — two per side along that color's edge ─────────────────────
-const SLIDES: Record<Side, { from: [number, number]; to: [number, number] }[]> = {
-  a: [{ from: [0, 2], to: [0, 5] }, { from: [0, 9], to: [0, 13] }],
-  b: [{ from: [2, 15], to: [5, 15] }, { from: [9, 15], to: [13, 15] }],
-  c: [{ from: [15, 13], to: [15, 10] }, { from: [15, 6], to: [15, 2] }],
-  d: [{ from: [13, 0], to: [10, 0] }, { from: [6, 0], to: [2, 0] }],
+// Engine side → drawn slide colour: a is the red quadrant, b the blue one.
+const SLIDE_COLOR: Record<"a" | "b", Palette> = {
+  a: SIDE_COLOR.a,
+  b: SIDE_COLOR.c,
 };
 
 function trackCells(): [number, number][] {
@@ -290,9 +295,9 @@ export function Board4P() {
         />
       ))}
 
-      {ALL_SIDES.map((side) =>
-        SLIDES[side].map((s, i) => <Slide key={`${side}-${i}`} {...s} color={SIDE_COLOR[side]} />),
-      )}
+      {slideSegments().map((s, i) => (
+        <Slide key={`slide-${i}`} from={s.from} to={s.to} color={SLIDE_COLOR[s.side]} />
+      ))}
 
       {ALL_SIDES.map((side) => <SafetyZone key={side} side={side} />)}
       {ALL_SIDES.map((side) => <HomeStar key={side} side={side} />)}
