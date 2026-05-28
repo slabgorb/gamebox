@@ -101,12 +101,12 @@ const allHome = (sidePawns) => sidePawns.every((p) => p.zone === 'home');
 // Discard the played card, draw the next, switch player unless a 2 was played,
 // and auto-pass any drawn card the new player cannot use (discard it and switch
 // again), up to a small guard limit before committing whatever state exists.
-function advanceTurn(state, pawnsAfter, playedCard) {
+function advanceTurn(state, pawnsAfter, playedCard, rng) {
   let deck = state.deck;
   let discard = [...state.discard, playedCard];
   let currentPlayer = playedCard === 2 ? state.currentPlayer : opponent(state.currentPlayer);
 
-  let drawn = draw({ deck, discard, rng: state.rng });
+  let drawn = draw({ deck, discard, rng });
   deck = drawn.deck;
   discard = drawn.discard;
   let card = drawn.card;
@@ -116,7 +116,7 @@ function advanceTurn(state, pawnsAfter, playedCard) {
     if (legalMoves(probe).length > 0) break;
     discard = [...discard, card];
     currentPlayer = opponent(currentPlayer);
-    drawn = draw({ deck, discard, rng: state.rng });
+    drawn = draw({ deck, discard, rng });
     deck = drawn.deck;
     discard = drawn.discard;
     card = drawn.card;
@@ -131,7 +131,7 @@ function advanceTurn(state, pawnsAfter, playedCard) {
 // `{ state, ended, scoreDelta?, summary }` on success, `{ error }` on rejection
 // (no mutation). `state.activeUserId` always mirrors the current player so the
 // orchestrator's bot-wake gate stays consistent.
-export function applySorryAction({ state, action, actorId }) {
+export function applySorryAction({ state, action, actorId, rng = Math.random }) {
   const side = actorSide(state, actorId);
   if (side === null) return { error: 'unknown participant' };
   if (!action || action.type !== 'move') return { error: `unknown action: ${action?.type}` };
@@ -159,7 +159,7 @@ export function applySorryAction({ state, action, actorId }) {
     return { state: winState, ended: true, scoreDelta: { [winnerUserId]: 1 }, summary: { kind: 'win', side } };
   }
 
-  const next = advanceTurn(state, pawnsAfter, state.drawnCard);
+  const next = advanceTurn(state, pawnsAfter, state.drawnCard, rng);
   const withActive = { ...next, activeUserId: next.sides[next.currentPlayer] };
   return { state: withActive, ended: false, summary: { kind: m.kind } };
 }

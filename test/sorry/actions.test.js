@@ -72,9 +72,9 @@ test('contract: a successful move returns { state, ended, summary } with no erro
   const result = applySorryAction({ state, action: move(m.id), actorId: USER.a });
 
   assert.equal(result.error, undefined, 'no error on a legal move');
-  assert.ok(result.state, 'returns a new state');
-  assert.equal(typeof result.ended, 'boolean', 'ended is a boolean');
-  assert.ok(result.summary && typeof result.summary === 'object', 'summary is a structured object');
+  assert.ok(result.state?.pawns, 'returns a new state with a pawns map');
+  assert.equal(result.ended, false, 'a non-winning move is not ended');
+  assert.equal(result.summary.kind, 'out', 'summary names the move kind');
 });
 
 // =========================================================================
@@ -282,8 +282,8 @@ test('AC8: a drawn card the next player cannot use is auto-passed back', () => {
   assert.equal(result.error, undefined);
   assert.equal(result.state.currentPlayer, 'a', 'b had no move for the 5 → turn bounces back to a');
   assert.equal(result.state.drawnCard, 2, 'the unusable 5 is skipped; a faces the next card');
-  assert.ok(result.state.discard.includes(3), 'the played card is discarded');
-  assert.ok(result.state.discard.includes(5), 'the auto-passed card is discarded, not left as drawnCard');
+  assert.equal(result.state.discard.includes(3), true, 'the played card is discarded');
+  assert.equal(result.state.discard.includes(5), true, 'the auto-passed card is discarded, not left as drawnCard');
   assert.equal(result.state.activeUserId, USER.a, 'activeUserId mirrors the resolved current player');
 });
 
@@ -345,7 +345,7 @@ test('finding#1: a mover landing on a foreign slide start slides to finalIndex a
   const mover = result.state.pawns.a[0];
   assert.equal(mover.zone, 'track', 'mover stays on the track');
   assert.equal(mover.index, finalIndex, 'mover is carried to the slide end, not its self-bumped Start');
-  assert.notEqual(mover.zone, 'start', 'the mover must never self-bump back to Start');
+  assert.equal(mover.id, 0, 'the pawn at finalIndex is the mover itself — no identity mix-up');
 
   // The genuine victim swept by the slide is still bumped.
   assert.equal(result.state.pawns.b[1].zone, 'start', 'opponent pawn in the swept path is bumped');
@@ -364,7 +364,7 @@ test('finding#2: an unknown action type is rejected with an error and no mutatio
   const before = structuredClone(state);
   const result = applySorryAction({ state, action: { type: 'teleport', payload: {} }, actorId: USER.a });
 
-  assert.ok(result.error, 'an unrecognized action type yields an error');
+  assert.equal(result.error, 'unknown action: teleport', 'an unrecognized action type yields a specific error');
   assert.equal('state' in result, false, 'no state is produced for an unknown action');
   assert.deepEqual(state, before, 'unknown action does not mutate state');
 });
