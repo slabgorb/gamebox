@@ -18,7 +18,7 @@ stories:
     title: 'Engine foundations: plugin skeleton, deck, geometry + initial state'
     points: 3
     priority: p2
-    status: backlog
+    status: done
     repos: g-1
     workflow: tdd
   - id: E3-2
