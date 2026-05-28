@@ -77,3 +77,19 @@ test('chooseAction: emits a move action and never a draw action', async () => {
   const r = await chooseAction({ llm, persona, sessionId: null, state: baseState(), botPlayerIdx: 0, userMessages: [] });
   assert.equal(r.action.type, 'move');
 });
+
+// =========================================================================
+// No legal move ⇒ the bot passes mechanically, without calling the LLM.
+// (Guards the empty-move crash: moves[random*0] was undefined → undefined.id.)
+// =========================================================================
+
+test('chooseAction: returns a pass action and does not call the LLM when there are no legal moves', async () => {
+  let called = false;
+  const llm = { send: async () => { called = true; return { text: '{}', sessionId: 's' }; } };
+  // All pawns in Start + card 3 ⇒ no legal move (3 cannot leave Start).
+  const state = baseState({ drawnCard: 3 });
+  const r = await chooseAction({ llm, persona, sessionId: null, state, botPlayerIdx: 0, userMessages: [] });
+  assert.deepEqual(r.action, { type: 'pass' });
+  assert.equal(r.usedLlm, false);
+  assert.equal(called, false, 'the LLM must not be invoked on a forced pass');
+});

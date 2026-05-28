@@ -7,6 +7,13 @@ import { buildTurnPrompt, parseLlmResponse } from './prompts.js';
 // emits a 'move' action — card draw is a server-authoritative rule step.
 export async function chooseAction({ llm, persona, sessionId, state, botPlayerIdx, userMessages = [] }) {
   const moves = legalMoves(state);
+
+  // No legal move: the only action is to pass. Resolve it mechanically — skip
+  // the LLM (and never index an empty move list, which used to crash the turn).
+  if (moves.length === 0) {
+    return { action: { type: 'pass' }, usedLlm: false };
+  }
+
   const prompt = buildTurnPrompt({ state, legalMoves: moves, botPlayerIdx, userMessages });
 
   const r = await llm.send({
