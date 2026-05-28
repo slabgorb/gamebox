@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const root = resolve(import.meta.dirname, '..');
+// This file lives in test/sorry/ (two levels below the repo root), unlike the
+// test/<plugin>-client-files.test.js convention which sits directly under test/.
+const root = resolve(import.meta.dirname, '..', '..');
 
 // E3-6 delivers the Sorry! client as a React app, mirroring risk and cribbage:
 // a built bundle + static shell + assets in plugins/sorry/client, with the
