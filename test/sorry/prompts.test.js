@@ -6,27 +6,7 @@ import {
   extractJson,
 } from '../../plugins/sorry/server/ai/prompts.js';
 import { legalMoves } from '../../plugins/sorry/server/rules/legal-moves.js';
-
-// --- helpers -------------------------------------------------------------
-
-const mkStartPawns = () =>
-  Array.from({ length: 4 }, (_, i) => ({ id: i, zone: 'start', index: 0 }));
-
-// Side 'a' to move. Override `pawns`/`drawnCard` per case.
-function baseState(over = {}) {
-  return {
-    sides: { a: 'user-a', b: 'user-b' },
-    pawns: { a: mkStartPawns(), b: mkStartPawns() },
-    deck: [],
-    discard: [],
-    drawnCard: 1,
-    currentPlayer: 'a',
-    winner: null,
-    lastEvent: null,
-    activeUserId: 'user-a',
-    ...over,
-  };
-}
+import { mkStartPawns, baseState } from '../_helpers/sorry-fixtures.js';
 
 // =========================================================================
 // AC 1 — buildTurnPrompt surfaces all the context the LLM needs

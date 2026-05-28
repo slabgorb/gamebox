@@ -1,27 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { chooseAction } from '../../plugins/sorry/server/ai/sorry-player.js';
-
-// --- helpers -------------------------------------------------------------
-
-const mkStartPawns = () =>
-  Array.from({ length: 4 }, (_, i) => ({ id: i, zone: 'start', index: 0 }));
-
-// Side 'a' to move, card 1, all pawns in Start → legal moves are out:0..out:3.
-function baseState(over = {}) {
-  return {
-    sides: { a: 'user-a', b: 'user-b' },
-    pawns: { a: mkStartPawns(), b: mkStartPawns() },
-    deck: [],
-    discard: [],
-    drawnCard: 1,
-    currentPlayer: 'a',
-    winner: null,
-    lastEvent: null,
-    activeUserId: 'user-a',
-    ...over,
-  };
-}
+import { baseState } from '../_helpers/sorry-fixtures.js';
 
 const persona = { systemPrompt: 'You are a test persona.' };
 
