@@ -102,6 +102,30 @@ describe("Sorry Board", () => {
     expect(container.querySelector('[data-pawn="a-3"].movable')).toBeNull();
   });
 
+  it("parks leftover start pawns centered, not slumped to the bottom", () => {
+    // Only the higher-id pawns (2,3) remain in Start. They must straddle the
+    // circle centre, not both land in the bottom row.
+    const v = {
+      ...view,
+      currentPlayer: "b",
+      pawns: {
+        a: [
+          { id: 0, zone: "track", index: 4 },
+          { id: 1, zone: "track", index: 5 },
+          { id: 2, zone: "start", index: 0 },
+          { id: 3, zone: "start", index: 0 },
+        ],
+        b: view.pawns.b,
+      },
+      legalMoves: undefined,
+    } as any;
+    const { container } = render(<Board view={v} onPick={() => {}} />);
+    const p2 = container.querySelector('[data-pawn="a-2"]') as HTMLElement;
+    const p3 = container.querySelector('[data-pawn="a-3"]') as HTMLElement;
+    const centerTopPct = (300 / 1600) * 100; // START a row 2.5 → y=300px
+    expect((parseFloat(p2.style.top) + parseFloat(p3.style.top)) / 2).toBeCloseTo(centerTopPct, 1);
+  });
+
   it("renders no decorative stub-player pawns on the 2-player board", () => {
     // The 4-zone board ART stays, but the green/orange "decor" checkers read as
     // fake players on a 2-player game. Only the 8 live red/blue pawns may render.

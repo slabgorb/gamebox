@@ -223,19 +223,9 @@ function HomeStar({ side }: { side: Side }) {
     <g>
       <path d={starPath(cx, cy, 78, 6)} fill="#1a1208" />
       <path d={starPath(cx, cy, 72, 6)} fill={color.mid} stroke={color.deep} strokeWidth="2" />
-      <circle cx={cx} cy={cy} r="34" fill="#1a1208" />
-      <text
-        x={cx}
-        y={cy + 6}
-        textAnchor="middle"
-        fontSize="16"
-        fontWeight="800"
-        fontFamily='"Playfair Display", Georgia, serif'
-        fill={color.ink}
-        letterSpacing="0.14em"
-      >
-        HOME
-      </text>
+      {/* Unlabelled center pip — HOME stars carry no text. */}
+      <circle cx={cx} cy={cy} r="30" fill="#1a1208" />
+      <circle cx={cx} cy={cy} r="30" fill="none" stroke={color.lite} strokeWidth="2" opacity="0.5" />
     </g>
   );
 }

@@ -74,6 +74,30 @@ function cellCenter({ row, col }) {
   return { x: (col + 0.5) * CELL, y: (row + 0.5) * CELL };
 }
 
+// Centered-cluster offsets (in spacing units) for `count` parked pawns. Every
+// arrangement is centroid-zero, so the cluster always sits dead-centre on the
+// circle no matter how many pawns are parked or which ids they are.
+function parkOffsets(count) {
+  switch (count) {
+    case 1: return [[0, 0]];
+    case 2: return [[-0.5, 0], [0.5, 0]];
+    case 3: return [[-0.5, -0.3], [0.5, -0.3], [0, 0.6]];
+    default: return [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]; // 4
+  }
+}
+const PARK_SPACING = { start: 0.62, home: 0.42 }; // cells between parked pawns
+
+// Pixel centre for the `rank`-th of `count` pawns parked in a side's START or
+// HOME, laid out as a centred cluster (see parkOffsets). Use this for parked
+// pawns instead of pawnCenter's id-keyed fan, which slumped when only the
+// higher-id pawns were home.
+export function parkCenter(side, zone, rank, count) {
+  const base = zone === "home" ? HOME_CELL[side] : START_CENTER[side];
+  const s = PARK_SPACING[zone === "home" ? "home" : "start"];
+  const [dx, dy] = parkOffsets(Math.min(Math.max(count, 1), 4))[Math.min(rank, 3)] ?? [0, 0];
+  return cellCenter({ row: base.row + dy * s, col: base.col + dx * s });
+}
+
 // Pixel centre for a pawn at {zone,index} owned by `side`. Multiple pawns in
 // Start/Home are fanned out by `pawnId` so they don't fully overlap.
 export function pawnCenter(side, zone, index, pawnId = 0) {

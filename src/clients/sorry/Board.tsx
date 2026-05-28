@@ -5,7 +5,7 @@
 // drawn cell.
 import type { SorryView, SorrySide, LegalMove } from "../shared/contracts/sorry";
 import { Board4P } from "./Board4P";
-import { pawnCenter, moveDestCenter, toPct } from "./board-geometry.js";
+import { pawnCenter, parkCenter, moveDestCenter, toPct } from "./board-geometry.js";
 
 export interface BoardProps {
   view: SorryView;
@@ -51,10 +51,23 @@ export function Board({ view, onPick }: BoardProps) {
     <div className="board-surface">
       <Board4P />
 
-      {/* Live pawns — every pawn of both sides, placed from the public view. */}
-      {SIDES.map((side) =>
-        view.pawns[side].map((pawn) => {
-          const pos = toPct(pawnCenter(side, pawn.zone, pawn.index, pawn.id));
+      {/* Live pawns — every pawn of both sides, placed from the public view.
+          Parked pawns (start/home) are laid out as a centred cluster keyed to
+          their rank among same-zone pawns, so leftover pawns never slump low. */}
+      {SIDES.map((side) => {
+        const pawns = view.pawns[side];
+        const parkRank = new Map<number, { rank: number; count: number }>();
+        for (const zone of ["start", "home"] as const) {
+          const inZone = pawns.filter((p) => p.zone === zone).sort((a, b) => a.id - b.id);
+          inZone.forEach((p, i) => parkRank.set(p.id, { rank: i, count: inZone.length }));
+        }
+        return pawns.map((pawn) => {
+          const parked = parkRank.get(pawn.id);
+          const pos = toPct(
+            parked
+              ? parkCenter(side, pawn.zone, parked.rank, parked.count)
+              : pawnCenter(side, pawn.zone, pawn.index, pawn.id),
+          );
           const movable = side === turnSide && movableIds.has(pawn.id);
           return (
             <div
@@ -68,8 +81,8 @@ export function Board({ view, onPick }: BoardProps) {
               <img className="pawn-svg" src={SIDE_CHECKER[side]} alt="" draggable={false} />
             </div>
           );
-        }),
-      )}
+        });
+      })}
 
       {/* Legal-move hotspots — only the active viewer receives legalMoves, so
           these appear only when it is the player's turn. Deduped by destination. */}
