@@ -2,27 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { legalMoves } from '../../plugins/sorry/server/rules/legal-moves.js';
 import { path, START_EXIT } from '../../plugins/sorry/server/geometry.js';
+import { baseState } from '../_helpers/sorry-fixtures.js';
 
 // --- helpers -------------------------------------------------------------
-
-const mkStartPawns = () =>
-  Array.from({ length: 4 }, (_, i) => ({ id: i, zone: 'start', index: 0 }));
-
-// A valid baseline state: all 8 pawns in Start, side 'a' to move.
-function baseState(over = {}) {
-  return {
-    sides: { a: 'user-a', b: 'user-b' },
-    pawns: { a: mkStartPawns(), b: mkStartPawns() },
-    deck: [],
-    discard: [],
-    drawnCard: 1,
-    currentPlayer: 'a',
-    winner: null,
-    lastEvent: null,
-    activeUserId: 'user-a',
-    ...over,
-  };
-}
 
 // Position of a path square id within side a's ordered path (for expected math).
 const PA = path('a');
