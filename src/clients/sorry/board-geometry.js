@@ -1,13 +1,16 @@
 // src/clients/sorry/board-geometry.js
 //
-// The 1:1 geometry contract between the baked board image and the client
-// overlay — the same principle as the backgammon parquet renderer's CSS_FIT.
-// scripts/render-sorry-board.py bakes the board on a GRID×GRID cell grid at
-// CELL px per cell; this module maps every pawn location and move destination
-// to the matching pixel centre so the React overlay lands exactly on the
-// printed cells. KEEP THESE CONSTANTS IN SYNC WITH render-sorry-board.py.
+// The 1:1 geometry contract between the inline SVG board (Board4P.tsx) and the
+// pawn overlay. Board4P draws on a GRID×GRID cell grid at CELL px per cell;
+// this module maps every pawn location and move destination to the matching
+// cell centre so the React overlay lands exactly on the drawn cells.
+// KEEP THESE CONSTANTS IN SYNC WITH Board4P.tsx (START / HOME / SAFETY).
+//
+// The engine is 2-player (sides a, b). Visually those occupy two diagonally
+// opposite quadrants of the 4-player board: side a → the red top-left quadrant,
+// side b → the blue bottom-right quadrant. The green/orange quadrants are board
+// ART only and carry no pawns.
 
-export const BOARD_IMAGE = "assets/sorry-board.png";
 export const GRID = 16;
 export const CELL = 100;
 export const BOARD_PX = GRID * CELL; // 1600
@@ -31,16 +34,23 @@ export function trackCell(index) {
   return { row: 60 - i, col: 0 };
 }
 
-// Safety lanes run inward from each side's safety entry toward Home:
-//   a — down column 1 (rows 1..5); b — up column 14 (rows 14..10).
+// Safety lanes run inward toward Home, matching Board4P.tsx's drawn cells:
+//   a — down column 1 (rows 2..6); b — up column 14 (rows 13..9).
 const SAFETY_CELL = {
-  a: (idx) => ({ row: 1 + idx, col: 1 }),
-  b: (idx) => ({ row: GRID - 2 - idx, col: GRID - 2 }),
+  a: (idx) => ({ row: 2 + idx, col: 1 }),
+  b: (idx) => ({ row: 13 - idx, col: GRID - 2 }),
 };
-// Home sits just past the last safety square.
-const HOME_CELL = { a: { row: 6, col: 1 }, b: { row: 9, col: GRID - 2 } };
-// Start pens are interior 2×2 clusters, diagonally opposite.
-const START_CENTER = { a: { row: 2.5, col: 3.5 }, b: { row: 13.5, col: 12.5 } };
+// Home sits just past the last safety square (Board4P HOME a/c).
+export const HOME_CELL = { a: { row: 7.5, col: 1 }, b: { row: 8.5, col: GRID - 2 } };
+// Start pens are interior clusters in diagonally opposite quadrants
+// (Board4P START a/c).
+export const START_CENTER = { a: { row: 2.5, col: 4 }, b: { row: 13.5, col: 11 } };
+
+// The five safety cells for a live side, in entry→home order. Exposed so the
+// drift guard can assert these stay aligned with Board4P.tsx's drawn cells.
+export function safetyCells(side) {
+  return [0, 1, 2, 3, 4].map((idx) => SAFETY_CELL[side](idx));
+}
 
 function cellCenter({ row, col }) {
   return { x: (col + 0.5) * CELL, y: (row + 0.5) * CELL };

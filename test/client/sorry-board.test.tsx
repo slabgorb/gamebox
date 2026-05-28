@@ -29,17 +29,14 @@ const view = {
 } as any;
 
 describe("Sorry Board", () => {
-  // User directive: render the board surface as a baked image (parquet trick),
-  // not as a per-cell DOM grid.
-  it("renders the board from a single baked board image, not a per-cell DOM grid", () => {
+  // The "Cabinet" redesign draws the board as an inline SVG (Board4P), replacing
+  // the earlier baked-image parquet trick. The DOM overlays pieces on top.
+  it("renders the board as an inline SVG surface, not a baked board image", () => {
     const { container } = render(
       <Board view={view} onPick={() => {}} />,
     );
-    const img = container.querySelector(
-      "img.board-image",
-    ) as HTMLImageElement | null;
-    expect(img).not.toBeNull();
-    expect(img!.getAttribute("src")).toMatch(/\.(png|jpe?g|webp|avif)$/i);
+    expect(container.querySelector("svg.board-svg")).not.toBeNull();
+    expect(container.querySelector("img.board-image")).toBeNull();
   });
 
   it("places all eight pawns, each tagged with its side, zone and index", () => {
@@ -70,6 +67,49 @@ describe("Sorry Board", () => {
     expect(hit).not.toBeNull();
     hit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(onPick).toHaveBeenCalledWith("out:0");
+  });
+
+  it("collapses legal moves that share one destination into a single hotspot", () => {
+    // All four Start pawns can come out to the same exit square. They must not
+    // stack four identical overlapping hotspots (only the top one was clickable).
+    const fourOut = {
+      ...view,
+      pawns: {
+        a: [0, 1, 2, 3].map((id) => ({ id, zone: "start", index: 0 })),
+        b: view.pawns.b,
+      },
+      legalMoves: [0, 1, 2, 3].map((pawnId) => ({
+        id: `out:${pawnId}`,
+        kind: "out",
+        pawnId,
+        to: { zone: "track", index: 4 },
+      })),
+    } as any;
+    const onPick = vi.fn();
+    const { container } = render(<Board view={fourOut} onPick={onPick} />);
+    const targets = container.querySelectorAll(".sorry-target");
+    expect(targets.length).toBe(1);
+    // Clicking the single hotspot still plays one of the collapsed moves.
+    (targets[0] as HTMLElement).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(onPick).toHaveBeenCalledWith("out:0");
+  });
+
+  it("rings the pawns that can move on the player's turn", () => {
+    const { container } = render(<Board view={view} onPick={() => {}} />);
+    // The one legal move sources pawn a-0, so that pawn is flagged movable.
+    expect(container.querySelector('[data-pawn="a-0"].movable')).not.toBeNull();
+    // A pawn with no legal move is not flagged.
+    expect(container.querySelector('[data-pawn="a-3"].movable')).toBeNull();
+  });
+
+  it("renders no decorative stub-player pawns on the 2-player board", () => {
+    // The 4-zone board ART stays, but the green/orange "decor" checkers read as
+    // fake players on a 2-player game. Only the 8 live red/blue pawns may render.
+    const { container } = render(<Board view={view} onPick={() => {}} />);
+    expect(container.querySelector(".pawn-decor")).toBeNull();
+    expect(container.querySelector(".pawn-green, .pawn-orange")).toBeNull();
+    // Every rendered pawn is a live, side-tagged piece.
+    expect(container.querySelectorAll(".pawn").length).toBe(8);
   });
 
   it("renders no legal-move hotspots when the viewer has no legalMoves (not their turn)", () => {
