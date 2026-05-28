@@ -11,7 +11,7 @@ description: |-
 
   Out of scope: >2 players (Gamebox is 2P-only); additional personas beyond the initial two.
 priority: p2
-status: ready
+status: done
 repos: g-1
 stories:
   - id: E3-1
@@ -70,7 +70,11 @@ stories:
     title: Client UI (board, card flip, move interaction, win banner) + orchestrator integration + playtest
     points: 3
     priority: p3
-    status: backlog
+    status: done
+    started: '2026-05-28'
     repos: g-1
     workflow: tdd
     depends_on: E3-5
+    completed: '2026-05-28'
+    review_verdict: approved
+completed: '2026-05-28'
