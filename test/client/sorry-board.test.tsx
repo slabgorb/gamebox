@@ -216,27 +216,9 @@ describe("Sorry Board", () => {
     expect(medallion.getAttribute("transform")).toContain("rotate(-180");
   });
 
-  // The brainstorm chose all-upright labels (legibility) over per-seat flipping.
-  // Each START label counter-rotates by -rotation so it survives the board flip.
-  const SEATS = ["top", "right", "bottom", "left"] as const;
-  const labelTransform = (container: HTMLElement, seat: string) =>
-    container
-      .querySelector(`[data-testid="start-label-${seat}"]`)
-      ?.getAttribute("transform") ?? "";
-
-  it("draws all four START labels upright when the board is unrotated", () => {
+  it("draws no START text labels (start circles only)", () => {
     const { container } = render(<Board4P />);
-    for (const seat of SEATS) {
-      const t = labelTransform(container, seat);
-      expect(t).toContain("rotate(0");
-      expect(t).not.toContain("rotate(180");
-    }
-  });
-
-  it("counter-rotates every START label so none reads upside-down under the flip", () => {
-    const { container } = render(<Board4P rotation={180} />);
-    for (const seat of SEATS) {
-      expect(labelTransform(container, seat)).toContain("rotate(-180");
-    }
+    expect(container.querySelector('[data-testid^="start-label-"]')).toBeNull();
+    expect(container.textContent).not.toContain("START");
   });
 });

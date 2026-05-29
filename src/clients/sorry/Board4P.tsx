@@ -10,14 +10,13 @@
 //   left   (k=3) → orange — decorative
 //
 // The whole surface is rotated per viewer (Board.tsx) so the human's colour is
-// always at the bottom; every text label counter-rotates by -rotation so it
-// reads upright regardless of the flip (the brainstorm chose upright labels over
-// per-seat flipping). HOME stars carry no label.
+// always at the bottom. HOME and START carry no text label.
 //
-// Live slides (top/bottom edges) are derived from the engine geometry
-// (slideSegments) so a painted arrow always sits on a square that actually
-// slides; the decorative side edges (green/orange) carry illustrative slides
-// only — they never host live pawns.
+// All slides are derived from the engine geometry (slideSegments) so a painted
+// arrow always sits on a square that actually slides. The 60-square loop runs
+// along all four edges, and the engine now has slides on every edge (a/b top &
+// bottom; green/orange right & left), so every drawn arrow is live — a pawn
+// landing on any of them slides.
 import { slideSegments } from "./board-geometry.js";
 
 const CELL = 100;
@@ -77,12 +76,6 @@ const REF = {
   start: { row: 2.6, col: 4 } as Cell,
   home: { row: 6.6, col: 1 } as Cell,
   safety: [1, 2, 3, 4, 5].map((r) => ({ row: r, col: 1 }) as Cell),
-  label: { row: 2.6 - 0.96, col: 4 } as Cell, // lifted above the start cluster
-  // Illustrative slides for the decorative side edges only.
-  slides: [
-    { from: { row: 0, col: 5 } as Cell, to: { row: 0, col: 8 } as Cell },
-    { from: { row: 0, col: 10 } as Cell, to: { row: 0, col: 14 } as Cell },
-  ],
 };
 
 type SeatKey = "top" | "right" | "bottom" | "left";
@@ -203,54 +196,25 @@ function StartCircle({ seat, color }: { seat: Seat; color: Palette }) {
   );
 }
 
-// Upright START label, positioned above each seat's start circle. The glyph is
-// always upright; it counter-rotates by -rotation to survive the board flip.
-function StartLabel({ seat, color, rotation }: { seat: Seat; color: Palette; rotation: number }) {
-  const p = rot(REF.label, seat.k);
-  const x = CX(p.col), y = CY(p.row);
-  return (
-    <text
-      data-testid={`start-label-${seat.key}`}
-      x={x}
-      y={y}
-      textAnchor="middle"
-      dominantBaseline="central"
-      fontSize="28"
-      fontWeight="800"
-      fontFamily='"Playfair Display", Georgia, serif'
-      fill={color.ink}
-      letterSpacing="0.16em"
-      transform={`rotate(${-rotation} ${x} ${y})`}
-      style={{ textShadow: "0 2px 0 rgba(0,0,0,0.35)" }}
-    >
-      START
-    </text>
-  );
+// Which seat owns the perimeter edge a cell sits on. Slide endpoints never land
+// on a corner (no slide starts/ends at track index 0/15/30/45), so the from
+// cell unambiguously identifies one edge.
+function edgeSeat([row, col]: [number, number]): SeatKey {
+  if (row === 0) return "top";
+  if (row === N - 1) return "bottom";
+  if (col === N - 1) return "right";
+  return "left"; // col === 0
 }
 
-// Engine-derived live slides (top & bottom edges), coloured by the seat that
-// owns the edge they sit on — top edge takes the top seat's colour, bottom edge
-// the bottom seat's, so a slide always matches the pawns that travel it.
+// All slides, derived from the engine geometry (slideSegments) and coloured by
+// the seat that owns the edge they sit on, so a drawn arrow always matches the
+// pawns that travel it. Every edge is live — a pawn landing on any slide slides.
 function liveSlides(pal: (key: SeatKey) => Palette) {
   return slideSegments().map((s) => ({
     from: { row: s.from[0], col: s.from[1] } as Cell,
     to: { row: s.to[0], col: s.to[1] } as Cell,
-    color: pal(s.from[0] === 0 ? "top" : "bottom"),
+    color: pal(edgeSeat(s.from)),
   }));
-}
-
-// Decorative slides for the side seats — illustrative only, rotated from the
-// reference. These edges never carry live pawns.
-function decorSlides(pal: (key: SeatKey) => Palette) {
-  const out: { from: Cell; to: Cell; color: Palette }[] = [];
-  for (const seat of SEATS) {
-    if (seat.key !== "left" && seat.key !== "right") continue;
-    const color = pal(seat.key);
-    for (const s of REF.slides) {
-      out.push({ from: rot(s.from, seat.k), to: rot(s.to, seat.k), color });
-    }
-  }
-  return out;
 }
 
 export function Board4P({
@@ -313,9 +277,6 @@ export function Board4P({
         />
       ))}
 
-      {decorSlides(pal).map((s, i) => (
-        <Slide key={`decor-slide-${i}`} from={s.from} to={s.to} color={s.color} />
-      ))}
       {liveSlides(pal).map((s, i) => (
         <Slide key={`slide-${i}`} from={s.from} to={s.to} color={s.color} />
       ))}
@@ -323,7 +284,6 @@ export function Board4P({
       {SEATS.map((seat) => <SafetyLane key={`safe-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
       {SEATS.map((seat) => <HomeStar key={`home-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
       {SEATS.map((seat) => <StartCircle key={`start-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
-      {SEATS.map((seat) => <StartLabel key={`label-${seat.key}`} seat={seat} color={pal(seat.key)} rotation={rotation} />)}
 
       {/* Neutral centre chrome — counter-rotates so the wordmark never flips. */}
       <g

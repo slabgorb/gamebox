@@ -19,13 +19,17 @@ describe("Sorry slide geometry", () => {
   });
 
   it("draws exactly the engine's slides — one segment per engine slide", () => {
-    const engineCount = ENGINE_SLIDES.a.length + ENGINE_SLIDES.b.length;
+    const engineCount =
+      ENGINE_SLIDES.a.length +
+      ENGINE_SLIDES.b.length +
+      ENGINE_SLIDES.green.length +
+      ENGINE_SLIDES.orange.length;
     expect(slideSegments()).toHaveLength(engineCount);
   });
 
   it("each drawn segment runs from the slide's start square to its end square", () => {
     const segs = slideSegments();
-    for (const side of ["a", "b"] as const) {
+    for (const side of ["a", "b", "green", "orange"] as const) {
       for (const slide of ENGINE_SLIDES[side]) {
         const from = trackCell(slide.start);
         const to = trackCell((slide.start + slide.length) % TRACK_LEN);
@@ -45,12 +49,15 @@ describe("Sorry slide geometry", () => {
     }
   });
 
-  it("draws no slides off the top/bottom edges (the engine has none there)", () => {
-    // All engine slides live on row 0 (top) or row 15 (bottom). A painted arrow
-    // anywhere else is a lie — a pawn would land on it and not slide.
+  it("every drawn slide sits on a perimeter edge (never the interior)", () => {
+    // The engine now has slides on all four edges. Every segment endpoint must
+    // be on the perimeter ring — row 0/15 (top/bottom) or col 0/15 (left/right)
+    // — so a painted arrow always lands on a real track square that slides.
+    const onEdge = ([row, col]: [number, number]) =>
+      row === 0 || row === 15 || col === 0 || col === 15;
     for (const s of slideSegments()) {
-      expect([0, 15]).toContain(s.from[0]);
-      expect([0, 15]).toContain(s.to[0]);
+      expect(onEdge(s.from), `from ${s.from} off-ring`).toBe(true);
+      expect(onEdge(s.to), `to ${s.to} off-ring`).toBe(true);
     }
   });
 });
