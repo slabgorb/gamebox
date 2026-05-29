@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildTurnPrompt,
+  buildBanterPrompt,
   parseLlmResponse,
+  parseBanter,
   extractJson,
 } from '../../plugins/sorry/server/ai/prompts.js';
 import { legalMoves } from '../../plugins/sorry/server/rules/legal-moves.js';
@@ -106,4 +108,56 @@ test('parseLlmResponse: defaults banter to empty string when absent', () => {
 
 test('parseLlmResponse: throws on malformed JSON', () => {
   assert.throws(() => parseLlmResponse('{"moveId":'));
+});
+
+// =========================================================================
+// AC 3 — buildBanterPrompt and parseBanter for forced-move turns
+// =========================================================================
+
+test('buildBanterPrompt: states the forced move and omits the legal-move menu', () => {
+  const move = { id: 'forward:0:8', kind: 'forward', pawnId: 0, steps: 8, to: { zone: 'track', index: 18 } };
+  const state = baseState({ drawnCard: 8 });
+  const prompt = buildBanterPrompt({ state, move, botPlayerIdx: 0, userMessages: [] });
+  assert.match(prompt, /one legal move/i);
+  assert.match(prompt, /Move pawn 0 forward 8/);
+  assert.doesNotMatch(prompt, /choose exactly one by its id/i); // no move menu
+  assert.doesNotMatch(prompt, /"moveId"/); // banter-only response footer
+  assert.match(prompt, /"banter"/);
+});
+
+test('buildBanterPrompt: includes the opponent-chat reaction block', () => {
+  const move = { id: 'forward:0:8', kind: 'forward', pawnId: 0, steps: 8, to: { zone: 'track', index: 18 } };
+  const state = baseState({ drawnCard: 8 });
+  const prompt = buildBanterPrompt({ state, move, botPlayerIdx: 0, userMessages: ['nice try'] });
+  assert.match(prompt, /opponent just said/i);
+  assert.match(prompt, /nice try/);
+});
+
+test('parseBanter: reads the banter field from a JSON object', () => {
+  assert.equal(parseBanter('{"banter":"Forced, but fabulous."}'), 'Forced, but fabulous.');
+});
+
+test('parseBanter: accepts a plain-text line when there is no JSON', () => {
+  assert.equal(parseBanter('Forced, but fabulous.'), 'Forced, but fabulous.');
+});
+
+test('parseBanter: returns empty string for empty/whitespace input and never throws', () => {
+  assert.equal(parseBanter(''), '');
+  assert.equal(parseBanter('   '), '');
+  assert.equal(parseBanter(undefined), '');
+});
+
+test('parseBanter: strips a fenced JSON block and reads the banter field', () => {
+  assert.equal(parseBanter('```json\n{"banter":"Forced, but fabulous."}\n```'), 'Forced, but fabulous.');
+});
+
+test('parseBanter: returns empty string when valid JSON has no banter field', () => {
+  assert.equal(parseBanter('{"moveId":"out:0"}'), '');
+});
+
+test('buildBanterPrompt: renders side B for botPlayerIdx 1', () => {
+  const move = { id: 'forward:0:8', kind: 'forward', pawnId: 0, steps: 8, to: { zone: 'track', index: 18 } };
+  const state = baseState({ drawnCard: 8 });
+  const prompt = buildBanterPrompt({ state, move, botPlayerIdx: 1, userMessages: [] });
+  assert.match(prompt, /side B/);
 });

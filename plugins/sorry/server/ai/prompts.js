@@ -54,6 +54,10 @@ const RESPONSE_FOOTER =
   '{"moveId": "<one of the legal move ids above>", ' +
   '"banter": "<one short in-character line, max ~12 words, never empty — even one syllable counts>"}';
 
+const BANTER_FOOTER =
+  'Respond with a single JSON object (and nothing else): ' +
+  '{"banter": "<one short in-character line, max ~12 words, never empty — even one syllable counts>"}';
+
 export function buildTurnPrompt({ state, legalMoves, botPlayerIdx, userMessages = [] }) {
   const botSide = botPlayerIdx === 0 ? 'a' : 'b';
   const oppSide = botSide === 'a' ? 'b' : 'a';
@@ -67,6 +71,26 @@ export function buildTurnPrompt({ state, legalMoves, botPlayerIdx, userMessages 
   ];
   if (userMessages.length > 0) blocks.push(reactionBlock(userMessages));
   blocks.push(legalMovesBlock(legalMoves), RESPONSE_FOOTER);
+  return blocks.join('\n\n');
+}
+
+// Forced-move turn: the bot has exactly one legal move, so there is no decision
+// to make — ask only for an in-character line, not a move choice. Keeps the
+// opponent-chat reaction block so banter still responds to trash talk.
+export function buildBanterPrompt({ state, move, botPlayerIdx, userMessages = [] }) {
+  const botSide = botPlayerIdx === 0 ? 'a' : 'b';
+  const oppSide = botSide === 'a' ? 'b' : 'a';
+  const sideLabel = botSide === 'a' ? 'side A' : 'side B';
+
+  const blocks = [
+    `You are playing ${sideLabel} in a game of Sorry!.`,
+    `Card drawn this turn: ${cardLabel(state.drawnCard)}`,
+    `Your pawns:\n${state.pawns[botSide].map(pawnLine).join('\n')}`,
+    `Opponent pawns:\n${state.pawns[oppSide].map(pawnLine).join('\n')}`,
+    `You have exactly one legal move, and it will be played for you: ${describeMove(move)}`,
+  ];
+  if (userMessages.length > 0) blocks.push(reactionBlock(userMessages));
+  blocks.push(BANTER_FOOTER);
   return blocks.join('\n\n');
 }
 
@@ -94,6 +118,21 @@ export function parseLlmResponse(text) {
     moveId: parsed.moveId,
     banter: typeof parsed.banter === 'string' ? parsed.banter : '',
   };
+}
+
+// Lenient banter extraction for a forced-move turn. Never throws — a forced
+// move plays regardless of the LLM's output. Prefers a JSON `banter` field,
+// falls back to the raw trimmed text, then to the empty string.
+export function parseBanter(text) {
+  if (typeof text !== 'string') return '';
+  try {
+    const parsed = JSON.parse(extractJson(text));
+    if (typeof parsed.banter === 'string') return parsed.banter.trim();
+    return ''; // valid JSON but no banter field — don't expose the raw object
+  } catch {
+    // Not JSON at all — fall through to the raw-text fallback below.
+  }
+  return text.trim();
 }
 
 export { extractJson };
