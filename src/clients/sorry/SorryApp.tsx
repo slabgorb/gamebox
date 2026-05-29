@@ -4,8 +4,9 @@
 // roster. The board is drawn for four sides but the engine is 2-player, so two
 // roster seats sit empty and two board quadrants are decorative.
 import { useGameState } from "../shared/useGameState";
-import type { SorryView, SorryAction, SorryCard, SorrySide } from "../shared/contracts/sorry";
+import type { SorryView, SorryAction, SorryCard, SorrySide, SorryColor } from "../shared/contracts/sorry";
 import { Board } from "./Board";
+import { seatColors } from "./board-geometry.js";
 import { OpponentBanter } from "../shared/OpponentBanter";
 // OpponentBanter renders with the shared opp-card__* classes; pull their styles
 // into the bundle (the Cabinet chrome no longer renders OpponentCard itself).
@@ -20,7 +21,7 @@ function cardFace(card: SorryCard): string {
 }
 
 interface Seat {
-  color: "red" | "blue" | "green" | "orange";
+  color: SorryColor;
   side: SorrySide | null; // null = decorative open seat
   checker: string;
 }
@@ -32,16 +33,26 @@ export function SorryApp() {
 
   const myTurn = view.youAre != null && view.currentPlayer === view.youAre;
 
-  // Viewer-relative seating to match the board: you are always red, the opponent
-  // blue (spectator: the bottom seat, engine b, is red). The two empty seats are
-  // the decorative colours.
-  const redSide: SorrySide = view.youAre ?? "b";
-  const blueSide: SorrySide = redSide === "a" ? "b" : "a";
+  // Roster colours match the board: each live side shows its assigned colour
+  // (view.colors; legacy → red(a)/blue(b)), the two unused palette colours fill
+  // the open seats. The viewer's row is listed first.
+  const colors: Record<SorrySide, SorryColor> = view.colors ?? { a: "red", b: "blue" };
+  const decor = seatColors(view.colors); // { right, left } carry the unused colours
+  const liveSeat = (side: SorrySide): Seat => ({
+    color: colors[side],
+    side,
+    checker: `assets/checker-${colors[side]}.png`,
+  });
+  const openSeat = (color: SorryColor): Seat => ({
+    color,
+    side: null,
+    checker: `assets/checker-${color}.png`,
+  });
+  const liveOrder: SorrySide[] = view.youAre === "b" ? ["b", "a"] : ["a", "b"];
   const seats: Seat[] = [
-    { color: "red", side: redSide, checker: "assets/checker-red.png" },
-    { color: "blue", side: blueSide, checker: "assets/checker-blue.png" },
-    { color: "green", side: null, checker: "assets/checker-green.png" },
-    { color: "orange", side: null, checker: "assets/checker-orange.png" },
+    ...liveOrder.map(liveSeat),
+    openSeat(decor.right),
+    openSeat(decor.left),
   ];
   // On the active viewer's turn legalMoves is always present; an empty array
   // means there is no legal move and the only action is to pass.

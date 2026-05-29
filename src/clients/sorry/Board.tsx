@@ -5,7 +5,7 @@
 // drawn cell.
 import type { SorryView, SorrySide, LegalMove } from "../shared/contracts/sorry";
 import { Board4P } from "./Board4P";
-import { pawnCenter, parkCenter, moveDestCenter, toPct, boardRotation } from "./board-geometry.js";
+import { pawnCenter, parkCenter, moveDestCenter, toPct, boardRotation, seatColors } from "./board-geometry.js";
 
 export interface BoardProps {
   view: SorryView;
@@ -13,9 +13,6 @@ export interface BoardProps {
 }
 
 const SIDES: SorrySide[] = ["a", "b"];
-
-const CHECKER_RED = "assets/checker-red.png";
-const CHECKER_BLUE = "assets/checker-blue.png";
 
 // The source pawn a move acts on (split moves carry it on their first leg).
 function movePawnId(move: LegalMove): number | undefined {
@@ -32,15 +29,13 @@ export function Board({ view, onPick }: BoardProps) {
   // the wrapper leaves that math untouched.
   const rotation = boardRotation(view.youAre);
 
-  // Viewer-relative colour: the human is always red at the bottom. The viewer's
-  // engine side gets the red checker, the opponent blue. A spectator (no seat)
-  // sees the bottom seat (engine b) as red.
-  const redSide: SorrySide = view.youAre ?? "b";
-  const checkerFor = (side: SorrySide) =>
-    side === redSide ? CHECKER_RED : CHECKER_BLUE;
-  // Engine a is drawn at the top seat, b at the bottom — so the red seat is the
-  // viewer's drawn position. Board4P paints that seat red to match the pawns.
-  const redSeat = redSide === "a" ? "top" : "bottom";
+  // Per-side checker colour (chosen at creation; legacy games default red/blue).
+  // The board is drawn engine a→top / b→bottom and rotated for the viewer, so
+  // seat colour follows engine side and the checker for each side matches its
+  // seat circle. seatColors derives the four drawn-seat colours (+ decor sides).
+  const colors = view.colors ?? { a: "red", b: "blue" };
+  const seatCols = seatColors(view.colors);
+  const checkerFor = (side: SorrySide) => `assets/checker-${colors[side]}.png`;
 
   // Pawns that can move this turn — ringed so it's obvious which pieces are live.
   const movableIds = new Set(
@@ -62,7 +57,7 @@ export function Board({ view, onPick }: BoardProps) {
 
   return (
     <div className="board-surface" style={{ transform: `rotate(${rotation}deg)` }}>
-      <Board4P rotation={rotation} redSeat={redSeat} />
+      <Board4P rotation={rotation} seatColors={seatCols} />
 
       {/* Live pawns — every pawn of both sides, placed from the public view.
           Parked pawns (start/home) are laid out as a centred cluster keyed to

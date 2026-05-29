@@ -5,6 +5,10 @@
 
 export type SorrySide = "a" | "b";
 
+// The four checker colours (plugins/sorry/server/colors.js). Each engine side is
+// assigned one at game creation; the client maps the name to a palette + art.
+export type SorryColor = "red" | "blue" | "green" | "orange";
+
 export type SorryCard = 1 | 2 | 3 | 4 | 5 | 7 | 8 | 10 | 11 | 12 | "sorry" | null;
 
 export type PawnZone = "start" | "track" | "safety" | "home";
@@ -53,6 +57,9 @@ export interface SorryView {
   activeUserId: number | null;
   deckCount: number;
   youAre: SorrySide | null;
+  // Per-side checker colour chosen at game creation. Absent on legacy games,
+  // where the client falls back to red (a) / blue (b).
+  colors?: Record<SorrySide, SorryColor>;
   // Present only on the active viewer's view (server/view.js). An empty array
   // means it is the viewer's turn but they have no legal move and must pass.
   legalMoves?: LegalMove[];

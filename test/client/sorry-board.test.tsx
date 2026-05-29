@@ -137,48 +137,46 @@ describe("Sorry Board", () => {
     expect(container.querySelectorAll(".pawn").length).toBe(8);
   });
 
-  // Viewer-relative colour: the human is always red at the bottom — "no longer
-  // playing blue". The viewer's engine side gets the red checker, the opponent
-  // blue, regardless of which engine side the viewer is.
+  // Checker colour follows each side's assigned colour (view.colors) so it
+  // always matches that side's seat circle. Legacy games default a→red / b→blue.
   const checkerSrc = (container: HTMLElement, pawn: string) =>
     container
       .querySelector(`[data-pawn="${pawn}"] img`)
       ?.getAttribute("src") ?? "";
 
-  it("paints the viewer's pawns red and the opponent's blue (viewer = a)", () => {
+  it("uses each side's checker colour from view.colors", () => {
+    const colored = { ...view, colors: { a: "green", b: "orange" } } as any;
+    const { container } = render(<Board view={colored} onPick={() => {}} />);
+    expect(checkerSrc(container, "a-0")).toContain("checker-green");
+    expect(checkerSrc(container, "b-0")).toContain("checker-orange");
+  });
+
+  it("defaults checkers to red(a)/blue(b) when colors are absent (legacy game)", () => {
     const { container } = render(<Board view={view} onPick={() => {}} />);
     expect(checkerSrc(container, "a-0")).toContain("checker-red");
     expect(checkerSrc(container, "b-0")).toContain("checker-blue");
   });
 
   // The seat circle must match the pawns sitting on it: engine a is drawn at the
-  // top seat, b at the bottom. For viewer a (red), the top seat circle must be
-  // red so a's red pawns don't land on a blue circle; for viewer b it flips.
+  // top seat, b at the bottom, coloured by their assigned colours (boardRotation
+  // then swings the viewer's side to the screen bottom).
   const circleFill = (container: HTMLElement, seat: string) =>
     container
       .querySelector(`[data-testid="start-circle-${seat}"]`)
       ?.getAttribute("fill") ?? "";
-  const RED_MID = "#b8332a";
-  const BLUE_MID = "#2c647f";
+  const HEX = { red: "#b8332a", blue: "#2c647f", green: "#3e9a5c", orange: "#d4863a" };
 
-  it("paints the viewer's seat circle red and the opponent's blue (viewer = a)", () => {
+  it("colours the seat circles from view.colors (a→top, b→bottom)", () => {
+    const colored = { ...view, colors: { a: "green", b: "orange" } } as any;
+    const { container } = render(<Board view={colored} onPick={() => {}} />);
+    expect(circleFill(container, "top")).toBe(HEX.green); // engine a → top seat
+    expect(circleFill(container, "bottom")).toBe(HEX.orange); // engine b → bottom
+  });
+
+  it("defaults seat circles to red(top/a)/blue(bottom/b) for a legacy game", () => {
     const { container } = render(<Board view={view} onPick={() => {}} />);
-    expect(circleFill(container, "top")).toBe(RED_MID); // engine a → top seat
-    expect(circleFill(container, "bottom")).toBe(BLUE_MID);
-  });
-
-  it("paints the viewer's seat circle red and the opponent's blue (viewer = b)", () => {
-    const asB = { ...view, youAre: "b" } as any;
-    const { container } = render(<Board view={asB} onPick={() => {}} />);
-    expect(circleFill(container, "bottom")).toBe(RED_MID); // engine b → bottom seat
-    expect(circleFill(container, "top")).toBe(BLUE_MID);
-  });
-
-  it("paints the viewer's pawns red and the opponent's blue (viewer = b)", () => {
-    const asB = { ...view, youAre: "b" } as any;
-    const { container } = render(<Board view={asB} onPick={() => {}} />);
-    expect(checkerSrc(container, "b-0")).toContain("checker-red");
-    expect(checkerSrc(container, "a-0")).toContain("checker-blue");
+    expect(circleFill(container, "top")).toBe(HEX.red);
+    expect(circleFill(container, "bottom")).toBe(HEX.blue);
   });
 
   it("renders no legal-move hotspots when the viewer has no legalMoves (not their turn)", () => {

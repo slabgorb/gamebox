@@ -39,6 +39,18 @@ const GREEN: Palette = { mid: "#3e9a5c", deep: "#1a5a30", lite: "#7ac09a", ink: 
 const RED: Palette = { mid: "#b8332a", deep: "#6a1408", lite: "#d8645a", ink: "#fff5e8" };
 const ORANGE: Palette = { mid: "#d4863a", deep: "#7a4a18", lite: "#e8b070", ink: "#fff5e8" };
 
+type ColorName = "red" | "blue" | "green" | "orange";
+const PALETTE_BY_NAME: Record<ColorName, Palette> = { red: RED, blue: BLUE, green: GREEN, orange: ORANGE };
+
+// Default drawn-frame colours (legacy red(a)/blue(b)); see board-geometry
+// seatColors. Board.tsx passes the live, view-derived assignment.
+const DEFAULT_SEAT_COLORS: Record<SeatKey, ColorName> = {
+  top: "red",
+  bottom: "blue",
+  right: "green",
+  left: "orange",
+};
+
 interface Cell {
   row: number;
   col: number;
@@ -85,15 +97,6 @@ const SEATS: Seat[] = [
   { key: "left", k: 3 },
 ];
 
-// Seat colour is viewer-relative. The side edges are always decorative
-// green/orange; the two live edges (top = engine a, bottom = engine b) are red
-// for the viewer's seat and blue for the opponent's, so the seat circle always
-// matches the colour of the pawns sitting on it.
-function seatPalette(key: SeatKey, redSeat: SeatKey): Palette {
-  if (key === "right") return GREEN;
-  if (key === "left") return ORANGE;
-  return key === redSeat ? RED : BLUE;
-}
 
 // Per-seat furniture, computed by rotating the reference. Exported (START/HOME/
 // SAFETY) so the geometry drift guard can assert the overlay stays aligned with
@@ -228,21 +231,21 @@ function StartLabel({ seat, color, rotation }: { seat: Seat; color: Palette; rot
 // Engine-derived live slides (top & bottom edges), coloured by the seat that
 // owns the edge they sit on — top edge takes the top seat's colour, bottom edge
 // the bottom seat's, so a slide always matches the pawns that travel it.
-function liveSlides(redSeat: SeatKey) {
+function liveSlides(pal: (key: SeatKey) => Palette) {
   return slideSegments().map((s) => ({
     from: { row: s.from[0], col: s.from[1] } as Cell,
     to: { row: s.to[0], col: s.to[1] } as Cell,
-    color: seatPalette(s.from[0] === 0 ? "top" : "bottom", redSeat),
+    color: pal(s.from[0] === 0 ? "top" : "bottom"),
   }));
 }
 
-// Decorative slides for the side (green/orange) seats — illustrative only,
-// rotated from the reference. These edges never carry live pawns.
-function decorSlides() {
+// Decorative slides for the side seats — illustrative only, rotated from the
+// reference. These edges never carry live pawns.
+function decorSlides(pal: (key: SeatKey) => Palette) {
   const out: { from: Cell; to: Cell; color: Palette }[] = [];
   for (const seat of SEATS) {
     if (seat.key !== "left" && seat.key !== "right") continue;
-    const color = seatPalette(seat.key, "bottom");
+    const color = pal(seat.key);
     for (const s of REF.slides) {
       out.push({ from: rot(s.from, seat.k), to: rot(s.to, seat.k), color });
     }
@@ -250,9 +253,15 @@ function decorSlides() {
   return out;
 }
 
-export function Board4P({ rotation = 0, redSeat = "bottom" }: { rotation?: number; redSeat?: SeatKey }) {
+export function Board4P({
+  rotation = 0,
+  seatColors = DEFAULT_SEAT_COLORS,
+}: {
+  rotation?: number;
+  seatColors?: Record<SeatKey, ColorName>;
+}) {
   const cells = trackCells();
-  const pal = (key: SeatKey) => seatPalette(key, redSeat);
+  const pal = (key: SeatKey) => PALETTE_BY_NAME[seatColors[key]];
   return (
     <svg
       viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -304,10 +313,10 @@ export function Board4P({ rotation = 0, redSeat = "bottom" }: { rotation?: numbe
         />
       ))}
 
-      {decorSlides().map((s, i) => (
+      {decorSlides(pal).map((s, i) => (
         <Slide key={`decor-slide-${i}`} from={s.from} to={s.to} color={s.color} />
       ))}
-      {liveSlides(redSeat).map((s, i) => (
+      {liveSlides(pal).map((s, i) => (
         <Slide key={`slide-${i}`} from={s.from} to={s.to} color={s.color} />
       ))}
 

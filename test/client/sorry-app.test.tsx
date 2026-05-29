@@ -142,17 +142,23 @@ describe("SorryApp", () => {
     expect(note).toHaveTextContent(/4/);
   });
 
-  // The roster colours must agree with the board: the viewer is red, the
-  // opponent blue, regardless of which engine side the viewer is.
-  it("paints the viewer's roster row red and the opponent's blue (viewer = b)", () => {
-    h.view = baseView({ youAre: "b", currentPlayer: "a" });
+  // The roster colours must agree with the board: each side shows its assigned
+  // colour (view.colors), and the viewer's row is listed first.
+  it("shows each side's chosen colour in the roster, viewer row first", () => {
+    h.view = baseView({ youAre: "b", currentPlayer: "a", colors: { a: "green", b: "orange" } });
     const { container } = render(<SorryApp />);
     const youImg = container.querySelector(".va-roster-row.is-you img") as HTMLImageElement;
     const oppImg = container.querySelector(
       ".va-roster-row:not(.is-you):not(.is-open) img",
     ) as HTMLImageElement;
-    expect(youImg?.getAttribute("src")).toContain("checker-red");
-    expect(oppImg?.getAttribute("src")).toContain("checker-blue");
+    expect(youImg?.getAttribute("src")).toContain("checker-orange"); // viewer is side b → orange
+    expect(oppImg?.getAttribute("src")).toContain("checker-green"); // opponent side a → green
+    // The two open seats carry the unused palette colours.
+    const open = [...container.querySelectorAll(".va-roster-row.is-open img")].map(
+      (i) => i.getAttribute("src"),
+    );
+    expect(open.join(" ")).toContain("checker-red");
+    expect(open.join(" ")).toContain("checker-blue");
   });
 
   it("renders a link back to the lobby", () => {

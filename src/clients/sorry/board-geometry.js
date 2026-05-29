@@ -135,6 +135,22 @@ export function boardRotation(youAre) {
   return youAre === "a" ? 180 : 0;
 }
 
+// Palette order, also the fallback assignment for legacy games (a→red, b→blue).
+export const SORRY_PALETTE_ORDER = ["red", "blue", "green", "orange"];
+
+// Colour the four drawn seats from the per-engine-side assignment. The board is
+// drawn in a fixed frame — engine a is the top seat, engine b the bottom — and
+// boardRotation (CSS) is what swings the viewer's side to the screen bottom, so
+// seat colour follows engine side, not the viewer. The two unused palette
+// colours decorate the right and left seats. Legacy games (no colors) fall back
+// to red (a) / blue (b).
+export function seatColors(colors) {
+  const c = colors ?? { a: "red", b: "blue" };
+  const used = [c.a, c.b];
+  const decor = SORRY_PALETTE_ORDER.filter((n) => !used.includes(n));
+  return { top: c.a, bottom: c.b, right: decor[0], left: decor[1] };
+}
+
 // Convert an absolute pixel point to a percentage of the board, so the overlay
 // scales with the responsive <img>.
 export function toPct({ x, y }) {
