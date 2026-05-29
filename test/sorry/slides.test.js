@@ -184,3 +184,40 @@ test('contract: each bumped entry carries a valid side and a pawnId', () => {
     assert.equal(typeof entry.pawnId, 'number');
   }
 });
+
+// =========================================================================
+// 4-edge slides — the decorative side seats (green/orange) carry real slides.
+// They are owned by an absent player, so they are foreign to BOTH live colours
+// and fire for either one landing on them.
+// =========================================================================
+
+const GREEN_SLIDE = SLIDES.green[0]; // right edge: { start: 19, length: 5 }
+const ORANGE_SLIDE = SLIDES.orange[0]; // left edge: { start: 49, length: 5 }
+
+test('4EDGE: SLIDES has green (right) and orange (left) edges', () => {
+  assert.deepEqual(SLIDES.green, [{ start: 19, length: 5 }, { start: 24, length: 4 }]);
+  assert.deepEqual(SLIDES.orange, [{ start: 49, length: 5 }, { start: 54, length: 4 }]);
+});
+
+test('4EDGE: side a landing on a green slide start slides to its end', () => {
+  const result = resolveLanding({ pawns: makePawns(), side: 'a', landingIndex: GREEN_SLIDE.start });
+  assert.equal(result.finalIndex, slideEnd(GREEN_SLIDE)); // 19 -> 24
+});
+
+test('4EDGE: side b ALSO slides on a green slide (fires for both live colours)', () => {
+  const result = resolveLanding({ pawns: makePawns(), side: 'b', landingIndex: GREEN_SLIDE.start });
+  assert.equal(result.finalIndex, slideEnd(GREEN_SLIDE));
+});
+
+test('4EDGE: side a landing on an orange slide start slides to its end', () => {
+  const result = resolveLanding({ pawns: makePawns(), side: 'a', landingIndex: ORANGE_SLIDE.start });
+  assert.equal(result.finalIndex, slideEnd(ORANGE_SLIDE)); // 49 -> 54
+});
+
+test('4EDGE: a side-edge slide sweeps and bumps an opponent pawn in its path', () => {
+  const mid = GREEN_SLIDE.start + 2; // inside the 19..24 swept range
+  const pawns = makePawns({ b: [{ id: 1, zone: 'track', index: mid }] });
+  const result = resolveLanding({ pawns, side: 'a', landingIndex: GREEN_SLIDE.start });
+  assert.equal(result.finalIndex, slideEnd(GREEN_SLIDE));
+  assert.deepEqual(result.bumped.map((x) => `${x.side}:${x.pawnId}`), ['b:1']);
+});
