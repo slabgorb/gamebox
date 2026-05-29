@@ -25,6 +25,16 @@ const PLUGIN_VARIANTS = {
     { variant: 'scrabble', label: 'Scrabble rules' },
   ],
 };
+// Games where the creator picks their checker colour (the opponent takes the
+// contrast; see plugins/sorry/server/colors.js). Hex mirrors the board palette.
+const PLUGIN_COLORS = {
+  sorry: [
+    { color: 'red',    label: 'Red',    hex: '#b8332a' },
+    { color: 'blue',   label: 'Blue',   hex: '#2c647f' },
+    { color: 'green',  label: 'Green',  hex: '#3e9a5c' },
+    { color: 'orange', label: 'Orange', hex: '#d4863a' },
+  ],
+};
 
 let DISPLAY_NAMES = {};
 function displayName(gameType) { return DISPLAY_NAMES[gameType] ?? gameType; }
@@ -314,13 +324,43 @@ function wireNewGame(me, plugins) {
         </span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
       btn.onclick = () => {
-        if (PLUGIN_VARIANTS[p.id]) {
-          showVariantStep(opponent, p, plugins);
-        } else if (opponent.isBot) {
-          showPersonaStep(opponent, p.id, null);
-        } else {
-          startGame(opponent, p.id, null);
-        }
+        if (PLUGIN_VARIANTS[p.id]) showVariantStep(opponent, p, plugins);
+        else proceedAfterRules(opponent, p.id, null, plugins);
+      };
+      li.appendChild(btn);
+      stepsEl.appendChild(li);
+    }
+  }
+
+  // After rules (variant) are settled: pick a checker colour if the game offers
+  // one, then a persona for bots, otherwise create the game.
+  function proceedAfterRules(opponent, gameType, variant, plugins) {
+    if (PLUGIN_COLORS[gameType]) showColorStep(opponent, gameType, variant, plugins);
+    else if (opponent.isBot) showPersonaStep(opponent, gameType, variant, null);
+    else startGame(opponent, gameType, variant, null, null);
+  }
+
+  function showColorStep(opponent, gameType, variant, plugins) {
+    titleEl.textContent = `${displayName(gameType)} — pick your colour`;
+    stepsEl.innerHTML = `<div class="ng-step">Choose your checker colour</div>`;
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'ng-back';
+    back.textContent = 'back';
+    back.onclick = () => showGameStep(opponent, plugins);
+    stepsEl.appendChild(back);
+    for (const c of PLUGIN_COLORS[gameType]) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ng-tile';
+      btn.innerHTML = `
+        <span class="ng-mono" style="background:${escapeAttr(c.hex)};margin-left:16px"></span>
+        <span class="ng-body"><span class="ng-name">${escapeHtml(c.label)}</span></span>
+        <span class="ng-chev" aria-hidden="true">›</span>`;
+      btn.onclick = () => {
+        if (opponent.isBot) showPersonaStep(opponent, gameType, variant, c.color);
+        else startGame(opponent, gameType, variant, null, c.color);
       };
       li.appendChild(btn);
       stepsEl.appendChild(li);
@@ -345,19 +385,13 @@ function wireNewGame(me, plugins) {
         <span class="ng-art">${boxArt(plugin.id, v.variant)}</span>
         <span class="ng-body" style="padding-left:0"><span class="ng-name">${escapeHtml(v.label)}</span></span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
-      btn.onclick = () => {
-        if (opponent.isBot) {
-          showPersonaStep(opponent, plugin.id, v.variant);
-        } else {
-          startGame(opponent, plugin.id, v.variant);
-        }
-      };
+      btn.onclick = () => proceedAfterRules(opponent, plugin.id, v.variant, plugins);
       li.appendChild(btn);
       stepsEl.appendChild(li);
     }
   }
 
-  async function showPersonaStep(opponent, gameType, variant) {
+  async function showPersonaStep(opponent, gameType, variant, color = null) {
     titleEl.textContent = `Choose your AI opponent`;
     stepsEl.innerHTML = `<div class="ng-step">Final step — pick a persona</div>`;
     const back = document.createElement('button');
@@ -376,16 +410,17 @@ function wireNewGame(me, plugins) {
         <span class="ng-mono"${p.glyph ? ` data-glyph="${escapeAttr(p.glyph)}"` : ''} style="background:${escapeAttr(p.color || '#888')};margin-left:16px">${escapeHtml(avatarInitial(p.displayName))}</span>
         <span class="ng-body"><span class="ng-name">${escapeHtml(p.displayName)}</span></span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
-      btn.onclick = () => startGame(opponent, gameType, variant, p.id);
+      btn.onclick = () => startGame(opponent, gameType, variant, p.id, color);
       li.appendChild(btn);
       stepsEl.appendChild(li);
     }
   }
 
-  async function startGame(opponent, gameType, variant, personaId = null) {
+  async function startGame(opponent, gameType, variant, personaId = null, color = null) {
     const body = { opponentId: opponent.id, gameType };
     if (variant) body.variant = variant;
     if (personaId) body.personaId = personaId;
+    if (color) body.color = color;
     const r = await fetch('/api/games', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
