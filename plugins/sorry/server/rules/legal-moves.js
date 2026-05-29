@@ -1,35 +1,35 @@
-import { path, START_EXIT } from '../geometry.js';
+import { START_EXIT, SAFETY_ENTRY, TRACK_LEN } from '../geometry.js';
 
-// Resolve a pawn's current position to its index within its side's path()
-// list. Start pawns sit "before" the path (index -1).
-function pathPos(side, pawn) {
-  if (pawn.zone === 'start') return -1;
-  const p = path(side);
-  if (pawn.zone === 'track') return p.indexOf(pawn.index);
-  if (pawn.zone === 'safety') return p.indexOf(`${side}-safe-${pawn.index}`);
-  if (pawn.zone === 'home') return p.length - 1;
-  return -1;
+// One physical step along the absolute 60-square loop (dir = +1 forward, -1
+// backward). Forward diverts into Safety at the side's safety mouth and ends at
+// Home; Safety is a one-way lane (no backing out). Returns null for an illegal
+// step: overshooting past Home, or moving backward out of Safety/Home.
+function step(side, loc, dir) {
+  if (dir > 0) {
+    if (loc.zone === 'home') return null; // already Home — cannot advance
+    if (loc.zone === 'safety') {
+      return loc.index === 4 ? { zone: 'home', index: 0 } : { zone: 'safety', index: loc.index + 1 };
+    }
+    // track: if currently on the safety-entry square, a forward step enters the Safety lane.
+    if (loc.index === SAFETY_ENTRY[side]) return { zone: 'safety', index: 0 };
+    return { zone: 'track', index: (loc.index + 1) % TRACK_LEN };
+  }
+  // backward
+  if (loc.zone !== 'track') return null; // Safety/Home are forward-only
+  return { zone: 'track', index: (loc.index - 1 + TRACK_LEN) % TRACK_LEN };
 }
 
-// Map a physical path square id back to a tagged location.
-function squareToLoc(sq) {
-  if (typeof sq === 'number') return { zone: 'track', index: sq };
-  if (sq.endsWith('-home')) return { zone: 'home', index: 0 };
-  const m = sq.match(/-safe-(\d)$/);
-  if (m) return { zone: 'safety', index: Number(m[1]) };
-  return null;
-}
-
-// Advance `steps` (may be negative) along the path from a pawn; return the
-// destination loc, or null if it would overshoot Home or fall off the path
-// start. Exactly landing on Home (last path index) is legal.
+// Advance `steps` (may be negative) along the loop from a pawn; return the
+// destination loc, or null if any step is illegal. Only called for track/safety
+// pawns (Start pawns move via the `out` move, never through here).
 function advance(side, pawn, steps) {
-  const p = path(side);
-  const pos = pathPos(side, pawn);
-  const target = pos + steps;
-  if (target < 0) return null; // backward off the track / out of start
-  if (target > p.length - 1) return null; // overshoot Home
-  return squareToLoc(p[target]);
+  let loc = { zone: pawn.zone, index: pawn.index };
+  const dir = steps >= 0 ? 1 : -1;
+  for (let i = 0; i < Math.abs(steps); i++) {
+    loc = step(side, loc, dir);
+    if (loc === null) return null;
+  }
+  return loc;
 }
 
 function ownTrackOrSafety(pawns, side) {

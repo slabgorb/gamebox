@@ -131,12 +131,14 @@ test('AC4: card 4 moves a track pawn backward 4', () => {
   assert.deepEqual(back.to, { zone: 'track', index: 6 });
 });
 
-test('AC4: a pawn whose -4 destination falls before the path start gets no move', () => {
+test('AC4: card 4 backs a pawn at its start-exit around the loop into the dead zone', () => {
   const s = baseState({ drawnCard: 4 });
-  // Track square 4 == startExit, which is path position 0; -4 underflows.
-  s.pawns.a[0] = { id: 0, zone: 'track', index: 4 };
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 4 }; // start exit; -4 wraps behind Start
   const moves = legalMoves(s);
-  assert.equal(moves.find((m) => m.pawnId === 0), undefined, 'no backward move off the path start');
+  const back = moves.find((m) => m.pawnId === 0 && m.kind === 'back');
+  assert.ok(back, 'expected a back move that wraps the loop');
+  // 4 → 3 → 2 → 1 → 0: lands on square 0, one short of the safety mouth (sq 1).
+  assert.deepEqual(back.to, { zone: 'track', index: 0 });
 });
 
 // =========================================================================
@@ -158,17 +160,14 @@ test('AC5: card 10 offers both a forward-10 and a back-1 for a track pawn', () =
   assert.deepEqual(back.to, { zone: 'track', index: PA[idxOf(20) - 1] }); // square 19
 });
 
-test('AC5: card 10 omits the back-1 when it would underflow the path start', () => {
+test('AC5: card 10 back-1 from the start-exit lands in the dead zone behind Start', () => {
   const s = baseState({ drawnCard: 10 });
-  s.pawns.a[0] = { id: 0, zone: 'track', index: 4 }; // path position 0
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 4 };
   const moves = legalMoves(s);
-  assert.equal(
-    moves.find((m) => m.pawnId === 0 && m.kind === 'back'),
-    undefined,
-    'back-1 underflows position 0 → absent',
-  );
-  // forward-10 is still legal.
-  assert.ok(moves.find((m) => m.pawnId === 0 && m.kind === 'forward'));
+  const back = moves.find((m) => m.pawnId === 0 && m.kind === 'back');
+  assert.ok(back, 'expected a back-1 move');
+  assert.deepEqual(back.to, { zone: 'track', index: 3 }); // 4 → 3 (dead zone)
+  assert.ok(moves.find((m) => m.pawnId === 0 && m.kind === 'forward'), 'forward-10 still legal');
 });
 
 // =========================================================================
@@ -301,4 +300,68 @@ test('AC9: a pawn already at Home never produces a move', () => {
   s.pawns.a = s.pawns.a.map((p) => ({ ...p, zone: 'home', index: 0 }));
   const moves = legalMoves(s);
   assert.deepEqual(moves, [], 'all pawns home → no moves');
+});
+
+// =========================================================================
+// True 60-loop movement: backward wraps the loop; Safety is forward-only.
+// =========================================================================
+
+test('LOOP: card 4 wraps side b around its start-exit too', () => {
+  const s = baseState({ drawnCard: 4, currentPlayer: 'b' });
+  s.pawns.b[0] = { id: 0, zone: 'track', index: 34 }; // b start exit
+  const moves = legalMoves(s);
+  const back = moves.find((m) => m.pawnId === 0 && m.kind === 'back');
+  assert.ok(back, 'expected a wrap-back move for side b');
+  // 34 → 33 → 32 → 31 → 30: one short of b's safety mouth (sq 31).
+  assert.deepEqual(back.to, { zone: 'track', index: 30 });
+});
+
+test('LOOP: from square 0 a forward-2 dives through the mouth into Safety', () => {
+  const s = baseState({ drawnCard: 2 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 0 };
+  const moves = legalMoves(s);
+  const fwd = moves.find((m) => m.pawnId === 0 && m.kind === 'forward');
+  assert.ok(fwd, 'expected a forward move');
+  assert.deepEqual(fwd.to, { zone: 'safety', index: 0 }); // 0 → 1(mouth) → safe-0
+});
+
+test('LOOP: a pawn parked in the dead zone moves forward along the track, not into Safety', () => {
+  const s = baseState({ drawnCard: 5 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 3 }; // dead zone behind Start
+  const moves = legalMoves(s);
+  const fwd = moves.find((m) => m.pawnId === 0 && m.kind === 'forward');
+  assert.ok(fwd, 'expected a forward move');
+  assert.deepEqual(fwd.to, { zone: 'track', index: 8 }); // 3→4→5→6→7→8, never crosses mouth (sq 1)
+});
+
+test('LOOP: a pawn already in Safety cannot move backward on card 4', () => {
+  const s = baseState({ drawnCard: 4 });
+  s.pawns.a[0] = { id: 0, zone: 'safety', index: 2 };
+  const moves = legalMoves(s);
+  assert.equal(moves.find((m) => m.pawnId === 0 && m.kind === 'back'), undefined, 'Safety is forward-only');
+});
+
+test('LOOP: card 10 offers no back-1 for a Safety pawn', () => {
+  const s = baseState({ drawnCard: 10 });
+  s.pawns.a[0] = { id: 0, zone: 'safety', index: 1 };
+  const moves = legalMoves(s);
+  assert.equal(moves.find((m) => m.pawnId === 0 && m.kind === 'back'), undefined, 'no back-out of Safety');
+});
+
+test('LOOP: backward from the safety-entry square wraps on the track (no backward divert)', () => {
+  const s = baseState({ drawnCard: 10 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 1 }; // a's safety-entry square
+  const moves = legalMoves(s);
+  const back = moves.find((m) => m.pawnId === 0 && m.kind === 'back');
+  assert.ok(back, 'expected a back-1 move');
+  assert.deepEqual(back.to, { zone: 'track', index: 0 }); // 1 → 0, stays on track
+});
+
+test('LOOP: a multi-step forward that crosses the mouth still dives into Safety', () => {
+  const s = baseState({ drawnCard: 5 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 58 }; // 58→59→0→1(mouth)→safe-0→safe-1
+  const moves = legalMoves(s);
+  const fwd = moves.find((m) => m.pawnId === 0 && m.kind === 'forward');
+  assert.ok(fwd, 'expected a forward move');
+  assert.deepEqual(fwd.to, { zone: 'safety', index: 1 });
 });
