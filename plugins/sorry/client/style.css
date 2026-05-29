@@ -60,7 +60,13 @@ body::before {
   aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%);
   z-index: 3;
-  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, 0.55));
+  /* Double outline (dark edge + light halo) keeps a pawn visible on ANY
+     background — including its own-colour safety lane or home star, where a
+     same-colour checker would otherwise vanish — plus a soft depth shadow. */
+  filter:
+    drop-shadow(0 0 1px rgba(26, 18, 8, 0.95))
+    drop-shadow(0 0 2px rgba(255, 250, 235, 0.95))
+    drop-shadow(0 3px 2px rgba(0, 0, 0, 0.5));
   pointer-events: none;
 }
 .pawn-svg {
