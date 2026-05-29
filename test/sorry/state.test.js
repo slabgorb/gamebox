@@ -51,6 +51,16 @@ test('initial state places 4 pawns per side in Start and draws the first card', 
   assert.equal(s.activeUserId, 11);
 });
 
+test('defaults checker colors to red (a) / blue (b) when none are supplied', () => {
+  const s = buildInitialState({ participants, rng: () => 0 });
+  assert.deepEqual(s.colors, { a: 'red', b: 'blue' });
+});
+
+test('stores a supplied colors map verbatim', () => {
+  const s = buildInitialState({ participants, rng: () => 0, colors: { a: 'green', b: 'orange' } });
+  assert.deepEqual(s.colors, { a: 'green', b: 'orange' });
+});
+
 test('initial pawns are uniquely identified within a side', () => {
   const s = buildInitialState({ participants });
   const aIds = s.pawns.a.map((p) => p.id);

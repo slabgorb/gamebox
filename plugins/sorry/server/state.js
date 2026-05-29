@@ -3,7 +3,7 @@ import { buildDeck, draw } from './deck.js';
 // The host engine calls this as initialState({ participants, rng, variant }) —
 // `rng` is a top-level key (see src/server/routes.js and the cribbage/buraco/words
 // plugins). Accept it at the top level so game creation uses the engine's seeded rng.
-export function buildInitialState({ participants, rng = Math.random } = {}) {
+export function buildInitialState({ participants, rng = Math.random, colors } = {}) {
   if (!Array.isArray(participants) || participants.length !== 2) {
     throw new Error('sorry requires exactly 2 participants');
   }
@@ -22,6 +22,9 @@ export function buildInitialState({ participants, rng = Math.random } = {}) {
   // will pass — no silent settling.
   return {
     sides: { a: pA.userId, b: pB.userId },
+    // Per-side checker colour (see colors.js). Defaults to the classic red/blue
+    // when the create flow doesn't supply a pick.
+    colors: colors ?? { a: 'red', b: 'blue' },
     pawns: { a: mkPawns(), b: mkPawns() },
     deck,
     discard,

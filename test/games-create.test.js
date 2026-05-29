@@ -7,10 +7,11 @@ import { mountRoutes } from '../src/server/routes.js';
 
 const stubPlugin = {
   id: 'stub', displayName: 'Stub', players: 2, clientDir: 'x',
-  initialState: ({ participants }) => ({
+  initialState: ({ participants, colors }) => ({
     activeUserId: participants[0].userId,
     sides: { a: participants.find(p => p.side === 'a').userId, b: participants.find(p => p.side === 'b').userId },
     seeded: true,
+    colors,
   }),
   applyAction: ({ state }) => ({ state, ended: false }),
   publicView: ({ state }) => state,
@@ -44,6 +45,49 @@ async function call(server, method, path, body, headers = {}) {
   const text = await res.text();
   return { status: res.status, body: text ? JSON.parse(text) : null };
 }
+
+test('threads the creator-chosen colour to their side, opponent takes the contrast', async () => {
+  const { server, db } = await setup();
+  try {
+    // user 1 < user 2, so the creator (user 1) is side a.
+    const r = await call(server, 'POST', '/api/games',
+      { opponentId: 2, gameType: 'stub', color: 'green' }, { 'x-test-user-id': '1' });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const state = JSON.parse(db.prepare('SELECT state FROM games WHERE id = ?').get(r.body.id).state);
+    assert.deepEqual(state.colors, { a: 'green', b: 'orange' }, 'creator (a) green, opponent (b) contrast');
+  } finally { server.close(); }
+});
+
+test('assigns the chosen colour to the creator even when they are side b', async () => {
+  const { server, db } = await setup();
+  try {
+    // user 2 > user 1, so the creator (user 2) is side b.
+    const r = await call(server, 'POST', '/api/games',
+      { opponentId: 1, gameType: 'stub', color: 'green' }, { 'x-test-user-id': '2' });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const state = JSON.parse(db.prepare('SELECT state FROM games WHERE id = ?').get(r.body.id).state);
+    assert.deepEqual(state.colors, { a: 'orange', b: 'green' }, 'creator (b) green, opponent (a) contrast');
+  } finally { server.close(); }
+});
+
+test('defaults colour to red(creator)/blue(opponent) when none is chosen', async () => {
+  const { server, db } = await setup();
+  try {
+    const r = await call(server, 'POST', '/api/games',
+      { opponentId: 2, gameType: 'stub' }, { 'x-test-user-id': '1' });
+    const state = JSON.parse(db.prepare('SELECT state FROM games WHERE id = ?').get(r.body.id).state);
+    assert.deepEqual(state.colors, { a: 'red', b: 'blue' });
+  } finally { server.close(); }
+});
+
+test('rejects an unknown checker colour', async () => {
+  const { server } = await setup();
+  try {
+    const r = await call(server, 'POST', '/api/games',
+      { opponentId: 2, gameType: 'stub', color: 'chartreuse' }, { 'x-test-user-id': '1' });
+    assert.equal(r.status, 400);
+  } finally { server.close(); }
+});
 
 test('POST /api/games creates a game with plugin initialState', async () => {
   const { server, db } = await setup();

@@ -6,6 +6,7 @@ import { writeGameState } from './state.js';
 import { getPlugin } from './plugins.js';
 import { appendTurnEntry, listTurnEntries } from './history.js';
 import { createAiSession, getAiSession, clearStall, appendUserMessage } from './ai/agent-session.js';
+import { isSorryColor, CONTRAST } from '../../plugins/sorry/server/colors.js';
 
 export function mountRoutes(app, { db, registry, sse, ai = null }) {
   // Game-scoped middleware: validate id, load game, check membership.
@@ -86,7 +87,7 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
   });
 
   app.post('/api/games', requireIdentity, (req, res) => {
-    const { opponentId, gameType, variant } = req.body ?? {};
+    const { opponentId, gameType, variant, color } = req.body ?? {};
     if (!Number.isInteger(opponentId) || opponentId === req.user.id) {
       return res.status(400).json({ error: 'invalid opponentId' });
     }
@@ -95,6 +96,9 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     }
     if (variant !== undefined && typeof variant !== 'string') {
       return res.status(400).json({ error: 'invalid variant' });
+    }
+    if (color !== undefined && !isSorryColor(color)) {
+      return res.status(400).json({ error: 'invalid color' });
     }
     const opponentRow = db.prepare('SELECT id, is_bot FROM users WHERE id = ?').get(opponentId);
     if (!opponentRow) return res.status(400).json({ error: 'opponent not on roster' });
@@ -119,9 +123,17 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
       { userId: bId, side: 'b' },
     ];
 
+    // The creator picks their own checker colour; the opponent takes the
+    // contrast. Sides are assigned by user-id order (a = lower id), so map the
+    // pick onto whichever side the creator landed on.
+    const creatorSide = req.user.id === aId ? 'a' : 'b';
+    const opponentSide = creatorSide === 'a' ? 'b' : 'a';
+    const pick = color ?? 'red';
+    const colors = { [creatorSide]: pick, [opponentSide]: CONTRAST[pick] };
+
     let initialState;
     try {
-      initialState = plugin.initialState({ participants, rng: makeRng(Date.now()), variant });
+      initialState = plugin.initialState({ participants, rng: makeRng(Date.now()), variant, colors });
     } catch (err) {
       return res.status(500).json({ error: `initialState failed: ${err.message}` });
     }
