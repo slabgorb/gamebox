@@ -36,6 +36,18 @@ function ownTrackOrSafety(pawns, side) {
   return pawns[side].filter((p) => p.zone === 'track' || p.zone === 'safety');
 }
 
+// True if one of `side`'s pawns (other than the movers in `exclude`) sits on
+// track square `index`. Sorry! forbids a pawn from LANDING on a square one of
+// its own pawns holds (self-capture); the moving pawn(s) vacate their own
+// square, so they are excluded. This guards only the direct landing square — a
+// slide that sweeps your own pawns elsewhere still bumps them (resolveLanding),
+// which is a separate, legal mechanic.
+function ownAt(pawns, side, index, exclude) {
+  return pawns[side].some(
+    (p) => p.zone === 'track' && p.index === index && !exclude.includes(p.id),
+  );
+}
+
 // Enumerate every legal move for the side to move, given the drawn card.
 // Pure: never mutates state, applies moves, resolves slides, or draws cards.
 export function legalMoves(state) {
@@ -47,13 +59,17 @@ export function legalMoves(state) {
 
   const pushForward = (pawn, steps, kind = 'forward') => {
     const to = advance(side, pawn, steps);
-    if (to) moves.push({ id: `${kind}:${pawn.id}:${steps}`, kind, pawnId: pawn.id, steps, to });
+    if (!to) return;
+    if (to.zone === 'track' && ownAt(state.pawns, side, to.index, [pawn.id])) return; // no self-capture
+    moves.push({ id: `${kind}:${pawn.id}:${steps}`, kind, pawnId: pawn.id, steps, to });
   };
 
   // Out of Start (cards 1 and 2 only).
   if (card === 1 || card === 2) {
     for (const pawn of mine) {
       if (pawn.zone === 'start') {
+        // Can't come out onto a square one of your own pawns already holds.
+        if (ownAt(state.pawns, side, START_EXIT[side], [pawn.id])) continue;
         moves.push({
           id: `out:${pawn.id}`,
           kind: 'out',
@@ -96,16 +112,21 @@ export function legalMoves(state) {
           if (p1.id === p2.id) continue;
           const to1 = advance(side, p1, s);
           const to2 = advance(side, p2, other);
-          if (to1 && to2) {
-            moves.push({
-              id: `split:${p1.id}:${s}:${p2.id}:${other}`,
-              kind: 'split',
-              legs: [
-                { pawnId: p1.id, steps: s, to: to1 },
-                { pawnId: p2.id, steps: other, to: to2 },
-              ],
-            });
-          }
+          if (!to1 || !to2) continue;
+          // Neither leg may land on a non-mover own pawn, and the two legs may
+          // not stack on the same track square (the two movers vacate their own).
+          const exclude = [p1.id, p2.id];
+          if (to1.zone === 'track' && ownAt(state.pawns, side, to1.index, exclude)) continue;
+          if (to2.zone === 'track' && ownAt(state.pawns, side, to2.index, exclude)) continue;
+          if (to1.zone === 'track' && to2.zone === 'track' && to1.index === to2.index) continue;
+          moves.push({
+            id: `split:${p1.id}:${s}:${p2.id}:${other}`,
+            kind: 'split',
+            legs: [
+              { pawnId: p1.id, steps: s, to: to1 },
+              { pawnId: p2.id, steps: other, to: to2 },
+            ],
+          });
         }
       }
     }

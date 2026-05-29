@@ -365,3 +365,51 @@ test('LOOP: a multi-step forward that crosses the mouth still dives into Safety'
   assert.ok(fwd, 'expected a forward move');
   assert.deepEqual(fwd.to, { zone: 'safety', index: 1 });
 });
+
+// =========================================================================
+// Self-capture is illegal — a pawn may not LAND on a square one of its own
+// pawns holds. (Slides that sweep your own pawns elsewhere still bump them —
+// that legal mechanic lives in resolveLanding and is covered in slides.test.)
+// =========================================================================
+
+test('OWN: a forward move may not land on a square occupied by your own pawn', () => {
+  const s = baseState({ drawnCard: 3 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 10 };
+  s.pawns.a[1] = { id: 1, zone: 'track', index: 13 }; // 10 + 3 lands here
+  const moves = legalMoves(s);
+  assert.equal(moves.find((m) => m.id === 'forward:0:3'), undefined, 'no self-capture');
+  assert.ok(moves.find((m) => m.id === 'forward:1:3'), 'the other pawn can still move to an empty square');
+});
+
+test('OWN: a backward move may not land on your own pawn either', () => {
+  const s = baseState({ drawnCard: 4 }); // back 4
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 10 };
+  s.pawns.a[1] = { id: 1, zone: 'track', index: 6 }; // 10 - 4 lands here
+  const moves = legalMoves(s);
+  assert.equal(moves.find((m) => m.pawnId === 0 && m.kind === 'back'), undefined, 'no backward self-capture');
+});
+
+test('OWN: out is blocked when your own pawn sits on the start-exit square', () => {
+  const s = baseState({ drawnCard: 1 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: START_EXIT.a }; // occupies the exit
+  const moves = legalMoves(s);
+  assert.equal(moves.find((m) => m.kind === 'out'), undefined, 'cannot come out onto your own pawn');
+  assert.ok(moves.find((m) => m.id === 'forward:0:1'), 'the pawn already out can still advance');
+});
+
+test('OWN: a card-7 split leg may not land on a non-mover own pawn', () => {
+  const s = baseState({ drawnCard: 7 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 10 };
+  s.pawns.a[1] = { id: 1, zone: 'track', index: 20 };
+  s.pawns.a[2] = { id: 2, zone: 'track', index: 13 }; // pawn 0's +3 leg would land here
+  const moves = legalMoves(s);
+  // The (pawn 0 +3, pawn 1 +4) split lands pawn 0 on non-mover pawn 2 → illegal.
+  const illegal = moves.find(
+    (m) => m.kind === 'split' &&
+      m.legs.some((l) => l.pawnId === 0 && l.steps === 3) &&
+      m.legs.some((l) => l.pawnId === 1),
+  );
+  assert.equal(illegal, undefined, 'a split leg cannot self-capture a non-mover pawn');
+  // Splits in general are still offered (e.g. pairing 0 with 2, which vacates 13).
+  assert.ok(moves.some((m) => m.kind === 'split'), 'other splits remain legal');
+});
