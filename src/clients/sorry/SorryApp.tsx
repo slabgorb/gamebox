@@ -215,7 +215,7 @@ export function SorryApp() {
           className={`sorry-endbanner ${view.youAre === view.winner ? "win" : "lose"}`}
           role="status"
         >
-          {view.youAre === view.winner ? "You win!" : "You lose — defeat."}
+          {view.youAre === view.winner ? "You win!" : "Sorry!"}
         </div>
       )}
     </div>

@@ -176,17 +176,19 @@ describe("SorryApp", () => {
   });
 
   // AC #5 — lose banner when the opponent is the winner.
-  it("shows a LOSE banner when the opponent is the winner", () => {
+  it("shows a LOSE banner reading 'Sorry!' when the opponent is the winner", () => {
     h.view = baseView({ winner: "b", youAre: "a" });
-    render(<SorryApp />);
-    expect(screen.getByText(/you lose|defeat/i)).toBeInTheDocument();
+    const { container } = render(<SorryApp />);
+    const banner = container.querySelector(".sorry-endbanner.lose");
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toBe("Sorry!");
   });
 
   // AC #5 — no end banner while the game is still in progress.
   it("shows no end banner while winner is null", () => {
     h.view = baseView({ winner: null, youAre: "a" });
-    render(<SorryApp />);
+    const { container } = render(<SorryApp />);
     expect(screen.queryByText(/you win/i)).toBeNull();
-    expect(screen.queryByText(/you lose|defeat/i)).toBeNull();
+    expect(container.querySelector(".sorry-endbanner")).toBeNull();
   });
 });
