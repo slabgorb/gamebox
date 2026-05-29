@@ -52,17 +52,21 @@ export function trackCell(index) {
   return { row: 60 - i, col: 0 };
 }
 
+// Canonical pinwheel seats (see ._mock_gen_reference.js): one reference side
+// rotated 90°×k. The two live engine sides sit on opposite top/bottom edges —
+// engine a is the TOP seat (reference, k=0), engine b the BOTTOM seat (the same
+// furniture rotated 180° about the board centre, row→15-row / col→15-col).
+//
 // Safety lanes run inward toward Home, matching Board4P.tsx's drawn cells:
-//   a — down column 1 (rows 2..6); b — up column 14 (rows 13..9).
+//   a — down column 1 (rows 1..5, entry→home); b — up column 14 (rows 14..10).
 const SAFETY_CELL = {
-  a: (idx) => ({ row: 2 + idx, col: 1 }),
-  b: (idx) => ({ row: 13 - idx, col: GRID - 2 }),
+  a: (idx) => ({ row: 1 + idx, col: 1 }),
+  b: (idx) => ({ row: 14 - idx, col: 14 }),
 };
-// Home sits just past the last safety square (Board4P HOME a/c).
-export const HOME_CELL = { a: { row: 7.5, col: 1 }, b: { row: 8.5, col: GRID - 2 } };
-// Start pens are interior clusters in diagonally opposite quadrants
-// (Board4P START a/c).
-export const START_CENTER = { a: { row: 2.5, col: 4 }, b: { row: 13.5, col: 11 } };
+// Home sits just past the last safety square (Board4P HOME a/b).
+export const HOME_CELL = { a: { row: 6.6, col: 1 }, b: { row: 8.4, col: 14 } };
+// Start pens are interior clusters near each seat's corner (Board4P START a/b).
+export const START_CENTER = { a: { row: 2.6, col: 4 }, b: { row: 12.4, col: 11 } };
 
 // The five safety cells for a live side, in entry→home order. Exposed so the
 // drift guard can assert these stay aligned with Board4P.tsx's drawn cells.

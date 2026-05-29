@@ -14,11 +14,8 @@ export interface BoardProps {
 
 const SIDES: SorrySide[] = ["a", "b"];
 
-// Live sides map onto two diagonally opposite quadrants of the 4-player board.
-const SIDE_CHECKER: Record<SorrySide, string> = {
-  a: "assets/checker-red.png",
-  b: "assets/checker-blue.png",
-};
+const CHECKER_RED = "assets/checker-red.png";
+const CHECKER_BLUE = "assets/checker-blue.png";
 
 // The source pawn a move acts on (split moves carry it on their first leg).
 function movePawnId(move: LegalMove): number | undefined {
@@ -34,6 +31,16 @@ export function Board({ view, onPick }: BoardProps) {
   // bottom. The board is drawn into board-geometry's coordinate space; rotating
   // the wrapper leaves that math untouched.
   const rotation = boardRotation(view.youAre);
+
+  // Viewer-relative colour: the human is always red at the bottom. The viewer's
+  // engine side gets the red checker, the opponent blue. A spectator (no seat)
+  // sees the bottom seat (engine b) as red.
+  const redSide: SorrySide = view.youAre ?? "b";
+  const checkerFor = (side: SorrySide) =>
+    side === redSide ? CHECKER_RED : CHECKER_BLUE;
+  // Engine a is drawn at the top seat, b at the bottom — so the red seat is the
+  // viewer's drawn position. Board4P paints that seat red to match the pawns.
+  const redSeat = redSide === "a" ? "top" : "bottom";
 
   // Pawns that can move this turn — ringed so it's obvious which pieces are live.
   const movableIds = new Set(
@@ -55,7 +62,7 @@ export function Board({ view, onPick }: BoardProps) {
 
   return (
     <div className="board-surface" style={{ transform: `rotate(${rotation}deg)` }}>
-      <Board4P rotation={rotation} />
+      <Board4P rotation={rotation} redSeat={redSeat} />
 
       {/* Live pawns — every pawn of both sides, placed from the public view.
           Parked pawns (start/home) are laid out as a centred cluster keyed to
@@ -84,7 +91,7 @@ export function Board({ view, onPick }: BoardProps) {
               data-index={pawn.index}
               style={{ left: pos.left, top: pos.top }}
             >
-              <img className="pawn-svg" src={SIDE_CHECKER[side]} alt="" draggable={false} />
+              <img className="pawn-svg" src={checkerFor(side)} alt="" draggable={false} />
             </div>
           );
         });

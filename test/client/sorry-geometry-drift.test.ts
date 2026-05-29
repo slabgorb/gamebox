@@ -13,11 +13,11 @@ import {
 // Drift guard for the "KEEP THESE CONSTANTS IN SYNC" contract between the drawn
 // board (Board4P.tsx) and the pawn overlay geometry (board-geometry.js).
 //
-// The engine is 2-player (sides a, b); those map onto two diagonally opposite
-// drawn quadrants: engine a → visual a (red, top-left), engine b → visual c
-// (blue, bottom-right). If START/HOME/SAFETY cells ever drift apart, pawns and
-// hotspots land off their drawn circles — exactly the misalignment this checks.
-const LIVE_MAP = { a: "a", b: "c" } as const;
+// The canonical pinwheel seats the two live engine sides on opposite edges:
+// engine a → the TOP seat (blue, opponent), engine b → the BOTTOM seat (red,
+// you). If START/HOME/SAFETY cells ever drift apart, pawns and hotspots land off
+// their drawn circles — exactly the misalignment this checks.
+const LIVE_MAP = { a: "top", b: "bottom" } as const;
 
 describe("Sorry board geometry drift guard", () => {
   for (const [engineSide, visualSide] of Object.entries(LIVE_MAP)) {

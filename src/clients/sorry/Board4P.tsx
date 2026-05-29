@@ -1,32 +1,32 @@
 // src/clients/sorry/Board4P.tsx
-// The Sorry! board surface, drawn inline as an SVG (parchment + Gamebox
-// palette) — ported from the Claude Design "Cabinet" 4-player handoff.
+// The Sorry! board surface, drawn inline as an SVG — the canonical pinwheel from
+// the approved brainstorm mock (._mock_gen_reference.js). One reference side
+// (start circle, 5-cell safety lane climbing to a home star, two edge slides)
+// is rotated 90°×k for the four seats:
 //
-// The board is drawn for all four sides (a/b/c/d) so it reads as a full
-// 1950s-style Sorry box, but only sides a and c carry live pawns — the engine
-// is 2-player (see plugins/sorry/plugin.js). board-geometry.js maps the live
-// sides onto this same 16×16 / 100px / 1600px grid, so pawn overlays land
-// exactly on the drawn cells.
+//   top    (k=0) → blue   — engine side a, the opponent
+//   right  (k=1) → green  — decorative
+//   bottom (k=2) → red    — engine side b, "you" (viewer anchored here)
+//   left   (k=3) → orange — decorative
 //
-//   a → red    (top-left start, safety down the left, home at mid-left)
-//   b → green  (top-right start, safety along top, home at mid-top)      [decor]
-//   c → blue   (bottom-right start, safety up the right, home at mid-right)
-//   d → orange (bottom-left start, safety along bottom, home at mid-bottom)[decor]
+// The whole surface is rotated per viewer (Board.tsx) so the human's colour is
+// always at the bottom; every text label counter-rotates by -rotation so it
+// reads upright regardless of the flip (the brainstorm chose upright labels over
+// per-seat flipping). HOME stars carry no label.
 //
-// Slides are the one piece of board art that must match game logic, so they are
-// derived from the engine geometry (slideSegments) rather than hand-placed: the
-// engine has 4 slides, on the top and bottom edges only (engine side a → red,
-// b → blue). The green/orange edges carry no slides because the engine has none
-// there — painting decorative arrows would make pawns "fail" to slide.
+// Live slides (top/bottom edges) are derived from the engine geometry
+// (slideSegments) so a painted arrow always sits on a square that actually
+// slides; the decorative side edges (green/orange) carry illustrative slides
+// only — they never host live pawns.
 import { slideSegments } from "./board-geometry.js";
 
 const CELL = 100;
 const N = 16;
 const SIZE = N * CELL; // 1600
+const MID = (N - 1) / 2; // 7.5, the rotation centre in cell coords
 const CX = (col: number) => (col + 0.5) * CELL;
 const CY = (row: number) => (row + 0.5) * CELL;
 
-type Side = "a" | "b" | "c" | "d";
 interface Palette {
   mid: string;
   deep: string;
@@ -34,40 +34,79 @@ interface Palette {
   ink: string;
 }
 
-export const SIDE_COLOR: Record<Side, Palette> = {
-  a: { mid: "#b8332a", deep: "#6a1408", lite: "#d8645a", ink: "#fff5e8" },
-  b: { mid: "#3e9a5c", deep: "#1a5a30", lite: "#7ac09a", ink: "#fff5e8" },
-  c: { mid: "#2c647f", deep: "#163448", lite: "#6ba6c4", ink: "#fff5e8" },
-  d: { mid: "#d4863a", deep: "#7a4a18", lite: "#e8b070", ink: "#fff5e8" },
+const BLUE: Palette = { mid: "#2c647f", deep: "#163448", lite: "#6ba6c4", ink: "#fff5e8" };
+const GREEN: Palette = { mid: "#3e9a5c", deep: "#1a5a30", lite: "#7ac09a", ink: "#fff5e8" };
+const RED: Palette = { mid: "#b8332a", deep: "#6a1408", lite: "#d8645a", ink: "#fff5e8" };
+const ORANGE: Palette = { mid: "#d4863a", deep: "#7a4a18", lite: "#e8b070", ink: "#fff5e8" };
+
+interface Cell {
+  row: number;
+  col: number;
+}
+
+// Rotate a cell 90°×k clockwise about the board centre (7.5, 7.5), matching the
+// mock's rot(): col' = 7.5 + dc·cos - dr·sin, row' = 7.5 + dc·sin + dr·cos.
+function rot({ row, col }: Cell, k: number): Cell {
+  const dc = col - MID;
+  const dr = row - MID;
+  const co = [1, 0, -1, 0][k & 3];
+  const si = [0, 1, 0, -1][k & 3];
+  return {
+    col: round(MID + dc * co - dr * si),
+    row: round(MID + dc * si + dr * co),
+  };
+}
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+// Reference-side furniture, in the top-seat (k=0) frame.
+const REF = {
+  start: { row: 2.6, col: 4 } as Cell,
+  home: { row: 6.6, col: 1 } as Cell,
+  safety: [1, 2, 3, 4, 5].map((r) => ({ row: r, col: 1 }) as Cell),
+  label: { row: 2.6 - 0.96, col: 4 } as Cell, // lifted above the start cluster
+  // Illustrative slides for the decorative side edges only.
+  slides: [
+    { from: { row: 0, col: 5 } as Cell, to: { row: 0, col: 8 } as Cell },
+    { from: { row: 0, col: 10 } as Cell, to: { row: 0, col: 14 } as Cell },
+  ],
 };
 
-// ── Safety zones — 5 cells each, ending adjacent to HOME ──────────────
-export const SAFETY: Record<Side, { cells: [number, number][]; dir: "down" | "up" | "left" | "right" }> = {
-  a: { cells: [[2, 1], [3, 1], [4, 1], [5, 1], [6, 1]], dir: "down" },
-  b: { cells: [[1, 13], [1, 12], [1, 11], [1, 10], [1, 9]], dir: "left" },
-  c: { cells: [[13, 14], [12, 14], [11, 14], [10, 14], [9, 14]], dir: "up" },
-  d: { cells: [[14, 2], [14, 3], [14, 4], [14, 5], [14, 6]], dir: "right" },
-};
+type SeatKey = "top" | "right" | "bottom" | "left";
+interface Seat {
+  key: SeatKey;
+  k: number;
+}
+const SEATS: Seat[] = [
+  { key: "top", k: 0 },
+  { key: "right", k: 1 },
+  { key: "bottom", k: 2 },
+  { key: "left", k: 3 },
+];
 
-export const START: Record<Side, { row: number; col: number }> = {
-  a: { row: 2.5, col: 4 },
-  b: { row: 4, col: 13.5 },
-  c: { row: 13.5, col: 11 },
-  d: { row: 11, col: 2.5 },
-};
+// Seat colour is viewer-relative. The side edges are always decorative
+// green/orange; the two live edges (top = engine a, bottom = engine b) are red
+// for the viewer's seat and blue for the opponent's, so the seat circle always
+// matches the colour of the pawns sitting on it.
+function seatPalette(key: SeatKey, redSeat: SeatKey): Palette {
+  if (key === "right") return GREEN;
+  if (key === "left") return ORANGE;
+  return key === redSeat ? RED : BLUE;
+}
 
-export const HOME: Record<Side, { row: number; col: number }> = {
-  a: { row: 7.5, col: 1 },
-  b: { row: 1, col: 8 },
-  c: { row: 8.5, col: 14 },
-  d: { row: 14, col: 7.5 },
-};
-
-// Engine side → drawn slide colour: a is the red quadrant, b the blue one.
-const SLIDE_COLOR: Record<"a" | "b", Palette> = {
-  a: SIDE_COLOR.a,
-  b: SIDE_COLOR.c,
-};
+// Per-seat furniture, computed by rotating the reference. Exported (START/HOME/
+// SAFETY) so the geometry drift guard can assert the overlay stays aligned with
+// what is drawn — engine a maps to the top seat, engine b to the bottom seat.
+export const START: Record<SeatKey, Cell> = Object.fromEntries(
+  SEATS.map((s) => [s.key, rot(REF.start, s.k)]),
+) as Record<SeatKey, Cell>;
+export const HOME: Record<SeatKey, Cell> = Object.fromEntries(
+  SEATS.map((s) => [s.key, rot(REF.home, s.k)]),
+) as Record<SeatKey, Cell>;
+export const SAFETY: Record<SeatKey, { cells: [number, number][] }> = Object.fromEntries(
+  SEATS.map((s) => [s.key, { cells: REF.safety.map((c) => { const r = rot(c, s.k); return [r.row, r.col] as [number, number]; }) }]),
+) as Record<SeatKey, { cells: [number, number][] }>;
 
 function trackCells(): [number, number][] {
   const out: [number, number][] = [];
@@ -78,7 +117,7 @@ function trackCells(): [number, number][] {
   return out;
 }
 
-function starPath(cx: number, cy: number, r: number, points = 6): string {
+function starPath(cx: number, cy: number, r: number, points = 5): string {
   const inner = r * 0.5;
   const pts: [number, number][] = [];
   for (let i = 0; i < points * 2; i++) {
@@ -93,52 +132,33 @@ function starPath(cx: number, cy: number, r: number, points = 6): string {
   );
 }
 
-function Slide({
-  from,
-  to,
-  color,
-}: {
-  from: [number, number];
-  to: [number, number];
-  color: Palette;
-}) {
-  const [r1, c1] = from;
-  const [r2, c2] = to;
-  const x1 = CX(c1), y1 = CY(r1);
-  const x2 = CX(c2), y2 = CY(r2);
-  const arrowSize = 38;
+function Slide({ from, to, color }: { from: Cell; to: Cell; color: Palette }) {
+  const x1 = CX(from.col), y1 = CY(from.row);
+  const x2 = CX(to.col), y2 = CY(to.row);
   const dx = Math.sign(x2 - x1), dy = Math.sign(y2 - y1);
+  const arrowSize = 34;
   const ex = x2 - dx * arrowSize;
   const ey = y2 - dy * arrowSize;
   let tri: string;
-  if (dx === 1) tri = `${x2 - 4},${y2 - 32} ${x2 + 30},${y2} ${x2 - 4},${y2 + 32}`;
-  else if (dx === -1) tri = `${x2 + 4},${y2 - 32} ${x2 - 30},${y2} ${x2 + 4},${y2 + 32}`;
-  else if (dy === 1) tri = `${x2 - 32},${y2 - 4} ${x2},${y2 + 30} ${x2 + 32},${y2 - 4}`;
-  else tri = `${x2 - 32},${y2 + 4} ${x2},${y2 - 30} ${x2 + 32},${y2 + 4}`;
+  if (dx === 1) tri = `${x2 - 6},${y2 - 30} ${x2 + 26},${y2} ${x2 - 6},${y2 + 30}`;
+  else if (dx === -1) tri = `${x2 + 6},${y2 - 30} ${x2 - 26},${y2} ${x2 + 6},${y2 + 30}`;
+  else if (dy === 1) tri = `${x2 - 30},${y2 - 6} ${x2},${y2 + 26} ${x2 + 30},${y2 - 6}`;
+  else tri = `${x2 - 30},${y2 + 6} ${x2},${y2 - 26} ${x2 + 30},${y2 + 6}`;
   return (
     <g>
-      <line x1={x1} y1={y1} x2={ex} y2={ey} stroke={color.deep} strokeWidth="14" strokeLinecap="round" />
-      <line x1={x1} y1={y1} x2={ex} y2={ey} stroke={color.mid} strokeWidth="8" strokeLinecap="round" />
-      <circle cx={x1} cy={y1} r="20" fill={color.mid} stroke={color.deep} strokeWidth="3" />
+      <line x1={x1} y1={y1} x2={ex} y2={ey} stroke={color.deep} strokeWidth="16" strokeLinecap="round" />
+      <line x1={x1} y1={y1} x2={ex} y2={ey} stroke={color.mid} strokeWidth="9" strokeLinecap="round" />
+      <circle cx={x1} cy={y1} r="22" fill={color.mid} stroke={color.deep} strokeWidth="3" />
       <circle cx={x1} cy={y1} r="6" fill={color.deep} />
       <polygon points={tri} fill={color.mid} stroke={color.deep} strokeWidth="3" strokeLinejoin="round" />
     </g>
   );
 }
 
-function SafetyZone({ side }: { side: Side }) {
-  const sz = SAFETY[side];
-  const color = SIDE_COLOR[side];
-  const labelMap: Record<Side, { x: number; y: number; rot: number }> = {
-    a: { x: CX(1), y: CY(4), rot: -90 },
-    b: { x: CX(11), y: CY(1), rot: 0 },
-    c: { x: CX(14), y: CY(11), rot: 90 },
-    d: { x: CX(4), y: CY(14), rot: 0 },
-  };
-  const lbl = labelMap[side];
+function SafetyLane({ seat, color }: { seat: Seat; color: Palette }) {
   return (
     <g>
-      {sz.cells.map(([r, c], i) => (
+      {SAFETY[seat.key].cells.map(([r, c], i) => (
         <rect
           key={i}
           x={c * CELL + 8}
@@ -151,98 +171,88 @@ function SafetyZone({ side }: { side: Side }) {
           rx="6"
         />
       ))}
-      {sz.cells.map(([r, c], i) => {
-        const cx = CX(c), cy = CY(r);
-        const d = sz.dir;
-        let path = "";
-        if (d === "down") path = `M${cx - 14},${cy - 10} L${cx},${cy + 14} L${cx + 14},${cy - 10}`;
-        if (d === "up") path = `M${cx - 14},${cy + 10} L${cx},${cy - 14} L${cx + 14},${cy + 10}`;
-        if (d === "right") path = `M${cx - 10},${cy - 14} L${cx + 14},${cy} L${cx - 10},${cy + 14}`;
-        if (d === "left") path = `M${cx + 10},${cy - 14} L${cx - 14},${cy} L${cx + 10},${cy + 14}`;
-        return (
-          <path
-            key={`v-${i}`}
-            d={path}
-            fill="none"
-            stroke={color.ink}
-            strokeWidth="4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            opacity="0.85"
-          />
-        );
-      })}
-      <text
-        x={lbl.x}
-        y={lbl.y + 6}
-        textAnchor="middle"
-        fontSize="18"
-        fontWeight="700"
-        fontFamily='"Playfair Display", Georgia, serif'
-        fill={color.deep}
-        letterSpacing="0.32em"
-        transform={lbl.rot ? `rotate(${lbl.rot} ${lbl.x} ${lbl.y})` : undefined}
-      >
-        SAFETY ZONE
-      </text>
     </g>
   );
 }
 
-// START labels face their own seat: the two top sides (a, b) read toward the
-// top edge, the two bottom sides (c, d) toward the bottom. Baked into the art
-// independent of the viewer — the whole-board flip then lands the viewer's own
-// label upright and the opponent's flipped toward them.
-const LABEL_ROT: Record<Side, number> = { a: 180, b: 180, c: 0, d: 0 };
-
-function StartCircle({ side }: { side: Side }) {
-  const s = START[side];
-  const color = SIDE_COLOR[side];
-  const cx = CX(s.col), cy = CY(s.row);
-  const rot = LABEL_ROT[side];
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r="128" fill={color.mid} stroke={color.deep} strokeWidth="6" />
-      <circle cx={cx} cy={cy} r="128" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
-      <circle cx={cx} cy={cy} r="112" fill="none" stroke={color.deep} strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
-      <text
-        data-testid={`start-label-${side}`}
-        x={cx}
-        y={cy + 12}
-        textAnchor="middle"
-        fontSize="32"
-        fontWeight="800"
-        fontFamily='"Playfair Display", Georgia, serif'
-        fill={color.ink}
-        letterSpacing="0.22em"
-        transform={`rotate(${rot} ${cx} ${cy})`}
-        style={{ textShadow: "0 2px 0 rgba(0,0,0,0.35)" }}
-      >
-        START
-      </text>
-    </g>
-  );
-}
-
-function HomeStar({ side }: { side: Side }) {
-  const h = HOME[side];
-  const color = SIDE_COLOR[side];
+function HomeStar({ seat, color }: { seat: Seat; color: Palette }) {
+  const h = HOME[seat.key];
   const cx = CX(h.col), cy = CY(h.row);
   return (
     <g>
-      <path d={starPath(cx, cy, 78, 6)} fill="#1a1208" />
-      <path d={starPath(cx, cy, 72, 6)} fill={color.mid} stroke={color.deep} strokeWidth="2" />
-      {/* Unlabelled center pip — HOME stars carry no text. */}
-      <circle cx={cx} cy={cy} r="30" fill="#1a1208" />
-      <circle cx={cx} cy={cy} r="30" fill="none" stroke={color.lite} strokeWidth="2" opacity="0.5" />
+      <path d={starPath(cx, cy, 76, 5)} fill="#1a1208" />
+      <path d={starPath(cx, cy, 70, 5)} fill={color.mid} stroke={color.deep} strokeWidth="3" />
+      <circle cx={cx} cy={cy} r="22" fill="#1a1208" />
+      <circle cx={cx} cy={cy} r="22" fill="none" stroke={color.lite} strokeWidth="2" opacity="0.5" />
     </g>
   );
 }
 
-const ALL_SIDES: Side[] = ["a", "b", "c", "d"];
+function StartCircle({ seat, color }: { seat: Seat; color: Palette }) {
+  const s = START[seat.key];
+  const cx = CX(s.col), cy = CY(s.row);
+  return (
+    <g>
+      <circle data-testid={`start-circle-${seat.key}`} cx={cx} cy={cy} r="135" fill={color.mid} stroke={color.deep} strokeWidth="6" />
+      <circle cx={cx} cy={cy} r="135" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2" />
+      <circle cx={cx} cy={cy} r="118" fill="none" stroke={color.deep} strokeWidth="1" strokeDasharray="3 4" opacity="0.6" />
+    </g>
+  );
+}
 
-export function Board4P({ rotation = 0 }: { rotation?: number }) {
+// Upright START label, positioned above each seat's start circle. The glyph is
+// always upright; it counter-rotates by -rotation to survive the board flip.
+function StartLabel({ seat, color, rotation }: { seat: Seat; color: Palette; rotation: number }) {
+  const p = rot(REF.label, seat.k);
+  const x = CX(p.col), y = CY(p.row);
+  return (
+    <text
+      data-testid={`start-label-${seat.key}`}
+      x={x}
+      y={y}
+      textAnchor="middle"
+      dominantBaseline="central"
+      fontSize="28"
+      fontWeight="800"
+      fontFamily='"Playfair Display", Georgia, serif'
+      fill={color.ink}
+      letterSpacing="0.16em"
+      transform={`rotate(${-rotation} ${x} ${y})`}
+      style={{ textShadow: "0 2px 0 rgba(0,0,0,0.35)" }}
+    >
+      START
+    </text>
+  );
+}
+
+// Engine-derived live slides (top & bottom edges), coloured by the seat that
+// owns the edge they sit on — top edge takes the top seat's colour, bottom edge
+// the bottom seat's, so a slide always matches the pawns that travel it.
+function liveSlides(redSeat: SeatKey) {
+  return slideSegments().map((s) => ({
+    from: { row: s.from[0], col: s.from[1] } as Cell,
+    to: { row: s.to[0], col: s.to[1] } as Cell,
+    color: seatPalette(s.from[0] === 0 ? "top" : "bottom", redSeat),
+  }));
+}
+
+// Decorative slides for the side (green/orange) seats — illustrative only,
+// rotated from the reference. These edges never carry live pawns.
+function decorSlides() {
+  const out: { from: Cell; to: Cell; color: Palette }[] = [];
+  for (const seat of SEATS) {
+    if (seat.key !== "left" && seat.key !== "right") continue;
+    const color = seatPalette(seat.key, "bottom");
+    for (const s of REF.slides) {
+      out.push({ from: rot(s.from, seat.k), to: rot(s.to, seat.k), color });
+    }
+  }
+  return out;
+}
+
+export function Board4P({ rotation = 0, redSeat = "bottom" }: { rotation?: number; redSeat?: SeatKey }) {
   const cells = trackCells();
+  const pal = (key: SeatKey) => seatPalette(key, redSeat);
   return (
     <svg
       viewBox={`0 0 ${SIZE} ${SIZE}`}
@@ -294,52 +304,54 @@ export function Board4P({ rotation = 0 }: { rotation?: number }) {
         />
       ))}
 
-      {slideSegments().map((s, i) => (
-        <Slide key={`slide-${i}`} from={s.from} to={s.to} color={SLIDE_COLOR[s.side]} />
+      {decorSlides().map((s, i) => (
+        <Slide key={`decor-slide-${i}`} from={s.from} to={s.to} color={s.color} />
+      ))}
+      {liveSlides(redSeat).map((s, i) => (
+        <Slide key={`slide-${i}`} from={s.from} to={s.to} color={s.color} />
       ))}
 
-      {ALL_SIDES.map((side) => <SafetyZone key={side} side={side} />)}
-      {ALL_SIDES.map((side) => <HomeStar key={side} side={side} />)}
-      {ALL_SIDES.map((side) => <StartCircle key={side} side={side} />)}
+      {SEATS.map((seat) => <SafetyLane key={`safe-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
+      {SEATS.map((seat) => <HomeStar key={`home-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
+      {SEATS.map((seat) => <StartCircle key={`start-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
+      {SEATS.map((seat) => <StartLabel key={`label-${seat.key}`} seat={seat} color={pal(seat.key)} rotation={rotation} />)}
 
-      {/* Neutral centre chrome. The board surface rotates per viewer (so the
-          human sits at the bottom), but the wordmark is not seat furniture —
-          counter-rotate it so it never reads upside-down. */}
+      {/* Neutral centre chrome — counter-rotates so the wordmark never flips. */}
       <g
         data-testid="board-medallion"
         transform={`rotate(${-rotation} ${SIZE / 2} ${SIZE / 2})`}
       >
-        <circle cx={SIZE / 2} cy={SIZE / 2} r="190" fill="#1a1208" />
-        <circle cx={SIZE / 2} cy={SIZE / 2} r="180" fill="url(#medallion)" stroke="#8a6a2a" strokeWidth="3" />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r="186" fill="#1a1208" />
+        <circle cx={SIZE / 2} cy={SIZE / 2} r="176" fill="url(#medallion)" stroke="#8a6a2a" strokeWidth="3" />
         <text
           x={SIZE / 2}
-          y={SIZE / 2 + 26}
+          y={SIZE / 2 - 28}
           textAnchor="middle"
-          fontSize="92"
+          fontSize="17"
+          fontWeight="700"
+          fontFamily='"Playfair Display", Georgia, serif'
+          fill="#5a3a18"
+          letterSpacing="0.4em"
+        >
+          GAMEBOX
+        </text>
+        <text
+          x={SIZE / 2}
+          y={SIZE / 2 + 24}
+          textAnchor="middle"
+          fontSize="64"
           fontWeight="800"
           fontStyle="italic"
           fontFamily='"Playfair Display", Georgia, serif'
           fill="#7a1a08"
-          letterSpacing="0.04em"
+          letterSpacing="0.02em"
           style={{ textShadow: "2px 2px 0 rgba(0,0,0,0.18)" }}
         >
           SORRY!
         </text>
         <text
           x={SIZE / 2}
-          y={SIZE / 2 - 100}
-          textAnchor="middle"
-          fontSize="14"
-          fontWeight="700"
-          fontFamily='"Playfair Display", Georgia, serif'
-          fill="#5a3a18"
-          letterSpacing="0.32em"
-        >
-          ·  GAMEBOX  ·
-        </text>
-        <text
-          x={SIZE / 2}
-          y={SIZE / 2 + 90}
+          y={SIZE / 2 + 64}
           textAnchor="middle"
           fontSize="13"
           fontStyle="italic"
@@ -347,7 +359,7 @@ export function Board4P({ rotation = 0 }: { rotation?: number }) {
           fill="#5a3a18"
           letterSpacing="0.06em"
         >
-          the slidy diagonal chasing game · for two to four
+          the slidy diagonal chasing game
         </text>
       </g>
     </svg>

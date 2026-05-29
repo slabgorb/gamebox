@@ -123,7 +123,7 @@ describe("Sorry Board", () => {
     const { container } = render(<Board view={v} onPick={() => {}} />);
     const p2 = container.querySelector('[data-pawn="a-2"]') as HTMLElement;
     const p3 = container.querySelector('[data-pawn="a-3"]') as HTMLElement;
-    const centerTopPct = (300 / 1600) * 100; // START a row 2.5 → y=300px
+    const centerTopPct = (310 / 1600) * 100; // START a row 2.6 → y=310px
     expect((parseFloat(p2.style.top) + parseFloat(p3.style.top)) / 2).toBeCloseTo(centerTopPct, 1);
   });
 
@@ -135,6 +135,50 @@ describe("Sorry Board", () => {
     expect(container.querySelector(".pawn-green, .pawn-orange")).toBeNull();
     // Every rendered pawn is a live, side-tagged piece.
     expect(container.querySelectorAll(".pawn").length).toBe(8);
+  });
+
+  // Viewer-relative colour: the human is always red at the bottom — "no longer
+  // playing blue". The viewer's engine side gets the red checker, the opponent
+  // blue, regardless of which engine side the viewer is.
+  const checkerSrc = (container: HTMLElement, pawn: string) =>
+    container
+      .querySelector(`[data-pawn="${pawn}"] img`)
+      ?.getAttribute("src") ?? "";
+
+  it("paints the viewer's pawns red and the opponent's blue (viewer = a)", () => {
+    const { container } = render(<Board view={view} onPick={() => {}} />);
+    expect(checkerSrc(container, "a-0")).toContain("checker-red");
+    expect(checkerSrc(container, "b-0")).toContain("checker-blue");
+  });
+
+  // The seat circle must match the pawns sitting on it: engine a is drawn at the
+  // top seat, b at the bottom. For viewer a (red), the top seat circle must be
+  // red so a's red pawns don't land on a blue circle; for viewer b it flips.
+  const circleFill = (container: HTMLElement, seat: string) =>
+    container
+      .querySelector(`[data-testid="start-circle-${seat}"]`)
+      ?.getAttribute("fill") ?? "";
+  const RED_MID = "#b8332a";
+  const BLUE_MID = "#2c647f";
+
+  it("paints the viewer's seat circle red and the opponent's blue (viewer = a)", () => {
+    const { container } = render(<Board view={view} onPick={() => {}} />);
+    expect(circleFill(container, "top")).toBe(RED_MID); // engine a → top seat
+    expect(circleFill(container, "bottom")).toBe(BLUE_MID);
+  });
+
+  it("paints the viewer's seat circle red and the opponent's blue (viewer = b)", () => {
+    const asB = { ...view, youAre: "b" } as any;
+    const { container } = render(<Board view={asB} onPick={() => {}} />);
+    expect(circleFill(container, "bottom")).toBe(RED_MID); // engine b → bottom seat
+    expect(circleFill(container, "top")).toBe(BLUE_MID);
+  });
+
+  it("paints the viewer's pawns red and the opponent's blue (viewer = b)", () => {
+    const asB = { ...view, youAre: "b" } as any;
+    const { container } = render(<Board view={asB} onPick={() => {}} />);
+    expect(checkerSrc(container, "b-0")).toContain("checker-red");
+    expect(checkerSrc(container, "a-0")).toContain("checker-blue");
   });
 
   it("renders no legal-move hotspots when the viewer has no legalMoves (not their turn)", () => {
@@ -174,19 +218,27 @@ describe("Sorry Board", () => {
     expect(medallion.getAttribute("transform")).toContain("rotate(-180");
   });
 
-  // START labels face their own seat: top sides (a, b) read toward the top edge
-  // (180°), bottom sides (c, d) read toward the bottom (0°). This is baked into
-  // the board art independent of the viewer, so the whole-board flip lands every
-  // viewer's own START upright and the opponent's flipped toward them.
-  it("orients each START label toward its own seat", () => {
+  // The brainstorm chose all-upright labels (legibility) over per-seat flipping.
+  // Each START label counter-rotates by -rotation so it survives the board flip.
+  const SEATS = ["top", "right", "bottom", "left"] as const;
+  const labelTransform = (container: HTMLElement, seat: string) =>
+    container
+      .querySelector(`[data-testid="start-label-${seat}"]`)
+      ?.getAttribute("transform") ?? "";
+
+  it("draws all four START labels upright when the board is unrotated", () => {
     const { container } = render(<Board4P />);
-    const labelTransform = (side: string) =>
-      container
-        .querySelector(`[data-testid="start-label-${side}"]`)
-        ?.getAttribute("transform") ?? "";
-    expect(labelTransform("a")).toContain("rotate(180");
-    expect(labelTransform("b")).toContain("rotate(180");
-    expect(labelTransform("c")).not.toContain("rotate(180");
-    expect(labelTransform("d")).not.toContain("rotate(180");
+    for (const seat of SEATS) {
+      const t = labelTransform(container, seat);
+      expect(t).toContain("rotate(0");
+      expect(t).not.toContain("rotate(180");
+    }
+  });
+
+  it("counter-rotates every START label so none reads upside-down under the flip", () => {
+    const { container } = render(<Board4P rotation={180} />);
+    for (const seat of SEATS) {
+      expect(labelTransform(container, seat)).toContain("rotate(-180");
+    }
   });
 });
