@@ -25,19 +25,24 @@ interface Seat {
   checker: string;
 }
 
-const SEATS: Seat[] = [
-  { color: "red", side: "a", checker: "assets/checker-red.png" },
-  { color: "blue", side: "b", checker: "assets/checker-blue.png" },
-  { color: "green", side: null, checker: "assets/checker-green.png" },
-  { color: "orange", side: null, checker: "assets/checker-orange.png" },
-];
-
 export function SorryApp() {
   const { view, post, ctx } = useGameState<SorryView, SorryAction>();
 
   if (!view) return <div className="banner">Loading…</div>;
 
   const myTurn = view.youAre != null && view.currentPlayer === view.youAre;
+
+  // Viewer-relative seating to match the board: you are always red, the opponent
+  // blue (spectator: the bottom seat, engine b, is red). The two empty seats are
+  // the decorative colours.
+  const redSide: SorrySide = view.youAre ?? "b";
+  const blueSide: SorrySide = redSide === "a" ? "b" : "a";
+  const seats: Seat[] = [
+    { color: "red", side: redSide, checker: "assets/checker-red.png" },
+    { color: "blue", side: blueSide, checker: "assets/checker-blue.png" },
+    { color: "green", side: null, checker: "assets/checker-green.png" },
+    { color: "orange", side: null, checker: "assets/checker-orange.png" },
+  ];
   // On the active viewer's turn legalMoves is always present; an empty array
   // means there is no legal move and the only action is to pass.
   const mustPass = myTurn && (view.legalMoves?.length ?? 0) === 0;
@@ -166,7 +171,7 @@ export function SorryApp() {
           <em>two players · cabinet rules</em>
         </div>
         <ul className="va-roster">
-          {SEATS.map((seat) => {
+          {seats.map((seat) => {
             const { name, meta, you } = seatLabel(seat);
             const isTurn = seat.side != null && view.currentPlayer === seat.side;
             return (
