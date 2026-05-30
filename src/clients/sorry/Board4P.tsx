@@ -71,11 +71,15 @@ function round(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-// Reference-side furniture, in the top-seat (k=0) frame.
+// Reference-side furniture, in the top-seat (k=0) frame. The safety mouth
+// attaches at top-edge col 2 (= SAFETY_ENTRY offset +2 from corner), the 5
+// safety squares run inward down col 2, the home star sits just past them, and
+// the diamond marker sits on top-edge col 3 (= DIAMOND offset +3).
 const REF = {
   start: { row: 2.6, col: 4 } as Cell,
-  home: { row: 6.6, col: 1 } as Cell,
-  safety: [1, 2, 3, 4, 5].map((r) => ({ row: r, col: 1 }) as Cell),
+  home: { row: 6.6, col: 2 } as Cell,
+  safety: [1, 2, 3, 4, 5].map((r) => ({ row: r, col: 2 }) as Cell),
+  diamond: { row: 0, col: 3 } as Cell,
 };
 
 type SeatKey = "top" | "right" | "bottom" | "left";
@@ -196,6 +200,27 @@ function StartCircle({ seat, color }: { seat: Seat; color: Palette }) {
   );
 }
 
+// The diamond marker on each seat's +3 square — a forced-divert barrier: own
+// pawns may not cross it clockwise (so a pawn approaching their safety mouth
+// must enter Safety rather than continue past their own start). Counter-
+// clockwise (backward) crossing is legal.
+function DiamondMarker({ seat, color }: { seat: Seat; color: Palette }) {
+  const p = rot(REF.diamond, seat.k);
+  const cx = CX(p.col), cy = CY(p.row);
+  const r = 22;
+  const pts = `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
+  return (
+    <polygon
+      data-testid={`diamond-${seat.key}`}
+      points={pts}
+      fill={color.mid}
+      stroke={color.deep}
+      strokeWidth="3"
+      strokeLinejoin="round"
+    />
+  );
+}
+
 // Which seat owns the perimeter edge a cell sits on. Slide endpoints never land
 // on a corner (no slide starts/ends at track index 0/15/30/45), so the from
 // cell unambiguously identifies one edge.
@@ -284,6 +309,7 @@ export function Board4P({
       {SEATS.map((seat) => <SafetyLane key={`safe-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
       {SEATS.map((seat) => <HomeStar key={`home-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
       {SEATS.map((seat) => <StartCircle key={`start-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
+      {SEATS.map((seat) => <DiamondMarker key={`diamond-${seat.key}`} seat={seat} color={pal(seat.key)} />)}
 
       {/* Neutral centre chrome — counter-rotates so the wordmark never flips. */}
       <g

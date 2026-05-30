@@ -21,26 +21,28 @@ import {
 // bottom-seat twin: row→15-row, col→15-col.
 describe("Sorry canonical pinwheel geometry", () => {
   it("places engine a (top seat) at the reference position", () => {
+    // Safety mouth attaches at edge col 2 (= SAFETY_ENTRY +2), so the safety
+    // lane and home column shifted from col 1 to col 2.
     expect(START_CENTER.a).toEqual({ row: 2.6, col: 4 });
-    expect(HOME_CELL.a).toEqual({ row: 6.6, col: 1 });
+    expect(HOME_CELL.a).toEqual({ row: 6.6, col: 2 });
     expect(safetyCells("a")).toEqual([
-      { row: 1, col: 1 },
-      { row: 2, col: 1 },
-      { row: 3, col: 1 },
-      { row: 4, col: 1 },
-      { row: 5, col: 1 },
+      { row: 1, col: 2 },
+      { row: 2, col: 2 },
+      { row: 3, col: 2 },
+      { row: 4, col: 2 },
+      { row: 5, col: 2 },
     ]);
   });
 
   it("places engine b (bottom seat) at the 180° twin of the reference", () => {
     expect(START_CENTER.b).toEqual({ row: 12.4, col: 11 });
-    expect(HOME_CELL.b).toEqual({ row: 8.4, col: 14 });
+    expect(HOME_CELL.b).toEqual({ row: 8.4, col: 13 });
     expect(safetyCells("b")).toEqual([
-      { row: 14, col: 14 },
-      { row: 13, col: 14 },
-      { row: 12, col: 14 },
-      { row: 11, col: 14 },
-      { row: 10, col: 14 },
+      { row: 14, col: 13 },
+      { row: 13, col: 13 },
+      { row: 12, col: 13 },
+      { row: 11, col: 13 },
+      { row: 10, col: 13 },
     ]);
   });
 });

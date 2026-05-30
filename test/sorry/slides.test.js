@@ -191,12 +191,12 @@ test('contract: each bumped entry carries a valid side and a pawnId', () => {
 // and fire for either one landing on them.
 // =========================================================================
 
-const GREEN_SLIDE = SLIDES.green[0]; // right edge: { start: 19, length: 5 }
-const ORANGE_SLIDE = SLIDES.orange[0]; // left edge: { start: 49, length: 5 }
+const GREEN_SLIDE = SLIDES.green[0]; // right edge: { start: 16, length: 3 }
+const ORANGE_SLIDE = SLIDES.orange[0]; // left edge: { start: 46, length: 3 }
 
 test('4EDGE: SLIDES has green (right) and orange (left) edges', () => {
-  assert.deepEqual(SLIDES.green, [{ start: 19, length: 5 }, { start: 24, length: 4 }]);
-  assert.deepEqual(SLIDES.orange, [{ start: 49, length: 5 }, { start: 54, length: 4 }]);
+  assert.deepEqual(SLIDES.green, [{ start: 16, length: 3 }, { start: 24, length: 5 }]);
+  assert.deepEqual(SLIDES.orange, [{ start: 46, length: 3 }, { start: 54, length: 5 }]);
 });
 
 test('4EDGE: side a landing on a green slide start slides to its end', () => {

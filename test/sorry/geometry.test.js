@@ -1,13 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { path, SLIDES, START_EXIT, SAFETY_ENTRY, TRACK_LEN } from '../../plugins/sorry/server/geometry.js';
+import { path, SLIDES, START_EXIT, SAFETY_ENTRY, DIAMOND, TRACK_LEN } from '../../plugins/sorry/server/geometry.js';
 
 test('track length and per-side entry/exit constants are correct', () => {
   assert.equal(TRACK_LEN, 60);
   assert.equal(START_EXIT.a, 4);
   assert.equal(START_EXIT.b, 34);
-  assert.equal(SAFETY_ENTRY.a, 1);
-  assert.equal(SAFETY_ENTRY.b, 31);
+  // Canonical-board offsets: safety mouth at +2, diamond at +3, start at +4.
+  assert.equal(SAFETY_ENTRY.a, 2);
+  assert.equal(SAFETY_ENTRY.b, 32);
+  assert.equal(DIAMOND.a, 3);
+  assert.equal(DIAMOND.b, 33);
+  assert.equal(DIAMOND.green, 18);
+  assert.equal(DIAMOND.orange, 48);
 });
 
 test("path('a') starts at startExit and ends with the safety zone then home", () => {
@@ -46,14 +51,18 @@ test('path wraps clockwise around the track modulo TRACK_LEN', () => {
   assert.equal(new Set(trackPortion).size, trackPortion.length, 'no duplicate track squares');
 });
 
-test('SLIDES defines exactly two well-formed slides per side', () => {
-  for (const side of ['a', 'b']) {
+test('SLIDES defines exactly two well-formed slides per side, same colour as the edge', () => {
+  for (const side of ['a', 'b', 'green', 'orange']) {
     assert.equal(SLIDES[side].length, 2, `side ${side} has two slides`);
     for (const s of SLIDES[side]) {
       assert.equal(typeof s.start, 'number');
       assert.equal(typeof s.length, 'number');
     }
   }
-  assert.deepEqual(SLIDES.a, [{ start: 9, length: 4 }, { start: 34, length: 5 }]);
-  assert.deepEqual(SLIDES.b, [{ start: 39, length: 4 }, { start: 4, length: 5 }]);
+  // Canonical positions: slide 1 at corner+1 (length 3, ends on start-exit),
+  // slide 2 at corner+9 (length 5, ends one short of the next corner).
+  assert.deepEqual(SLIDES.a,      [{ start: 1,  length: 3 }, { start: 9,  length: 5 }]);
+  assert.deepEqual(SLIDES.b,      [{ start: 31, length: 3 }, { start: 39, length: 5 }]);
+  assert.deepEqual(SLIDES.green,  [{ start: 16, length: 3 }, { start: 24, length: 5 }]);
+  assert.deepEqual(SLIDES.orange, [{ start: 46, length: 3 }, { start: 54, length: 5 }]);
 });

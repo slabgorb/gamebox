@@ -316,22 +316,25 @@ test('LOOP: card 4 wraps side b around its start-exit too', () => {
   assert.deepEqual(back.to, { zone: 'track', index: 30 });
 });
 
-test('LOOP: from square 0 a forward-2 dives through the mouth into Safety', () => {
-  const s = baseState({ drawnCard: 2 });
+test('LOOP: from square 0 a forward-3 dives through the mouth at +2 into Safety', () => {
+  const s = baseState({ drawnCard: 3 });
   s.pawns.a[0] = { id: 0, zone: 'track', index: 0 };
   const moves = legalMoves(s);
   const fwd = moves.find((m) => m.pawnId === 0 && m.kind === 'forward');
   assert.ok(fwd, 'expected a forward move');
-  assert.deepEqual(fwd.to, { zone: 'safety', index: 0 }); // 0 → 1(mouth) → safe-0
+  // 0 → 1 (track) → 2 (mouth, still track) → safe-0 (forward step FROM the mouth diverts).
+  assert.deepEqual(fwd.to, { zone: 'safety', index: 0 });
 });
 
-test('LOOP: a pawn parked in the dead zone moves forward along the track, not into Safety', () => {
-  const s = baseState({ drawnCard: 5 });
-  s.pawns.a[0] = { id: 0, zone: 'track', index: 3 }; // dead zone behind Start
+test('LOOP: the diamond at +3 blocks an own pawn from moving forward (clockwise barrier)', () => {
+  const s = baseState({ drawnCard: 1 });
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 3 }; // diamond — only reachable by backing out of start
   const moves = legalMoves(s);
-  const fwd = moves.find((m) => m.pawnId === 0 && m.kind === 'forward');
-  assert.ok(fwd, 'expected a forward move');
-  assert.deepEqual(fwd.to, { zone: 'track', index: 8 }); // 3→4→5→6→7→8, never crosses mouth (sq 1)
+  assert.equal(
+    moves.find((m) => m.pawnId === 0 && m.kind === 'forward'),
+    undefined,
+    'own-colour forward from the diamond is illegal',
+  );
 });
 
 test('LOOP: a pawn already in Safety cannot move backward on card 4', () => {
@@ -350,20 +353,37 @@ test('LOOP: card 10 offers no back-1 for a Safety pawn', () => {
 
 test('LOOP: backward from the safety-entry square wraps on the track (no backward divert)', () => {
   const s = baseState({ drawnCard: 10 });
-  s.pawns.a[0] = { id: 0, zone: 'track', index: 1 }; // a's safety-entry square
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 2 }; // a's safety-entry square
   const moves = legalMoves(s);
   const back = moves.find((m) => m.pawnId === 0 && m.kind === 'back');
   assert.ok(back, 'expected a back-1 move');
-  assert.deepEqual(back.to, { zone: 'track', index: 0 }); // 1 → 0, stays on track
+  assert.deepEqual(back.to, { zone: 'track', index: 1 }); // 2 → 1, stays on track
 });
 
-test('LOOP: a multi-step forward that crosses the mouth still dives into Safety', () => {
+test('LOOP: a multi-step forward that crosses the mouth at +2 still dives into Safety', () => {
   const s = baseState({ drawnCard: 5 });
-  s.pawns.a[0] = { id: 0, zone: 'track', index: 58 }; // 58→59→0→1(mouth)→safe-0→safe-1
+  s.pawns.a[0] = { id: 0, zone: 'track', index: 58 }; // 58→59→0→1→2(mouth)→safe-0
   const moves = legalMoves(s);
   const fwd = moves.find((m) => m.pawnId === 0 && m.kind === 'forward');
   assert.ok(fwd, 'expected a forward move');
-  assert.deepEqual(fwd.to, { zone: 'safety', index: 1 });
+  assert.deepEqual(fwd.to, { zone: 'safety', index: 0 });
+});
+
+test('LOOP: two back-1 cards from start-exit land you on the safety mouth (canonical play)', () => {
+  // Card 10 has a "back 1" option. From start-exit at +4, back 1 lands at +3
+  // (the diamond, reachable counter-clockwise), and the second back 1 lands
+  // exactly on the safety mouth at +2 — the next forward step then enters Safety.
+  const s1 = baseState({ drawnCard: 10 });
+  s1.pawns.a[0] = { id: 0, zone: 'track', index: 4 };
+  const back1 = legalMoves(s1).find((m) => m.pawnId === 0 && m.kind === 'back');
+  assert.ok(back1);
+  assert.deepEqual(back1.to, { zone: 'track', index: 3 }); // first back-1: onto the diamond
+
+  const s2 = baseState({ drawnCard: 10 });
+  s2.pawns.a[0] = { id: 0, zone: 'track', index: 3 }; // already on the diamond
+  const back2 = legalMoves(s2).find((m) => m.pawnId === 0 && m.kind === 'back');
+  assert.ok(back2);
+  assert.deepEqual(back2.to, { zone: 'track', index: 2 }); // second back-1: onto the safety mouth
 });
 
 // =========================================================================

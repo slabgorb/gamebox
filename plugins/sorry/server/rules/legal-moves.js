@@ -1,9 +1,13 @@
-import { START_EXIT, SAFETY_ENTRY, TRACK_LEN } from '../geometry.js';
+import { START_EXIT, SAFETY_ENTRY, DIAMOND, TRACK_LEN } from '../geometry.js';
 
 // One physical step along the absolute 60-square loop (dir = +1 forward, -1
 // backward). Forward diverts into Safety at the side's safety mouth and ends at
-// Home; Safety is a one-way lane (no backing out). Returns null for an illegal
-// step: overshooting past Home, or moving backward out of Safety/Home.
+// Home; Safety is a one-way lane (no backing out). The diamond square (own
+// colour) is a one-way barrier — own pawns may not cross it clockwise (forward),
+// which forces an own pawn approaching the safety mouth to enter Safety rather
+// than continue past their own start. Backward across the diamond is legal —
+// that's the canonical "back-1 twice and you're on the mouth" play. Returns
+// null for an illegal step.
 function step(side, loc, dir) {
   if (dir > 0) {
     if (loc.zone === 'home') return null; // already Home — cannot advance
@@ -12,6 +16,8 @@ function step(side, loc, dir) {
     }
     // track: if currently on the safety-entry square, a forward step enters the Safety lane.
     if (loc.index === SAFETY_ENTRY[side]) return { zone: 'safety', index: 0 };
+    // own-colour diamond — clockwise crossing forbidden.
+    if (loc.index === DIAMOND[side]) return null;
     return { zone: 'track', index: (loc.index + 1) % TRACK_LEN };
   }
   // backward

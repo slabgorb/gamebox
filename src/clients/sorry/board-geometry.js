@@ -17,12 +17,15 @@ export const BOARD_PX = GRID * CELL; // 1600
 
 // Engine geometry mirror (plugins/sorry/server/geometry.js).
 export const START_EXIT = { a: 4, b: 34 };
-export const SAFETY_ENTRY = { a: 1, b: 31 };
+export const SAFETY_ENTRY = { a: 2, b: 32 };
+// Diamond squares (own-colour one-way barrier). All four edges so the board can
+// draw the marker on every seat.
+export const DIAMOND = { a: 3, b: 33, green: 18, orange: 48 };
 export const SLIDES = {
-  a: [{ start: 9, length: 4 }, { start: 34, length: 5 }],
-  b: [{ start: 39, length: 4 }, { start: 4, length: 5 }],
-  green: [{ start: 19, length: 5 }, { start: 24, length: 4 }],
-  orange: [{ start: 49, length: 5 }, { start: 54, length: 4 }],
+  a:      [{ start: 1,  length: 3 }, { start: 9,  length: 5 }],
+  b:      [{ start: 31, length: 3 }, { start: 39, length: 5 }],
+  green:  [{ start: 16, length: 3 }, { start: 24, length: 5 }],
+  orange: [{ start: 46, length: 3 }, { start: 54, length: 5 }],
 };
 
 // The drawn slide arrows, derived from the engine SLIDES above so they always
@@ -60,14 +63,15 @@ export function trackCell(index) {
 // engine a is the TOP seat (reference, k=0), engine b the BOTTOM seat (the same
 // furniture rotated 180° about the board centre, row→15-row / col→15-col).
 //
-// Safety lanes run inward toward Home, matching Board4P.tsx's drawn cells:
-//   a — down column 1 (rows 1..5, entry→home); b — up column 14 (rows 14..10).
+// Safety lanes run inward toward Home, matching Board4P.tsx's drawn cells. The
+// safety mouth attaches at the side's SAFETY_ENTRY edge square (col 2 for a,
+// col 13 for b), and the 5 safety squares run inward from there to Home.
 const SAFETY_CELL = {
-  a: (idx) => ({ row: 1 + idx, col: 1 }),
-  b: (idx) => ({ row: 14 - idx, col: 14 }),
+  a: (idx) => ({ row: 1 + idx, col: 2 }),
+  b: (idx) => ({ row: 14 - idx, col: 13 }),
 };
 // Home sits just past the last safety square (Board4P HOME a/b).
-export const HOME_CELL = { a: { row: 6.6, col: 1 }, b: { row: 8.4, col: 14 } };
+export const HOME_CELL = { a: { row: 6.6, col: 2 }, b: { row: 8.4, col: 13 } };
 // Start pens are interior clusters near each seat's corner (Board4P START a/b).
 export const START_CENTER = { a: { row: 2.6, col: 4 }, b: { row: 12.4, col: 11 } };
 
