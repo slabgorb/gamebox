@@ -10,7 +10,7 @@ test('plugin manifest passes validator', () => {
 test('manifest fields', () => {
   assert.equal(rummikubPlugin.id, 'rummikub');
   assert.equal(rummikubPlugin.displayName, 'Rummikub');
-  assert.equal(rummikubPlugin.players, 2);
+  assert.deepEqual(rummikubPlugin.players, { min: 2, max: 2 });
   assert.match(rummikubPlugin.clientDir, /plugins\/rummikub\/client/);
 });
 

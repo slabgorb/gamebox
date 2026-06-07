@@ -91,11 +91,13 @@ function activeCard(game) {
   const yourTurn = !!game.yourTurn;
   const overdue  = yourTurn && (Date.now() - game.updatedAt) > 24*60*60*1000;
 
+  const opponents = game.opponents ?? [game.opponent];
+  const oppNames = opponents.map(o => o.friendlyName).join(', ');
   const variantText = variantLabel(game.gameType, game.variant);
   const variantHTML = variantText ? `<div class="variant">${escapeHtml(variantText)}</div>` : '';
   const meta = yourTurn
     ? `Your move · ${escapeHtml(relTime(game.updatedAt))}`
-    : `${escapeHtml(game.opponent.friendlyName)} is pondering · ${escapeHtml(relTime(game.updatedAt))}`;
+    : `${escapeHtml(oppNames)} ${opponents.length > 1 ? 'are' : 'is'} pondering · ${escapeHtml(relTime(game.updatedAt))}`;
   const oppColor = game.opponent.color || '#1a73e8';
 
   a.innerHTML = `
@@ -109,7 +111,7 @@ function activeCard(game) {
       <div>
         <div class="opp-row">
           <span class="opp-mono"${glyphAttr(game.opponent)} style="background:${escapeAttr(oppColor)}">${escapeHtml(avatarInitial(game.opponent.friendlyName))}</span>
-          <span><span class="opp-vs">vs.</span> <strong class="opp-name" style="color:${escapeAttr(oppColor)}">${escapeHtml(game.opponent.friendlyName)}${glyphMark(game.opponent)}</strong></span>
+          <span><span class="opp-vs">vs.</span> <strong class="opp-name" style="color:${escapeAttr(oppColor)}">${escapeHtml(oppNames)}${opponents.length > 1 ? '' : glyphMark(game.opponent)}</strong></span>
         </div>
         <div class="meta">${meta}</div>
       </div>
@@ -130,12 +132,14 @@ function endedCard(game) {
   a.href = `/play/${game.gameType}/${game.id}/`;
 
   const oppColor = game.opponent.color || '#999';
-  const won = game.winnerSide && game.winnerSide === game.you;
-  const opp = game.opponent.friendlyName;
+  const opponents = game.opponents ?? [game.opponent];
+  const oppNames = opponents.map(o => o.friendlyName).join(', ');
+  const won = game.winnerSeat != null && game.winnerSeat === game.you;
+  const winnerOpp = opponents.find(o => o.seat === game.winnerSeat);
   const outcome = won ? `You won` :
-    (game.endedReason === 'draw' || game.winnerSide === 'draw') ? `Draw with ${opp}` :
-    game.winnerSide ? `${opp} won` :
-    `Ended vs ${opp}`;
+    (game.endedReason === 'draw' || game.isDraw) ? `Draw with ${oppNames}` :
+    winnerOpp ? `${winnerOpp.friendlyName} won` :
+    `Ended vs ${oppNames}`;
 
   a.innerHTML = `
     <div class="lid">${boxArt(game.gameType, game.variant)}
@@ -146,7 +150,7 @@ function endedCard(game) {
     <div class="sideband">
       <div>
         <div class="opp-row">
-          <span class="opp-mono"${glyphAttr(game.opponent)} style="background:${escapeAttr(oppColor)}">${escapeHtml(avatarInitial(opp))}</span>
+          <span class="opp-mono"${glyphAttr(game.opponent)} style="background:${escapeAttr(oppColor)}">${escapeHtml(avatarInitial(game.opponent.friendlyName))}</span>
           <span class="opp-name" style="color:${escapeAttr(oppColor)}">${escapeHtml(outcome)}${glyphMark(game.opponent)}</span>
         </div>
         <div class="meta">${escapeHtml(relTime(game.updatedAt))}</div>
@@ -279,8 +283,11 @@ function wireNewGame(me, plugins) {
   cancel.onclick = () => dlg.close();
   dlg.addEventListener('cancel', () => dlg.close());
 
+  let allUsers = [];
+
   fab.onclick = async () => {
     const users = await fetchJson('/api/users').then(arr => arr.filter(u => u.id !== me.id));
+    allUsers = users;
     if (users.length === 0) {
       alert("You're the only player on this server.");
       return;
@@ -324,12 +331,73 @@ function wireNewGame(me, plugins) {
         </span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
       btn.onclick = () => {
-        if (PLUGIN_VARIANTS[p.id]) showVariantStep(opponent, p, plugins);
+        if ((p.players?.max ?? 2) > 2 && !opponent.isBot) showAddPlayersStep(opponent, p, plugins);
+        else if (PLUGIN_VARIANTS[p.id]) showVariantStep(opponent, p, plugins);
         else proceedAfterRules(opponent, p.id, null, plugins);
       };
       li.appendChild(btn);
       stepsEl.appendChild(li);
     }
+  }
+
+  // Multiplayer games (players.max > 2, e.g. Risk): after the first opponent
+  // is picked, offer the rest of the human roster as optional extra seats.
+  // Seat order = creator, first opponent, then extras in tick order.
+  function showAddPlayersStep(opponent, plugin, plugins) {
+    const maxExtra = (plugin.players?.max ?? 2) - 2;
+    const others = allUsers.filter(u => u.id !== opponent.id && !u.isBot);
+    if (maxExtra === 0 || others.length === 0) {
+      proceedAfterRules(opponent, plugin.id, null, plugins);
+      return;
+    }
+    titleEl.textContent = `${plugin.displayName} — add more players?`;
+    stepsEl.innerHTML = `<div class="ng-step">vs. ${escapeHtml(opponent.friendlyName)} — tick up to ${maxExtra} more</div>`;
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'ng-back';
+    back.textContent = 'back';
+    back.onclick = () => showGameStep(opponent, plugins);
+    stepsEl.appendChild(back);
+
+    const picked = new Set();
+    const checkboxes = [];
+    for (const u of others) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ng-tile';
+      btn.setAttribute('aria-pressed', 'false');
+      btn.innerHTML = `
+        <span class="ng-mono"${glyphAttr(u)} style="background:${escapeAttr(u.color || '#888')};margin-left:16px">${escapeHtml(avatarInitial(u.friendlyName))}</span>
+        <span class="ng-body"><span class="ng-name">${escapeHtml(u.friendlyName)}${glyphMark(u)}</span></span>
+        <span class="ng-chev" aria-hidden="true">＋</span>`;
+      btn.onclick = () => {
+        if (picked.has(u.id)) {
+          picked.delete(u.id);
+          btn.setAttribute('aria-pressed', 'false');
+          btn.style.outline = '';
+        } else if (picked.size < maxExtra) {
+          picked.add(u.id);
+          btn.setAttribute('aria-pressed', 'true');
+          btn.style.outline = '2px solid currentColor';
+        }
+        go.textContent = startLabel();
+      };
+      checkboxes.push(btn);
+      li.appendChild(btn);
+      stepsEl.appendChild(li);
+    }
+
+    const startLabel = () => `Start with ${2 + picked.size} players`;
+    const goLi = document.createElement('li');
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'ng-tile';
+    go.style.justifyContent = 'center';
+    go.textContent = startLabel();
+    go.onclick = () => startGame(opponent, plugin.id, null, null, null, [...picked]);
+    goLi.appendChild(go);
+    stepsEl.appendChild(goLi);
   }
 
   // After rules (variant) are settled: pick a checker colour if the game offers
@@ -416,8 +484,8 @@ function wireNewGame(me, plugins) {
     }
   }
 
-  async function startGame(opponent, gameType, variant, personaId = null, color = null) {
-    const body = { opponentId: opponent.id, gameType };
+  async function startGame(opponent, gameType, variant, personaId = null, color = null, extraIds = []) {
+    const body = { opponentIds: [opponent.id, ...extraIds], gameType };
     if (variant) body.variant = variant;
     if (personaId) body.personaId = personaId;
     if (color) body.color = color;

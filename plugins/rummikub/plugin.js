@@ -5,7 +5,7 @@ import { rummikubPublicView } from './server/view.js';
 export default {
   id: 'rummikub',
   displayName: 'Rummikub',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/rummikub/client',
 
   initialState: buildInitialState,

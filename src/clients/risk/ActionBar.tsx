@@ -53,7 +53,7 @@ export function ActionBar({ view, pending, post, setPending, onAttack }: Props) 
   if (view.phase === "setup" || view.phase === "reinforce") {
     const pool =
       view.phase === "setup"
-        ? view.setupPools[view.youAre as 0 | 1]
+        ? view.setupPools[view.youAre ?? 0]
         : view.reinforcePool;
     const type = view.phase === "setup" ? "setup-deploy" : "deploy";
     const plan = pending.plan ?? {};

@@ -10,7 +10,7 @@ function dict() { return _dict ??= loadDictionary(); }
 export default {
   id: 'words',
   displayName: 'Words',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/words/client',
 
   initialState: buildInitialState,

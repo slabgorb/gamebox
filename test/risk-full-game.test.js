@@ -65,7 +65,7 @@ test('a full game between two AI strategies terminates with a winner', async () 
     }
 
     const actorId = state.activeUserId;
-    const botIdx = state.sides.a === actorId ? 0 : 1;
+    const botIdx = state.seats.indexOf(actorId);
     const moves = enumerateLegalMoves(state, botIdx);
     assert.ok(moves.length > 0, `no legal moves in phase ${state.phase}`);
 
@@ -108,7 +108,7 @@ test('a full carded game exercises at least one trade-in', async () => {
     }
 
     const actorId = state.activeUserId;
-    const botIdx = state.sides.a === actorId ? 0 : 1;
+    const botIdx = state.seats.indexOf(actorId);
     // Guard mirrors the real server loop and the sibling test: an empty
     // shortlist would otherwise crash inside chooseAction with an opaque error
     // rather than pointing at the engine state that produced no legal moves.

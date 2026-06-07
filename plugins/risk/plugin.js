@@ -7,7 +7,7 @@ import { playerIndex } from './server/state.js';
 export default {
   id: 'risk',
   displayName: 'Risk',
-  players: 2,
+  players: { min: 2, max: 4 },
   clientDir: 'plugins/risk/client',
   initialState: buildInitialState,
   applyAction: applyRiskAction,

@@ -9,6 +9,8 @@ interface Props {
   view: RiskView;
   factionName: string;
   factionColor?: string | null;
+  // Display names by seat (multiplayer roster strip).
+  seatNames?: (string | undefined)[];
   onResign: () => void;
 }
 
@@ -40,11 +42,42 @@ function CrestSvg({ color }: { color: string }) {
   );
 }
 
-export function Header({ view, factionName, factionColor, onResign }: Props) {
+function SeatStrip({ view, seatNames }: { view: RiskView; seatNames?: (string | undefined)[] }) {
+  const seats = view.seats ?? [];
+  if (seats.length <= 2) return null;
+  const tallies = seats.map((_, seat) => {
+    let terr = 0, armies = 0;
+    for (const t of Object.values(view.territories)) {
+      if (t.owner === seat) { terr += 1; armies += t.armies; }
+    }
+    return { terr, armies };
+  });
+  return (
+    <div className="seat-strip" aria-label="players">
+      {seats.map((_, seat) => {
+        const dead = view.eliminated?.[seat] === true;
+        const current = view.currentPlayer === seat && !dead;
+        const name = seatNames?.[seat] ?? `Player ${seat + 1}`;
+        const cards = view.cardCounts?.[seat] ?? 0;
+        return (
+          <span key={seat} className={`seat-chip${current ? " current" : ""}${dead ? " dead" : ""}`}>
+            <span className="dot" style={{ background: `var(--p${seat}-1)` }} />
+            <span>{name}{seat === view.youAre ? " (you)" : ""}</span>
+            {!dead && (
+              <span className="tally">{`${tallies[seat].terr}t · ${tallies[seat].armies}a · ${cards}c`}</span>
+            )}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+export function Header({ view, factionName, factionColor, seatNames, onResign }: Props) {
   const yourMove = view.youAre === view.currentPlayer;
   const phaseLabel = PHASE_LABEL[view.phase] ?? view.phase;
-  const pipClass = view.currentPlayer === 0 ? "p0" : "p1";
-  const crestColor = factionColor || (view.youAre === 0 ? "#b04030" : "#2a5d80");
+  const pipClass = `p${view.currentPlayer}`;
+  const crestColor = factionColor || `var(--p${view.youAre ?? 0}-1)`;
   // Test contract: a "Phase: <phase>" substring must remain in the DOM.
   // We keep the lowercase phase id alongside the display label so the
   // existing /phase: attack/i assertions stay green.
@@ -79,6 +112,7 @@ export function Header({ view, factionName, factionColor, onResign }: Props) {
         <MuteToggle />
         <ExitControls onResign={onResign} />
       </span>
+      <SeatStrip view={view} seatNames={seatNames} />
     </header>
   );
 }

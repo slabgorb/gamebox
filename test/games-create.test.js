@@ -6,7 +6,7 @@ import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
 
 const stubPlugin = {
-  id: 'stub', displayName: 'Stub', players: 2, clientDir: 'x',
+  id: 'stub', displayName: 'Stub', players: { min: 2, max: 2 }, clientDir: 'x',
   initialState: ({ participants, colors }) => ({
     activeUserId: participants[0].userId,
     sides: { a: participants.find(p => p.side === 'a').userId, b: participants.find(p => p.side === 'b').userId },
@@ -46,10 +46,9 @@ async function call(server, method, path, body, headers = {}) {
   return { status: res.status, body: text ? JSON.parse(text) : null };
 }
 
-test('threads the creator-chosen colour to their side, opponent takes the contrast', async () => {
+test('threads the creator-chosen colour to side a (creator = seat 0), opponent takes the contrast', async () => {
   const { server, db } = await setup();
   try {
-    // user 1 < user 2, so the creator (user 1) is side a.
     const r = await call(server, 'POST', '/api/games',
       { opponentId: 2, gameType: 'stub', color: 'green' }, { 'x-test-user-id': '1' });
     assert.equal(r.status, 200, JSON.stringify(r.body));
@@ -58,15 +57,31 @@ test('threads the creator-chosen colour to their side, opponent takes the contra
   } finally { server.close(); }
 });
 
-test('assigns the chosen colour to the creator even when they are side b', async () => {
+test('creator is always side a even with a higher user id', async () => {
   const { server, db } = await setup();
   try {
-    // user 2 > user 1, so the creator (user 2) is side b.
+    // Seats follow roster order, not user-id order: creator (user 2) is seat 0 = side a.
     const r = await call(server, 'POST', '/api/games',
       { opponentId: 1, gameType: 'stub', color: 'green' }, { 'x-test-user-id': '2' });
     assert.equal(r.status, 200, JSON.stringify(r.body));
     const state = JSON.parse(db.prepare('SELECT state FROM games WHERE id = ?').get(r.body.id).state);
-    assert.deepEqual(state.colors, { a: 'orange', b: 'green' }, 'creator (b) green, opponent (a) contrast');
+    assert.deepEqual(state.colors, { a: 'green', b: 'orange' }, 'creator (a) green, opponent (b) contrast');
+    assert.equal(state.sides.a, 2, 'creator holds side a');
+    assert.equal(state.sides.b, 1);
+  } finally { server.close(); }
+});
+
+test('POST /api/games accepts opponentIds[] and validates the plugin seat range', async () => {
+  const { server } = await setup();
+  try {
+    // stub is a 2P plugin: a 3-player roster must be rejected.
+    const r = await call(server, 'POST', '/api/games',
+      { opponentIds: [2, 3], gameType: 'stub' }, { 'x-test-user-id': '1' });
+    assert.equal(r.status, 400);
+    // Array form with a single opponent works like legacy opponentId.
+    const ok = await call(server, 'POST', '/api/games',
+      { opponentIds: [2], gameType: 'stub' }, { 'x-test-user-id': '1' });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
   } finally { server.close(); }
 });
 

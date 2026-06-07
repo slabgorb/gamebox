@@ -1,71 +1,115 @@
-function rowToGame(row) {
+// Seat-indexed game access. Participants are rows in the participants table
+// ordered by seat (seat 0 = creator, seat order = turn order). Plugin state
+// declares membership either via `seats: [userId, ...]` (N-player plugins)
+// or the legacy 2P `sides: {a, b}` shape (side 'a' ⇔ seat 0, 'b' ⇔ seat 1).
+
+function participantsFor(db, gameId) {
+  return db.prepare(
+    'SELECT user_id AS userId, seat FROM participants WHERE game_id = ? ORDER BY seat ASC'
+  ).all(gameId);
+}
+
+function rowToGame(db, row) {
   if (!row) return null;
   const state = JSON.parse(row.state);
-  // Map activeUserId → 'a'/'b' for backwards-compat consumers (lobby, /me, SSE clients)
-  const currentTurn =
-    state.sides?.a === state.activeUserId ? 'a' :
-    state.sides?.b === state.activeUserId ? 'b' :
-    state.activeSide ?? null;  // fallback for not-yet-migrated rows
   return {
     id: row.id,
-    playerAId: row.player_a_id,
-    playerBId: row.player_b_id,
     status: row.status,
     gameType: row.game_type,
     state,
-    currentTurn,
+    participants: participantsFor(db, row.id),
     endedReason: row.ended_reason,
-    winnerSide: row.winner_side,
+    winnerSeat: row.winner_seat,
+    isDraw: row.is_draw === 1,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
   };
 }
 
-export function sideForUser(game, userId) {
-  if (game.playerAId === userId) return 'a';
-  if (game.playerBId === userId) return 'b';
+// Seat lookup from the participants table (authoritative for membership).
+export function seatForUser(game, userId) {
+  const p = game.participants.find(p => p.userId === userId);
+  return p ? p.seat : null;
+}
+
+// Seat lookup from plugin state. Handles both state shapes.
+export function seatOfState(state, userId) {
+  if (Array.isArray(state?.seats)) {
+    const i = state.seats.indexOf(userId);
+    return i === -1 ? null : i;
+  }
+  if (state?.sides) {
+    if (state.sides.a === userId) return 0;
+    if (state.sides.b === userId) return 1;
+  }
   return null;
 }
 
-export function createGame(db, { playerAId, playerBId, gameType, initialState }) {
-  if (playerAId === playerBId) throw new Error('cannot start a game with self');
-  const aId = Math.min(playerAId, playerBId);
-  const bId = Math.max(playerAId, playerBId);
+// Legacy alias for 2P consumers: seat 0 → 'a', seat 1 → 'b'.
+export function sideOfSeat(seat) {
+  return seat === 0 ? 'a' : seat === 1 ? 'b' : null;
+}
+
+// userIds is the full roster in seat order (creator first).
+export function createGame(db, { userIds, gameType, initialState }) {
+  if (!Array.isArray(userIds) || userIds.length < 2) {
+    throw new Error('createGame needs at least 2 userIds');
+  }
+  if (new Set(userIds).size !== userIds.length) {
+    throw new Error('duplicate userId in roster');
+  }
   const now = Date.now();
-  const info = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', ?, ?, ?, ?)
-  `).run(aId, bId, gameType, JSON.stringify(initialState), now, now);
-  return getGameById(db, info.lastInsertRowid);
+  const tx = db.transaction(() => {
+    const info = db.prepare(`
+      INSERT INTO games (status, game_type, state, created_at, updated_at)
+      VALUES ('active', ?, ?, ?, ?)
+    `).run(gameType, JSON.stringify(initialState), now, now);
+    const gameId = info.lastInsertRowid;
+    const ins = db.prepare('INSERT INTO participants (game_id, user_id, seat) VALUES (?, ?, ?)');
+    userIds.forEach((userId, seat) => ins.run(gameId, userId, seat));
+    return gameId;
+  });
+  return getGameById(db, tx());
 }
 
 export function getGameById(db, id) {
-  return rowToGame(db.prepare('SELECT * FROM games WHERE id = ?').get(id));
+  return rowToGame(db, db.prepare('SELECT * FROM games WHERE id = ?').get(id));
 }
 
 export function listGamesForUser(db, userId) {
-  return db.prepare(
-    'SELECT * FROM games WHERE player_a_id = ? OR player_b_id = ? ORDER BY updated_at DESC'
-  ).all(userId, userId).map(rowToGame);
+  return db.prepare(`
+    SELECT g.* FROM games g
+    JOIN participants p ON p.game_id = g.id
+    WHERE p.user_id = ?
+    ORDER BY g.updated_at DESC
+  `).all(userId).map(row => rowToGame(db, row));
 }
 
-export function findActiveGameForPair(db, userId1, userId2) {
-  const aId = Math.min(userId1, userId2);
-  const bId = Math.max(userId1, userId2);
-  return rowToGame(db.prepare(
-    "SELECT * FROM games WHERE player_a_id = ? AND player_b_id = ? AND status = 'active'"
-  ).get(aId, bId));
+// An active game of this type with exactly this participant set (order
+// ignored). Replaces the old one_active_per_pair_type unique index, which
+// could not express set equality once rosters vary in size.
+export function findActiveGameForSet(db, userIds, gameType) {
+  const placeholders = userIds.map(() => '?').join(',');
+  const row = db.prepare(`
+    SELECT g.* FROM games g
+    WHERE g.status = 'active' AND g.game_type = ?
+      AND (SELECT COUNT(*) FROM participants p WHERE p.game_id = g.id) = ?
+      AND (SELECT COUNT(*) FROM participants p
+           WHERE p.game_id = g.id AND p.user_id IN (${placeholders})) = ?
+  `).get(gameType, userIds.length, ...userIds, userIds.length);
+  return rowToGame(db, row);
 }
 
-export function endGame(db, id, { endedReason, winnerSide, finalState }) {
+export function endGame(db, id, { endedReason, winnerSeat = null, isDraw = false, finalState }) {
   const tx = db.transaction(() => {
     db.prepare(`UPDATE games SET
       status = 'ended', state = ?,
-      ended_reason = ?, winner_side = ?,
+      ended_reason = ?, winner_seat = ?, is_draw = ?,
       updated_at = ? WHERE id = ?`).run(
       JSON.stringify(finalState),
       endedReason ?? null,
-      winnerSide ?? null,
+      winnerSeat ?? null,
+      isDraw ? 1 : 0,
       Date.now(),
       id
     );

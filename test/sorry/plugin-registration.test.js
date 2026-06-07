@@ -7,7 +7,7 @@ test('sorry plugin is registered with the expected shape', () => {
   assert.ok(p, 'plugins.sorry should be defined');
   assert.equal(p.id, 'sorry');
   assert.equal(p.displayName, 'Sorry!');
-  assert.equal(p.players, 2);
+  assert.deepEqual(p.players, { min: 2, max: 2 });
   assert.equal(typeof p.initialState, 'function');
   assert.equal(typeof p.applyAction, 'function');
   assert.equal(typeof p.publicView, 'function');

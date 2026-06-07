@@ -14,6 +14,7 @@ import {
   setPendingSequence,
   clearPendingSequence,
 } from '../src/server/ai/agent-session.js';
+import { insertGame } from './_helpers/games.js';
 
 function tmpDb() {
   const dir = mkdtempSync(join(tmpdir(), 'ai-session-'));
@@ -22,7 +23,7 @@ function tmpDb() {
   const u1 = db.prepare("INSERT INTO users (email, friendly_name, color, created_at) VALUES ('a@x', 'A', '#000', ?) RETURNING id").get(now).id;
   const u2 = db.prepare("INSERT INTO users (email, friendly_name, color, is_bot, created_at) VALUES ('bot@x', 'Bot', '#fff', 1, ?) RETURNING id").get(now).id;
   const aId = Math.min(u1, u2), bId = Math.max(u1, u2);
-  const gameId = db.prepare(`INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at) VALUES (?, ?, 'active', 'cribbage', '{}', ?, ?) RETURNING id`).get(aId, bId, now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'cribbage' });
   return { db, gameId, botUserId: u2 };
 }
 

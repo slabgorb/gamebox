@@ -6,7 +6,7 @@ import cribbage from '../plugins/cribbage/plugin.js';
 test('cribbage plugin: shape passes validatePlugin', () => {
   validatePlugin(cribbage);
   assert.equal(cribbage.id, 'cribbage');
-  assert.equal(cribbage.players, 2);
+  assert.deepEqual(cribbage.players, { min: 2, max: 2 });
   assert.equal(cribbage.displayName, 'Cribbage');
   assert.equal(cribbage.clientDir, 'plugins/cribbage/client');
 });

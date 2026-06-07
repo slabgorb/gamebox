@@ -6,6 +6,7 @@ import { createUser } from '../src/server/users.js';
 import { mountRoutes } from '../src/server/routes.js';
 import { attachIdentity } from '../src/server/identity.js';
 import wordsPlugin from '../plugins/words/plugin.js';
+import { insertGame } from './_helpers/games.js';
 
 function buildApp(db, devUser = null) {
   const app = express();
@@ -117,10 +118,7 @@ test('GET /api/me derives yourScore/theirScore from state.scores', async () => {
     winnerSide: null,
   };
   const now = Date.now();
-  db.prepare(`INSERT INTO games
-    (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'words', ?, ?, ?)`)
-    .run(aId, bId, JSON.stringify(state), now, now);
+  insertGame(db, { players: [aId, bId], gameType: 'words', state: state });
 
   const server = await listen(buildApp(db, 'a@x.com'));
   const r = await fetch(`${urlOf(server)}/api/me`);
@@ -149,17 +147,14 @@ test('GET /api/me exposes gameType, variant, and you side', async () => {
     winnerSide: null,
   };
   const now = Date.now();
-  db.prepare(`INSERT INTO games
-    (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'words', ?, ?, ?)`)
-    .run(aId, bId, JSON.stringify(state), now, now);
+  insertGame(db, { players: [aId, bId], gameType: 'words', state: state });
 
   const server = await listen(buildApp(db, 'a@x.com'));
   const r = await fetch(`${urlOf(server)}/api/me`);
   const body = await r.json();
   assert.equal(body.games[0].gameType, 'words');
   assert.equal(body.games[0].variant, 'scrabble');
-  assert.equal(body.games[0].you, 'a');
+  assert.equal(body.games[0].you, 0);
   assert.equal(body.games[0].yourTurn, true);  // activeUserId = aId, alice = aId
   server.close();
 });
@@ -176,10 +171,7 @@ test('GET /api/me variant is null for plugins without variant', async () => {
     scores: { a: 0, b: 0 },
   };
   const now = Date.now();
-  db.prepare(`INSERT INTO games
-    (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?)`)
-    .run(aId, bId, JSON.stringify(state), now, now);
+  insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
 
   const server = await listen(buildApp(db, 'a@x.com'));
   const r = await fetch(`${urlOf(server)}/api/me`);

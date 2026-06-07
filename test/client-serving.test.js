@@ -8,6 +8,7 @@ import path from 'node:path';
 import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
 import { mountPluginClients } from '../src/server/plugin-clients.js';
+import { insertGame } from './_helpers/games.js';
 
 function makeStubPluginDir() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gamebox-stub-'));
@@ -22,7 +23,7 @@ async function setup() {
   const stub = {
     id: 'stub',
     displayName: 'Stub',
-    players: 2,
+    players: { min: 2, max: 2 },
     clientDir,
     initialState: () => ({}),
     applyAction: ({ state }) => ({ state, ended: false }),
@@ -35,8 +36,7 @@ async function setup() {
   const now = Date.now();
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'a@b', 'A', '#f00', ?)").run(now);
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (2, 'b@b', 'B', '#0f0', ?)").run(now);
-  db.prepare(`INSERT INTO games (id, player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-              VALUES (42, 1, 2, 'active', 'stub', '{}', ?, ?)`).run(now, now);
+  insertGame(db, { id: 42, players: [1, 2], gameType: 'stub' });
 
   app.use((req, res, next) => {
     const id = Number(req.header('x-test-user-id'));

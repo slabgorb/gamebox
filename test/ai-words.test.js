@@ -8,6 +8,7 @@ import { FakeLlmClient } from '../src/server/ai/fake-llm-client.js';
 import { bootAiSubsystem } from '../src/server/ai/index.js';
 import { createAiSession } from '../src/server/ai/agent-session.js';
 import { buildInitialState } from '../plugins/words/server/state.js';
+import { insertGame } from './_helpers/games.js';
 
 function det(seed = 1) {
   let s = seed;
@@ -27,10 +28,7 @@ function setupGame(db, { rack, board = null, bag = null, initialMoveDone = false
   if (bag) state.bag = bag;
   state.initialMoveDone = initialMoveDone;
   state.activeUserId = bot;
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'words', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'words', state: state });
   createAiSession(db, { gameId, botUserId: bot, personaId: 'samantha' });
   return { gameId, bot };
 }

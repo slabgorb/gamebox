@@ -4,11 +4,12 @@ import express from 'express';
 import http from 'node:http';
 import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
+import { insertGame } from './_helpers/games.js';
 
 const echoPlugin = {
   id: 'echo',
   displayName: 'Echo',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/echo/client',
   initialState: () => ({ activeUserId: 1 }),
   applyAction: ({ state }) => ({ state, ended: false }),
@@ -32,8 +33,7 @@ async function setupApp() {
   const now = Date.now();
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'a@b', 'A', '#f00', ?)").run(now);
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (2, 'b@b', 'B', '#0f0', ?)").run(now);
-  db.prepare(`INSERT INTO games (id, player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-              VALUES (1, 1, 2, 'active', 'echo', '{}', ?, ?)`).run(now, now);
+  insertGame(db, { id: 1, players: [1, 2], gameType: 'echo' });
 
   app.use((req, res, next) => {
     const id = Number(req.header('x-test-user-id'));

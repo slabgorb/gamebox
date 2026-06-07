@@ -6,7 +6,7 @@ import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
 
 const stub = {
-  id: 'stub', displayName: 'Stub', players: 2, clientDir: 'x',
+  id: 'stub', displayName: 'Stub', players: { min: 2, max: 2 }, clientDir: 'x',
   initialState: ({ participants }) => ({
     activeUserId: participants[0].userId,
     sides: { a: participants[0].userId, b: participants[1].userId },
@@ -65,8 +65,12 @@ test('lobby data: GET /api/games + POST /api/games for current user', async () =
     assert.equal(r.status, 200);
     assert.equal(r.body.games.length, 1);
     assert.equal(r.body.games[0].gameType, 'stub');
-    const g = r.body.games[0];
-    const opponentId = g.playerAId === 1 ? g.playerBId : g.playerAId;
-    assert.equal(opponentId, 2);
+    // Opponent identity now lives in /api/me (opponents by seat); the bare
+    // games list carries only id/type/status/updatedAt.
+    const me = await call(server, 'GET', '/api/me', null, { 'x-test-user-id': '1' });
+    assert.equal(me.status, 200);
+    const lobbyGame = me.body.games.find(x => x.id === r.body.games[0].id);
+    assert.equal(lobbyGame.opponent.id, 2);
+    assert.equal(lobbyGame.you, 0, 'creator holds seat 0');
   } finally { server.close(); }
 });

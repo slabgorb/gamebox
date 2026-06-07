@@ -5,7 +5,7 @@ import { sorryPublicView } from './server/view.js';
 export default {
   id: 'sorry',
   displayName: 'Sorry!',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/sorry/client',
 
   initialState: buildInitialState,

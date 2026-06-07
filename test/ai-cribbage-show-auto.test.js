@@ -15,6 +15,7 @@ import { createOrchestrator } from '../src/server/ai/orchestrator.js';
 import cribbagePlugin from '../plugins/cribbage/plugin.js';
 import { chooseAction as cribbageChoose, chooseBanter as cribbageBanter } from '../plugins/cribbage/server/ai/cribbage-player.js';
 import { buildInitialState } from '../plugins/cribbage/server/state.js';
+import { insertGame } from './_helpers/games.js';
 
 function det(seed = 1) {
   let s = seed;
@@ -45,10 +46,7 @@ function setupOrchestrator({ llmResponses, includeBanter = true }) {
   const state = buildShowState();
   state.sides = { a: humanId, b: botId };
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
-    .get(humanId, botId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [humanId, botId], gameType: 'cribbage', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'hattie' });
 
   const events = [];

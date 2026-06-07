@@ -15,6 +15,7 @@ import { CombatReveal } from "./CombatReveal";
 import { OpponentCard } from "../shared/OpponentCard";
 import { OpponentBanter } from "../shared/OpponentBanter";
 import { play, primeAudio } from "./sounds";
+import { seatHex } from "./themes";
 
 export function RiskApp() {
   const { view, post, ctx } = useGameState<RiskView, RiskAction>();
@@ -84,10 +85,26 @@ export function RiskApp() {
   }, [view?.phase, view?.winner, view?.youAre]);
 
   if (!view) return <div className="banner">Loading…</div>;
-  if (view.phase === "gameover") return <EndScreen view={view} />;
 
-  const attackerColor = ctx.yourColor ?? "#c33";
-  const defenderColor = ctx.opponentColor ?? "#36c";
+  // Roster: display names by seat (multiplayer). view.seats maps seat → userId;
+  // ctx.players maps userId → friendlyName.
+  const nPlayers = view.seats?.length ?? 2;
+  const seatNames = view.seats?.map(
+    (uid, seat) => ctx.players?.find((p) => p.userId === uid)?.friendlyName ?? `Player ${seat + 1}`,
+  );
+
+  if (view.phase === "gameover") return <EndScreen view={view} seatNames={seatNames} />;
+
+  const attackerColor =
+    nPlayers > 2 ? seatHex(view.youAre) : ctx.yourColor ?? "#c33";
+  const defenderColor =
+    nPlayers > 2
+      ? seatHex(
+          view.pendingCombat
+            ? view.pendingCombat.attackerIdx
+            : (pending.to != null ? view.territories[pending.to]?.owner : null) ?? null,
+        )
+      : ctx.opponentColor ?? "#36c";
 
   function pick(id: string) {
     const ph = view!.phase;
@@ -95,7 +112,7 @@ export function RiskApp() {
       if (view!.territories[id]?.owner === view!.youAre) {
         const pool =
           ph === "setup"
-            ? view!.setupPools[view!.youAre as 0 | 1]
+            ? view!.setupPools[view!.youAre ?? 0]
             : view!.reinforcePool;
         setPending({
           plan: adjust(pending.plan ?? {}, id, 1, pool),
@@ -119,9 +136,16 @@ export function RiskApp() {
     <div>
       <Header
         view={view}
+        seatNames={seatNames}
         factionName={ctx.yourFriendlyName ?? "You"}
-        factionColor={ctx.yourColor}
+        factionColor={nPlayers > 2 ? seatHex(view.youAre) : ctx.yourColor}
         onResign={() => {
+          if (nPlayers > 2) {
+            window.alert(
+              "Resigning isn't supported in multiplayer games — fight to the end.",
+            );
+            return;
+          }
           if (
             window.confirm(
               "Resign this game? You forfeit — your opponent wins.",
@@ -136,19 +160,21 @@ export function RiskApp() {
 
       <CardTray view={view} post={post} />
 
-      <OpponentCard
-        personaId={ctx.opponentPersonaId ?? null}
-        friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
-        color={ctx.opponentColor}
-        glyph={ctx.opponentGlyph}
-      >
-        <OpponentBanter
-          gameId={ctx.gameId}
-          userId={ctx.userId}
-          sseUrl={ctx.sseUrl}
+      {nPlayers === 2 && (
+        <OpponentCard
+          personaId={ctx.opponentPersonaId ?? null}
           friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
-        />
-      </OpponentCard>
+          color={ctx.opponentColor}
+          glyph={ctx.opponentGlyph}
+        >
+          <OpponentBanter
+            gameId={ctx.gameId}
+            userId={ctx.userId}
+            sseUrl={ctx.sseUrl}
+            friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
+          />
+        </OpponentCard>
+      )}
 
       <Board
         view={view}
@@ -258,6 +284,7 @@ export function RiskApp() {
         youAre={view.youAre}
         yourName={ctx.yourFriendlyName}
         opponentName={ctx.opponentFriendlyName}
+        seatNames={seatNames}
       />
     </div>
   );

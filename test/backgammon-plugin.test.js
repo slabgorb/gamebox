@@ -10,7 +10,7 @@ test('plugin manifest passes validator', () => {
 test('manifest fields', () => {
   assert.equal(backgammonPlugin.id, 'backgammon');
   assert.equal(backgammonPlugin.displayName, 'Backgammon');
-  assert.equal(backgammonPlugin.players, 2);
+  assert.deepEqual(backgammonPlugin.players, { min: 2, max: 2 });
   assert.match(backgammonPlugin.clientDir, /plugins\/backgammon\/client/);
 });
 

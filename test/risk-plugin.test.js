@@ -12,7 +12,7 @@ test('plugin manifest passes validator', () => {
 test('manifest fields', () => {
   assert.equal(riskPlugin.id, 'risk');
   assert.equal(riskPlugin.displayName, 'Risk');
-  assert.equal(riskPlugin.players, 2);
+  assert.deepEqual(riskPlugin.players, { min: 2, max: 4 });
   assert.match(riskPlugin.clientDir, /plugins\/risk\/client/);
   assert.equal(typeof riskPlugin.legalActions, 'function');
 });

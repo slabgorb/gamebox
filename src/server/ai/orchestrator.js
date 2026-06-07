@@ -74,7 +74,12 @@ function stallReasonFor(err) {
 }
 
 function botPlayerIdxOf(state, botUserId) {
-  return state.sides.a === botUserId ? 0 : 1;
+  // N-player plugins declare seats: [userId, ...]; 2P plugins keep sides {a, b}.
+  if (Array.isArray(state.seats)) {
+    const i = state.seats.indexOf(botUserId);
+    return i === -1 ? 1 : i;
+  }
+  return state.sides?.a === botUserId ? 0 : 1;
 }
 
 export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adapters, logger = console }) {
@@ -117,7 +122,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
       logger.error?.(`[ai] game ${gameId}: ${detail}`);
       markStalled(db, gameId, 'invalid_response');
       // Compute bot side from state so the client knows where to render the banner.
-      const botSide = state.sides.a === session.botUserId ? 'a' : 'b';
+      const botSide = botPlayerIdx === 0 ? 'a' : 'b';
       sse.broadcast(gameId, {
         type: 'bot_stalled',
         payload: {
@@ -160,11 +165,14 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         db.prepare("UPDATE games SET state = ?, updated_at = ? WHERE id = ?")
           .run(JSON.stringify(newState), Date.now(), gameId);
         if (result.summary) {
-          turnRow = appendTurnEntry(db, gameId, botSide, result.summary.kind, result.summary);
+          turnRow = appendTurnEntry(db, gameId, botPlayerIdx, result.summary.kind, result.summary);
         }
         if (result.ended) {
-          db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_side=? WHERE id=?")
-            .run(newState.endedReason ?? 'plugin', newState.winnerSide ?? null, gameId);
+          db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_seat=?, is_draw=? WHERE id=?")
+            .run(newState.endedReason ?? 'plugin',
+                 Number.isInteger(newState.winnerSeat) ? newState.winnerSeat
+                   : newState.winnerSide === 'a' ? 0 : newState.winnerSide === 'b' ? 1 : null,
+                 newState.winnerSide === 'draw' ? 1 : 0, gameId);
         }
       });
       tx();
@@ -231,7 +239,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         db.prepare("UPDATE games SET state = ?, updated_at = ? WHERE id = ?")
           .run(JSON.stringify(newState), Date.now(), gameId);
         if (result.summary) {
-          turnRow = appendTurnEntry(db, gameId, botSide, result.summary.kind, result.summary);
+          turnRow = appendTurnEntry(db, gameId, botPlayerIdx, result.summary.kind, result.summary);
         }
         if (rest.length > 0 && newState.turn?.phase === 'moving') {
           setPendingSequence(db, gameId, rest);
@@ -239,8 +247,11 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
           clearPendingSequence(db, gameId);
         }
         if (result.ended) {
-          db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_side=? WHERE id=?")
-            .run(newState.endedReason ?? 'plugin', newState.winnerSide ?? null, gameId);
+          db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_seat=?, is_draw=? WHERE id=?")
+            .run(newState.endedReason ?? 'plugin',
+                 Number.isInteger(newState.winnerSeat) ? newState.winnerSeat
+                   : newState.winnerSide === 'a' ? 0 : newState.winnerSide === 'b' ? 1 : null,
+                 newState.winnerSide === 'draw' ? 1 : 0, gameId);
         }
       });
       tx();
@@ -321,11 +332,14 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
           newState = result.state;
           updateGame.run(JSON.stringify(newState), Date.now(), gameId);
           if (result.summary) {
-            turnRow = appendTurnEntry(db, gameId, botSide, result.summary.kind, result.summary);
+            turnRow = appendTurnEntry(db, gameId, botPlayerIdx, result.summary.kind, result.summary);
           }
           if (result.ended) {
-            db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_side=? WHERE id=?")
-              .run(newState.endedReason ?? 'plugin', newState.winnerSide ?? null, gameId);
+            db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_seat=?, is_draw=? WHERE id=?")
+              .run(newState.endedReason ?? 'plugin',
+                   Number.isInteger(newState.winnerSeat) ? newState.winnerSeat
+                     : newState.winnerSide === 'a' ? 0 : newState.winnerSide === 'b' ? 1 : null,
+                   newState.winnerSide === 'draw' ? 1 : 0, gameId);
           }
         });
         tx();

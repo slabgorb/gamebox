@@ -15,6 +15,7 @@ import { createOrchestrator } from '../src/server/ai/orchestrator.js';
 import riskPlugin from '../plugins/risk/plugin.js';
 import { chooseAction as riskChoose } from '../plugins/risk/server/ai/risk-player.js';
 import { allTerritories } from '../plugins/risk/server/map.js';
+import { insertGame } from './_helpers/games.js';
 
 const HUMAN_IDX = 1, BOT_IDX = 0;
 
@@ -51,10 +52,7 @@ test('orchestrator: drives a full Risk turn (reinforce→attack→fortify→end-
     activeUserId: botId,
   };
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'risk', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'risk', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'admiral-vonnegut' });
 
   const events = [];
