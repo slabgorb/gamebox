@@ -389,10 +389,6 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
             payload: { side: botSide, personaId: persona.id, displayName: persona.displayName, text: r.banter },
           });
         }
-        // TEMP DIAGNOSTIC (banter-not-chatting investigation): always log
-        // r.banter so we can tell empty-vs-missing-vs-content. Remove once
-        // backgammon banter root cause is known.
-        logger.info?.(`[ai] game ${gameId} ${persona.id} banter=${JSON.stringify(r.banter ?? null)} subs=${sse.subscriberCount?.(gameId) ?? '?'}`);
         sse.broadcast(gameId, { type: 'update', payload: {} });
         if (turnRow) {
           sse.broadcast(gameId, {
