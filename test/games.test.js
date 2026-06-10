@@ -96,12 +96,12 @@ test('findActiveGameForSet ignores ended games', () => {
 test('endGame records winner_seat and is_draw', () => {
   const { db, users } = withUsers(4);
   const g = makeGame(db, users.map(u => u.id), 'risk');
-  const ended = endGame(db, g.id, { endedReason: 'conquest', winnerSeat: 2, finalState: { done: true } });
+  const ended = endGame(db, g.id, { endedReason: 'conquest', winnerSeats: [2], finalState: { done: true } });
   assert.equal(ended.status, 'ended');
-  assert.equal(ended.winnerSeat, 2);
+  assert.deepStrictEqual(ended.winnerSeats, [2]);
   assert.equal(ended.isDraw, false);
   const drawn = endGame(db, g.id, { endedReason: 'draw', isDraw: true, finalState: {} });
-  assert.equal(drawn.winnerSeat, null);
+  assert.equal(drawn.winnerSeats, null);
   assert.equal(drawn.isDraw, true);
 });
 
