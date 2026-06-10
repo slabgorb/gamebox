@@ -470,31 +470,6 @@ function wireNewGame(me, plugins) {
     }
   }
 
-  async function showPersonaStep(opponent, gameType, variant, color = null) {
-    titleEl.textContent = `Choose your AI opponent`;
-    stepsEl.innerHTML = `<div class="ng-step">Final step — pick a persona</div>`;
-    const back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'ng-back';
-    back.textContent = 'back';
-    back.onclick = () => showGameStep(opponent, plugins);
-    stepsEl.appendChild(back);
-    const data = await fetchJson(`/api/ai/personas?game=${encodeURIComponent(gameType)}`);
-    for (const p of data.personas) {
-      const li = document.createElement('li');
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'ng-tile';
-      btn.innerHTML = `
-        <span class="ng-mono"${p.glyph ? ` data-glyph="${escapeAttr(p.glyph)}"` : ''} style="background:${escapeAttr(p.color || '#888')};margin-left:16px">${escapeHtml(avatarInitial(p.displayName))}</span>
-        <span class="ng-body"><span class="ng-name">${escapeHtml(p.displayName)}</span></span>
-        <span class="ng-chev" aria-hidden="true">›</span>`;
-      btn.onclick = () => startGame(opponent, gameType, variant, p.id, color);
-      li.appendChild(btn);
-      stepsEl.appendChild(li);
-    }
-  }
-
   async function startGame(opponent, gameType, variant, _personaId = null, color = null, extraIds = []) {
     const body = { opponentIds: [opponent.id, ...extraIds], gameType };
     if (variant) body.variant = variant;
