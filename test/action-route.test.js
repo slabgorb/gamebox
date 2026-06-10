@@ -164,7 +164,7 @@ test('ending action writes synthetic game-ended row after the action row', async
     assert.equal(rows[1].kind, 'game-ended');
     assert.equal(rows[1].turn_number, 2);
     assert.equal(rows[1].seat, 0);
-    assert.deepEqual(JSON.parse(rows[1].summary), { kind: 'game-ended', reason: 'done', winnerSeat: 0, winnerSide: 'a' });
+    assert.deepEqual(JSON.parse(rows[1].summary), { kind: 'game-ended', reason: 'done', winnerSeats: [0], winnerSide: 'a' });
 
     const turnEvents = broadcasts.filter(b => b.event.type === 'turn');
     assert.equal(turnEvents.length, 2);
@@ -194,5 +194,17 @@ test('GET /api/games/:id/history rejects non-participants', async () => {
   try {
     const r = await call(server, 'GET', '/api/games/1/history', null, { 'x-test-user-id': '99' });
     assert.equal(r.status, 403);
+  } finally { server.close(); }
+});
+
+test('winning action records winnerSeats on the game', async () => {
+  const { app, db } = setupApp();
+  const server = await startServer(app);
+  try {
+    const r = await call(server, 'POST', '/api/games/1/action', { type: 'finish' }, { 'x-test-user-id': '1' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ended, true);
+    const ended = db.prepare("SELECT winner_seats FROM games WHERE id = 1").get();
+    assert.deepStrictEqual(JSON.parse(ended.winner_seats), [0]);
   } finally { server.close(); }
 });

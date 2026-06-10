@@ -8,6 +8,7 @@ import { subscribe } from './sse.js';
 import { writeGameState } from './state.js';
 import { getPlugin } from './plugins.js';
 import { appendTurnEntry, listTurnEntries } from './history.js';
+import { winSeatsFromState } from './win-result.js';
 import { createAiSession, getAiSession, clearStall, appendUserMessage } from './ai/agent-session.js';
 import { isSorryColor, CONTRAST } from '../../plugins/sorry/server/colors.js';
 
@@ -286,24 +287,19 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
       }
 
       if (result.ended) {
-        // N-player plugins set winnerSeat (int); 2P plugins set winnerSide
-        // ('a'/'b'/'draw'). Normalize to seat + draw flag.
-        const winnerSeat = Number.isInteger(newState.winnerSeat) ? newState.winnerSeat
-          : newState.winnerSide === 'a' ? 0
-          : newState.winnerSide === 'b' ? 1
-          : null;
-        const isDraw = newState.winnerSide === 'draw' || newState.isDraw === true;
+        const { winnerSeats, isDraw } = winSeatsFromState(newState);
         endGame(db, req.game.id, {
           endedReason: newState.endedReason ?? 'plugin',
-          winnerSeat,
+          winnerSeats,
           isDraw,
           finalState: newState,
         });
         const endedSummary = {
           kind: 'game-ended',
           reason: newState.endedReason ?? 'plugin',
-          winnerSeat,
-          winnerSide: isDraw ? 'draw' : sideOfSeat(winnerSeat),
+          winnerSeats,
+          winnerSide: isDraw ? 'draw'
+            : (winnerSeats && winnerSeats.length === 1 ? sideOfSeat(winnerSeats[0]) : null),
         };
         turnRows.push(appendTurnEntry(db, req.game.id, actorSeat, 'game-ended', endedSummary));
       }
