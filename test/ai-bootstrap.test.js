@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openDb } from '../src/server/db.js';
+
+const REAL_PERSONA_DIR = join(process.cwd(), 'data', 'ai-personas');
 import { bootAiSubsystem } from '../src/server/ai/index.js';
 import { DEFAULT_MODEL } from '../src/server/ai/llm-client.js';
 import { createAiSession } from '../src/server/ai/agent-session.js';
@@ -139,4 +141,30 @@ test('bootAiSubsystem: registers words adapter', async () => {
   // No throw = adapter registered. scheduleTurn would otherwise stall
   // with "no AI adapter for game_type words".
   assert.doesNotThrow(() => orchestrator.scheduleTurn(gameId));
+});
+
+test('boot creates one bot user per persona, carrying persona_id', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-boot-per-persona-'));
+  const db = openDb(join(dir, 'test.db'));
+  const sse = { broadcast: () => {} };
+  const llm = { send: async () => ({ text: '{"moveId":"x","banter":""}' }) };
+  bootAiSubsystem({ db, sse, llm, personaDir: REAL_PERSONA_DIR });
+  const bots = db.prepare("SELECT friendly_name, persona_id, is_bot FROM users WHERE is_bot = 1 ORDER BY persona_id").all();
+  const personaCount = readdirSync(REAL_PERSONA_DIR).filter(f => f.endsWith('.yaml')).length;
+  assert.strictEqual(bots.length, personaCount);
+  assert.ok(bots.every(b => typeof b.persona_id === 'string' && b.persona_id.length > 0));
+  db.close();
+});
+
+test('boot is idempotent — second boot adds no duplicate bot users', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-boot-idempotent-'));
+  const db = openDb(join(dir, 'test.db'));
+  const sse = { broadcast: () => {} };
+  const llm = { send: async () => ({ text: '{"moveId":"x","banter":""}' }) };
+  bootAiSubsystem({ db, sse, llm, personaDir: REAL_PERSONA_DIR });
+  const first = db.prepare("SELECT COUNT(*) n FROM users WHERE is_bot = 1").get().n;
+  bootAiSubsystem({ db, sse, llm, personaDir: REAL_PERSONA_DIR });
+  const second = db.prepare("SELECT COUNT(*) n FROM users WHERE is_bot = 1").get().n;
+  assert.strictEqual(first, second);
+  db.close();
 });
