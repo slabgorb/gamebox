@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS games (
   game_type       TEXT NOT NULL,
   state           TEXT NOT NULL DEFAULT '{}',
   ended_reason    TEXT,
-  winner_seat     INTEGER,
+  winner_seats    TEXT,
   is_draw         INTEGER NOT NULL DEFAULT 0,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL
@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS ai_sessions (
 // table wholesale and lets SCHEMA recreate them. Users are preserved.
 function dropLegacyGameTables(db) {
   const gamesCols = db.prepare("PRAGMA table_info(games)").all().map(c => c.name);
-  if (gamesCols.length === 0 || !gamesCols.includes('player_a_id')) return;
+  const legacy = gamesCols.includes('player_a_id') || gamesCols.includes('winner_seat');
+  if (gamesCols.length === 0 || !legacy) return;
   db.pragma('foreign_keys = OFF');
   db.exec(`
     DROP TABLE IF EXISTS turn_log;

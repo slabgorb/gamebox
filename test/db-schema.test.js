@@ -13,7 +13,7 @@ test('openDb creates seat-indexed games table (no player_a/b columns)', () => {
   const db = openDb(':memory:');
   const cols = db.prepare("PRAGMA table_info(games)").all().map(c => c.name);
   for (const expected of ['id', 'status', 'game_type', 'state',
-    'ended_reason', 'winner_seat', 'is_draw', 'created_at', 'updated_at']) {
+    'ended_reason', 'winner_seats', 'is_draw', 'created_at', 'updated_at']) {
     assert.ok(cols.includes(expected), `games missing column ${expected}`);
   }
   for (const dropped of ['player_a_id', 'player_b_id', 'winner_side', 'current_turn',
@@ -69,6 +69,16 @@ test('legacy pre-seat database is rebuilt wholesale (users preserved, games disc
   assert.equal(upgraded.prepare("SELECT friendly_name FROM users WHERE email='keep@me'").get().friendly_name, 'Keep', 'users preserved');
   upgraded.close();
   fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test('games table has winner_seats TEXT, not winner_seat', () => {
+  const db = openDb(':memory:');
+  const cols = db.prepare("PRAGMA table_info(games)").all();
+  const names = cols.map(c => c.name);
+  assert.ok(names.includes('winner_seats'), 'winner_seats column present');
+  assert.ok(!names.includes('winner_seat'), 'legacy winner_seat column gone');
+  assert.strictEqual(cols.find(c => c.name === 'winner_seats').type, 'TEXT');
+  db.close();
 });
 
 test('legacy moves table is dropped on upgrade and absent on fresh DBs', () => {
