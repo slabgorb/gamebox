@@ -86,23 +86,35 @@ function botPlayerIdxOf(state, botUserId) {
   return state.sides?.a === botUserId ? 0 : 1;
 }
 
+// The single source of truth for concurrent-phase eligibility. In phases with
+// no single active player (activeUserId == null) — cribbage discard/show,
+// backgammon initial-roll — a bot may act if it hasn't yet submitted its half.
+// BOTH the scan predicate (botEligible) and _runBot's act-or-skip gate call
+// this, so a future fourth concurrent phase is added in exactly one place.
+// Self-contained: returns false unless activeUserId is null.
+function botMustActConcurrently(state, botUserId) {
+  if (state.activeUserId != null) return false;
+  const botPlayerIdx = botPlayerIdxOf(state, botUserId);
+  const botSideKey = botPlayerIdx === 0 ? 'a' : 'b';
+  return (
+    // Cribbage concurrent phases
+    (state.phase === 'discard' && state.pendingDiscards?.[botPlayerIdx] == null) ||
+    (state.phase === 'show' && state.acknowledged?.[botPlayerIdx] === false) ||
+    // Backgammon initial-roll: both sides roll; bot acts if its side hasn't rolled yet.
+    (state.turn?.phase === 'initial-roll' && state.initialRoll?.[botSideKey] == null)
+  );
+}
+
 // Mirror of _runBot's act-or-skip gate, used by the scan loop to pick the next
-// bot to drive. Kept in sync with the gate inside _runBot.
+// bot to drive. Shares the concurrent-phase block with _runBot via
+// botMustActConcurrently, so the two cannot drift.
 function botEligible(state, botUserId) {
   // CROSS-BUG-3 continuation gate: bot is paused while an action awaits
   // client-side dice resolution.
   if (state.pendingCombat || state.pendingRoll) return false;
   if (state.activeUserId === botUserId) return true;
   if (state.activeUserId != null) return false;
-  // activeUserId == null: concurrent phases (cribbage discard/show,
-  // backgammon initial-roll) — bot acts if it hasn't submitted its half.
-  const botPlayerIdx = botPlayerIdxOf(state, botUserId);
-  const botSideKey = botPlayerIdx === 0 ? 'a' : 'b';
-  return (
-    (state.phase === 'discard' && state.pendingDiscards?.[botPlayerIdx] == null) ||
-    (state.phase === 'show' && state.acknowledged?.[botPlayerIdx] === false) ||
-    (state.turn?.phase === 'initial-roll' && state.initialRoll?.[botSideKey] == null)
-  );
+  return botMustActConcurrently(state, botUserId);
 }
 
 // Single place the orchestrator marks a game ended, so every bot-action path
@@ -139,17 +151,8 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
     // activeUserId is null (concurrent phases: discard, show) and the bot
     // hasn't yet submitted its half.
     const botPlayerIdx = botPlayerIdxOf(state, session.botUserId);
-    const botSideKey = botPlayerIdx === 0 ? 'a' : 'b';
-    const botMustActConcurrently =
-      state.activeUserId == null &&
-      (
-        // Cribbage concurrent phases
-        (state.phase === 'discard' && state.pendingDiscards?.[botPlayerIdx] == null) ||
-        (state.phase === 'show' && state.acknowledged?.[botPlayerIdx] === false) ||
-        // Backgammon initial-roll: both sides roll; bot acts if its side hasn't rolled yet.
-        (state.turn?.phase === 'initial-roll' && state.initialRoll?.[botSideKey] == null)
-      );
-    if (state.activeUserId !== session.botUserId && !botMustActConcurrently) return;
+    if (state.activeUserId !== session.botUserId &&
+        !botMustActConcurrently(state, session.botUserId)) return;
 
     const persona = personas.get(session.personaId);
     const adapter = adapters[gameRow.game_type];
