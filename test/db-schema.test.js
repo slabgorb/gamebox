@@ -71,6 +71,57 @@ test('legacy pre-seat database is rebuilt wholesale (users preserved, games disc
   fs.rmSync(tmpDir, { recursive: true, force: true });
 });
 
+// A games-table rebuild (e.g. the winner_seat -> winner_seats legacy drop)
+// runs with foreign_keys OFF and historically forgot the participants table,
+// stranding participant rows whose game no longer exists. The recreated games
+// table restarts AUTOINCREMENT at 1, so the first new game collides with the
+// orphans on UNIQUE(game_id, user_id) and every game creation 500s.
+test('openDb removes orphan participants left by a prior games-table rebuild', () => {
+  const tmpDir = fs.mkdtempSync('/tmp/gamebox-test-');
+  const tmp = `${tmpDir}/game.db`;
+
+  // Current seat-indexed schema, then strand a participant row for a game
+  // that does not exist (mirrors the live DB after the winner_seats migration).
+  const seeded = openDb(tmp);
+  seeded.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'k@k', 'K', '#fff', 1)").run();
+  seeded.pragma('foreign_keys = OFF');
+  seeded.prepare('INSERT INTO participants (game_id, user_id, seat) VALUES (1, 1, 0)').run();
+  seeded.close();
+
+  const reopened = openDb(tmp);
+  const orphans = reopened.prepare(
+    'SELECT COUNT(*) AS n FROM participants p LEFT JOIN games g ON g.id = p.game_id WHERE g.id IS NULL'
+  ).get().n;
+  assert.equal(orphans, 0, 'orphan participants should be cleaned on open');
+  reopened.close();
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+// The legacy wholesale drop must take participants with it, or the rows it
+// leaves behind become the orphans above.
+test('legacy games-table rebuild drops participants too (no orphans stranded)', () => {
+  const tmpDir = fs.mkdtempSync('/tmp/gamebox-test-');
+  const tmp = `${tmpDir}/game.db`;
+
+  const legacy = openDb(tmp);
+  legacy.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'k@k', 'K', '#fff', 1)").run();
+  legacy.pragma('foreign_keys = OFF');
+  // Mark the games table legacy via the singular winner_seat column, and give
+  // it a game with a participant — exactly the pre-winner_seats state.
+  legacy.exec('ALTER TABLE games ADD COLUMN winner_seat TEXT');
+  legacy.prepare("INSERT INTO games (id, status, game_type, state, created_at, updated_at) VALUES (1, 'active', 'risk', '{}', 1, 1)").run();
+  legacy.prepare('INSERT INTO participants (game_id, user_id, seat) VALUES (1, 1, 0)').run();
+  legacy.close();
+
+  const upgraded = openDb(tmp);
+  const orphans = upgraded.prepare(
+    'SELECT COUNT(*) AS n FROM participants p LEFT JOIN games g ON g.id = p.game_id WHERE g.id IS NULL'
+  ).get().n;
+  assert.equal(orphans, 0, 'legacy upgrade should leave no orphan participants');
+  upgraded.close();
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
 test('games table has winner_seats TEXT, not winner_seat', () => {
   const db = openDb(':memory:');
   const cols = db.prepare("PRAGMA table_info(games)").all();
