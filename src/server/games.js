@@ -19,7 +19,7 @@ function rowToGame(db, row) {
     state,
     participants: participantsFor(db, row.id),
     endedReason: row.ended_reason,
-    winnerSeat: row.winner_seat,
+    winnerSeats: row.winner_seats ? JSON.parse(row.winner_seats) : null,
     isDraw: row.is_draw === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -100,15 +100,15 @@ export function findActiveGameForSet(db, userIds, gameType) {
   return rowToGame(db, row);
 }
 
-export function endGame(db, id, { endedReason, winnerSeat = null, isDraw = false, finalState }) {
+export function endGame(db, id, { endedReason, winnerSeats = null, isDraw = false, finalState }) {
   const tx = db.transaction(() => {
     db.prepare(`UPDATE games SET
       status = 'ended', state = ?,
-      ended_reason = ?, winner_seat = ?, is_draw = ?,
+      ended_reason = ?, winner_seats = ?, is_draw = ?,
       updated_at = ? WHERE id = ?`).run(
       JSON.stringify(finalState),
       endedReason ?? null,
-      winnerSeat ?? null,
+      winnerSeats == null ? null : JSON.stringify(winnerSeats),
       isDraw ? 1 : 0,
       Date.now(),
       id

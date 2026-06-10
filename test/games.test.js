@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { openDb } from '../src/server/db.js';
 import { createUser } from '../src/server/users.js';
 import {
-  createGame, listGamesForUser, seatForUser, seatOfState, sideOfSeat, findActiveGameForSet, endGame,
+  createGame, listGamesForUser, seatForUser, seatOfState, sideOfSeat, findActiveGameForSet, endGame, getGameById,
 } from '../src/server/games.js';
 
 function withUsers(n = 2) {
@@ -103,4 +103,27 @@ test('endGame records winner_seat and is_draw', () => {
   const drawn = endGame(db, g.id, { endedReason: 'draw', isDraw: true, finalState: {} });
   assert.equal(drawn.winnerSeat, null);
   assert.equal(drawn.isDraw, true);
+});
+
+test('endGame stores winnerSeats array and reads it back', () => {
+  const db = openDb(':memory:');
+  const u = db.prepare("INSERT INTO users (email, friendly_name, color, created_at) VALUES (?,?,?,?) RETURNING id");
+  const a = u.get('a@x', 'A', '#a00', Date.now()).id;
+  const b = u.get('b@x', 'B', '#0a0', Date.now()).id;
+  const game = createGame(db, { userIds: [a, b], gameType: 'risk', initialState: { seats: [a, b] } });
+  endGame(db, game.id, { endedReason: 'plugin', winnerSeats: [1], isDraw: false, finalState: { done: true } });
+  const ended = getGameById(db, game.id);
+  assert.deepStrictEqual(ended.winnerSeats, [1]);
+  assert.strictEqual(ended.status, 'ended');
+  db.close();
+});
+
+test('endGame stores a partnership win as two seats', () => {
+  const db = openDb(':memory:');
+  const u = db.prepare("INSERT INTO users (email, friendly_name, color, created_at) VALUES (?,?,?,?) RETURNING id");
+  const ids = [0,1,2,3].map(i => u.get(`p${i}@x`, `P${i}`, '#777', Date.now()).id);
+  const game = createGame(db, { userIds: ids, gameType: 'cribbage', initialState: { seats: ids } });
+  endGame(db, game.id, { endedReason: 'plugin', winnerSeats: [1, 3], isDraw: false, finalState: {} });
+  assert.deepStrictEqual(getGameById(db, game.id).winnerSeats, [1, 3]);
+  db.close();
 });
