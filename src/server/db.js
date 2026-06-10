@@ -78,6 +78,7 @@ function dropLegacyGameTables(db) {
     DROP TABLE IF EXISTS turn_log;
     DROP TABLE IF EXISTS ai_sessions;
     DROP TABLE IF EXISTS moves;
+    DROP TABLE IF EXISTS participants;
     DROP TABLE IF EXISTS games;
     DROP INDEX IF EXISTS one_active_per_pair;
     DROP INDEX IF EXISTS one_active_per_pair_type;
@@ -103,6 +104,11 @@ export function openDb(filePath = 'game.db') {
   if (!userCols.includes('persona_id')) {
     db.exec("ALTER TABLE users ADD COLUMN persona_id TEXT");
   }
+
+  // Self-heal: a prior games-table rebuild (run with foreign_keys OFF) could
+  // strand participant rows whose game no longer exists. Left in place they
+  // collide with the recreated AUTOINCREMENT ids and 500 every game creation.
+  db.exec('DELETE FROM participants WHERE game_id NOT IN (SELECT id FROM games)');
 
   return db;
 }
