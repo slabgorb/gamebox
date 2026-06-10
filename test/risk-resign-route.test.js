@@ -61,10 +61,10 @@ test('player 2 can resign even though player 1 is the active player', async () =
     assert.equal(r.status, 200, 'resign must NOT be blocked by the turn guard');
     assert.equal(r.body.ended, true);
 
-    const row = db.prepare("SELECT status, winner_seat, ended_reason FROM games WHERE id = 1").get();
+    const row = db.prepare("SELECT status, winner_seats, ended_reason FROM games WHERE id = 1").get();
     assert.equal(row.status, 'ended', 'game registers as ended');
     assert.equal(row.ended_reason, 'resign');
-    assert.equal(row.winner_seat, 0, 'the non-resigning player (seat 0) is the winner');
+    assert.deepStrictEqual(JSON.parse(row.winner_seats), [0], 'the non-resigning player (seat 0) is the winner');
   } finally { server.close(); }
 });
 
