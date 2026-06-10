@@ -23,38 +23,45 @@ export function createAiSession(db, { gameId, botUserId, personaId }) {
   `).run(gameId, botUserId, personaId, now, now);
 }
 
-export function getAiSession(db, gameId) {
-  return rowToSession(db.prepare("SELECT * FROM ai_sessions WHERE game_id = ?").get(gameId));
+export function getAiSession(db, gameId, botUserId) {
+  return rowToSession(db.prepare(
+    "SELECT * FROM ai_sessions WHERE game_id = ? AND bot_user_id = ?"
+  ).get(gameId, botUserId));
 }
 
-export function setClaudeSessionId(db, gameId, claudeSessionId) {
-  db.prepare("UPDATE ai_sessions SET claude_session_id = ?, last_used_at = ? WHERE game_id = ?")
-    .run(claudeSessionId, Date.now(), gameId);
+export function listAiSessions(db, gameId) {
+  return db.prepare("SELECT * FROM ai_sessions WHERE game_id = ? ORDER BY bot_user_id")
+    .all(gameId).map(rowToSession);
+}
+
+export function setClaudeSessionId(db, gameId, botUserId, claudeSessionId) {
+  db.prepare("UPDATE ai_sessions SET claude_session_id = ?, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(claudeSessionId, Date.now(), gameId, botUserId);
 }
 
 // Called when we resume an existing claude session — bumps the counter so
 // the orchestrator can cap context bloat by rotating to a fresh session
 // after N consecutive resumes.
-export function bumpResumeCount(db, gameId) {
-  db.prepare("UPDATE ai_sessions SET resume_count = resume_count + 1, last_used_at = ? WHERE game_id = ?")
-    .run(Date.now(), gameId);
+export function bumpResumeCount(db, gameId, botUserId) {
+  db.prepare("UPDATE ai_sessions SET resume_count = resume_count + 1, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(Date.now(), gameId, botUserId);
 }
 
 // Rotates to a fresh claude session: drops the prior session id and resets
 // the resume counter.
-export function rotateClaudeSession(db, gameId) {
-  db.prepare("UPDATE ai_sessions SET claude_session_id = NULL, resume_count = 0, last_used_at = ? WHERE game_id = ?")
-    .run(Date.now(), gameId);
+export function rotateClaudeSession(db, gameId, botUserId) {
+  db.prepare("UPDATE ai_sessions SET claude_session_id = NULL, resume_count = 0, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(Date.now(), gameId, botUserId);
 }
 
-export function markStalled(db, gameId, reason) {
-  db.prepare("UPDATE ai_sessions SET stalled_at = ?, stall_reason = ?, pending_sequence = NULL, last_used_at = ? WHERE game_id = ?")
-    .run(Date.now(), reason, Date.now(), gameId);
+export function markStalled(db, gameId, botUserId, reason) {
+  db.prepare("UPDATE ai_sessions SET stalled_at = ?, stall_reason = ?, pending_sequence = NULL, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(Date.now(), reason, Date.now(), gameId, botUserId);
 }
 
-export function clearStall(db, gameId) {
-  db.prepare("UPDATE ai_sessions SET stalled_at = NULL, stall_reason = NULL, last_used_at = ? WHERE game_id = ?")
-    .run(Date.now(), gameId);
+export function clearStall(db, gameId, botUserId) {
+  db.prepare("UPDATE ai_sessions SET stalled_at = NULL, stall_reason = NULL, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(Date.now(), gameId, botUserId);
 }
 
 // Used at server boot to find bot turns that were in-flight or stalled
@@ -72,37 +79,37 @@ export function listStalledOrInFlight(db) {
   `).all().map(rowToSession);
 }
 
-export function setPendingSequence(db, gameId, sequence) {
+export function setPendingSequence(db, gameId, botUserId, sequence) {
   const value = (Array.isArray(sequence) && sequence.length > 0) ? JSON.stringify(sequence) : null;
-  db.prepare("UPDATE ai_sessions SET pending_sequence = ?, last_used_at = ? WHERE game_id = ?")
-    .run(value, Date.now(), gameId);
+  db.prepare("UPDATE ai_sessions SET pending_sequence = ?, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(value, Date.now(), gameId, botUserId);
 }
 
-export function clearPendingSequence(db, gameId) {
-  db.prepare("UPDATE ai_sessions SET pending_sequence = NULL, last_used_at = ? WHERE game_id = ?")
-    .run(Date.now(), gameId);
+export function clearPendingSequence(db, gameId, botUserId) {
+  db.prepare("UPDATE ai_sessions SET pending_sequence = NULL, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(Date.now(), gameId, botUserId);
 }
 
 // Trash-talk inbox: human → bot. Drained by the orchestrator before each
 // bot turn so the LLM can react in its banter. Cleared only after the bot
 // successfully acts, so a stalled / retried turn doesn't lose the message.
-export function appendUserMessage(db, gameId, text) {
-  const row = db.prepare("SELECT pending_user_messages FROM ai_sessions WHERE game_id = ?").get(gameId);
+export function appendUserMessage(db, gameId, botUserId, text) {
+  const row = db.prepare("SELECT pending_user_messages FROM ai_sessions WHERE game_id = ? AND bot_user_id = ?").get(gameId, botUserId);
   if (!row) return false;
   const current = row.pending_user_messages ? JSON.parse(row.pending_user_messages) : [];
   current.push({ text, sentAt: Date.now() });
-  db.prepare("UPDATE ai_sessions SET pending_user_messages = ?, last_used_at = ? WHERE game_id = ?")
-    .run(JSON.stringify(current), Date.now(), gameId);
+  db.prepare("UPDATE ai_sessions SET pending_user_messages = ?, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(JSON.stringify(current), Date.now(), gameId, botUserId);
   return true;
 }
 
-export function peekUserMessages(db, gameId) {
-  const row = db.prepare("SELECT pending_user_messages FROM ai_sessions WHERE game_id = ?").get(gameId);
+export function peekUserMessages(db, gameId, botUserId) {
+  const row = db.prepare("SELECT pending_user_messages FROM ai_sessions WHERE game_id = ? AND bot_user_id = ?").get(gameId, botUserId);
   if (!row || !row.pending_user_messages) return [];
   try { return JSON.parse(row.pending_user_messages); } catch { return []; }
 }
 
-export function clearUserMessages(db, gameId) {
-  db.prepare("UPDATE ai_sessions SET pending_user_messages = NULL, last_used_at = ? WHERE game_id = ?")
-    .run(Date.now(), gameId);
+export function clearUserMessages(db, gameId, botUserId) {
+  db.prepare("UPDATE ai_sessions SET pending_user_messages = NULL, last_used_at = ? WHERE game_id = ? AND bot_user_id = ?")
+    .run(Date.now(), gameId, botUserId);
 }
