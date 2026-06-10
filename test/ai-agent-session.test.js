@@ -30,7 +30,7 @@ function tmpDb() {
 test('createAiSession: inserts a row with null claude_session_id and timestamps', () => {
   const { db, gameId, botUserId } = tmpDb();
   createAiSession(db, { gameId, botUserId, personaId: 'hattie' });
-  const row = getAiSession(db, gameId);
+  const row = getAiSession(db, gameId, botUserId);
   assert.equal(row.gameId, gameId);
   assert.equal(row.botUserId, botUserId);
   assert.equal(row.personaId, 'hattie');
@@ -48,10 +48,10 @@ test('createAiSession: duplicate game_id rejected', () => {
 test('setClaudeSessionId: stores UUID and bumps last_used_at', async () => {
   const { db, gameId, botUserId } = tmpDb();
   createAiSession(db, { gameId, botUserId, personaId: 'hattie' });
-  const before = getAiSession(db, gameId).lastUsedAt;
+  const before = getAiSession(db, gameId, botUserId).lastUsedAt;
   await new Promise(r => setTimeout(r, 5));
-  setClaudeSessionId(db, gameId, 'uuid-1');
-  const after = getAiSession(db, gameId);
+  setClaudeSessionId(db, gameId, botUserId, 'uuid-1');
+  const after = getAiSession(db, gameId, botUserId);
   assert.equal(after.claudeSessionId, 'uuid-1');
   assert.ok(after.lastUsedAt > before);
 });
@@ -59,12 +59,12 @@ test('setClaudeSessionId: stores UUID and bumps last_used_at', async () => {
 test('markStalled / clearStall: round-trip', () => {
   const { db, gameId, botUserId } = tmpDb();
   createAiSession(db, { gameId, botUserId, personaId: 'hattie' });
-  markStalled(db, gameId, 'timeout');
-  let row = getAiSession(db, gameId);
+  markStalled(db, gameId, botUserId, 'timeout');
+  let row = getAiSession(db, gameId, botUserId);
   assert.ok(row.stalledAt > 0);
   assert.equal(row.stallReason, 'timeout');
-  clearStall(db, gameId);
-  row = getAiSession(db, gameId);
+  clearStall(db, gameId, botUserId);
+  row = getAiSession(db, gameId, botUserId);
   assert.equal(row.stalledAt, null);
   assert.equal(row.stallReason, null);
 });
@@ -80,34 +80,34 @@ test('listStalledOrInFlight: returns active games whose activeUserId is a bot or
 });
 
 test('setPendingSequence stores and clears a JSON-encoded tail', () => {
-  const { db, gameId } = tmpDb();
-  createAiSession(db, { gameId, botUserId: tmpDb().botUserId, personaId: 'hattie' });
-  setPendingSequence(db, gameId, [
+  const { db, gameId, botUserId } = tmpDb();
+  createAiSession(db, { gameId, botUserId, personaId: 'hattie' });
+  setPendingSequence(db, gameId, botUserId, [
     { type: 'move', payload: { from: 13, to: 8, die: 5 } },
     { type: 'move', payload: { from: 13, to: 10, die: 3 } },
   ]);
-  let sess = getAiSession(db, gameId);
+  let sess = getAiSession(db, gameId, botUserId);
   assert.deepEqual(sess.pendingSequence, [
     { type: 'move', payload: { from: 13, to: 8, die: 5 } },
     { type: 'move', payload: { from: 13, to: 10, die: 3 } },
   ]);
 
-  setPendingSequence(db, gameId, []);
-  sess = getAiSession(db, gameId);
+  setPendingSequence(db, gameId, botUserId, []);
+  sess = getAiSession(db, gameId, botUserId);
   assert.equal(sess.pendingSequence, null,
     'empty array stores as NULL');
 });
 
 test('clearPendingSequence sets the column to NULL', () => {
-  const { db, gameId } = tmpDb();
-  createAiSession(db, { gameId, botUserId: tmpDb().botUserId, personaId: 'hattie' });
-  setPendingSequence(db, gameId, [{ type: 'move', payload: { from: 1, to: 2, die: 1 } }]);
-  clearPendingSequence(db, gameId);
-  assert.equal(getAiSession(db, gameId).pendingSequence, null);
+  const { db, gameId, botUserId } = tmpDb();
+  createAiSession(db, { gameId, botUserId, personaId: 'hattie' });
+  setPendingSequence(db, gameId, botUserId, [{ type: 'move', payload: { from: 1, to: 2, die: 1 } }]);
+  clearPendingSequence(db, gameId, botUserId);
+  assert.equal(getAiSession(db, gameId, botUserId).pendingSequence, null);
 });
 
 test('getAiSession exposes pendingSequence as null when never set', () => {
-  const { db, gameId } = tmpDb();
-  createAiSession(db, { gameId, botUserId: tmpDb().botUserId, personaId: 'hattie' });
-  assert.equal(getAiSession(db, gameId).pendingSequence, null);
+  const { db, gameId, botUserId } = tmpDb();
+  createAiSession(db, { gameId, botUserId, personaId: 'hattie' });
+  assert.equal(getAiSession(db, gameId, botUserId).pendingSequence, null);
 });

@@ -144,6 +144,75 @@ test('POST /api/games 400 on opponentId == self', async () => {
   } finally { server.close(); }
 });
 
+// ---- N-player bot tests ----
+
+const riskPlugin4 = {
+  id: 'risk', displayName: 'Risk', players: { min: 2, max: 4 }, clientDir: 'x',
+  initialState: ({ participants }) => ({
+    activeUserId: participants[0].userId,
+    territories: {},
+    phase: 'draft',
+  }),
+  applyAction: ({ state }) => ({ state, ended: false }),
+  publicView: ({ state }) => state,
+};
+
+async function setupNPlayer() {
+  const app = express();
+  app.use(express.json());
+  const db = openDb(':memory:');
+  const now = Date.now();
+  // Seed: 4 users — 2 humans, 2 bots
+  db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'creator@b', 'Creator', '#f00', ?)").run(now);
+  db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (2, 'human2@b', 'Human2', '#0f0', ?)").run(now);
+  db.prepare("INSERT INTO users (id, email, friendly_name, color, is_bot, persona_id, created_at) VALUES (3, 'ai+hattie@bot.local', 'Hattie', '#ec4899', 1, 'hattie', ?)").run(now);
+  db.prepare("INSERT INTO users (id, email, friendly_name, color, is_bot, persona_id, created_at) VALUES (4, 'ai+the-shark@bot.local', 'The Shark', '#0000ff', 1, 'the-shark', ?)").run(now);
+  app.use((req, _res, next) => {
+    const id = Number(req.header('x-test-user-id'));
+    if (!id) return _res.status(401).end();
+    req.user = { id };
+    req.authEmail = `${id}@test`;
+    next();
+  });
+  const personas = new Map([
+    ['hattie', { id: 'hattie', displayName: 'Hattie', color: '#ec4899', glyph: '♡', games: [] }],
+    ['the-shark', { id: 'the-shark', displayName: 'The Shark', color: '#0000ff', glyph: '🦈', games: [] }],
+  ]);
+  const scheduled = [];
+  const ai = {
+    personas,
+    orchestrator: { scheduleTurn: (gameId) => scheduled.push(gameId), isInFlight: () => false },
+  };
+  mountRoutes(app, { db, registry: { risk: riskPlugin4 }, sse: { broadcast: () => {} }, ai });
+  const server = await new Promise(r => { const s = http.createServer(app); s.listen(0, () => r(s)); });
+  return { server, db, scheduled };
+}
+
+test('creates a 4-player game with two human-picked AI personas', async () => {
+  const { server, db } = await setupNPlayer();
+  try {
+    const res = await call(server, 'POST', '/api/games',
+      { opponentIds: [2, 3, 4], gameType: 'risk' }, { 'x-test-user-id': '1' });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const sessions = db.prepare("SELECT bot_user_id, persona_id FROM ai_sessions WHERE game_id = ? ORDER BY bot_user_id").all(res.body.id);
+    assert.strictEqual(sessions.length, 2);
+    const byBot = Object.fromEntries(sessions.map(s => [s.bot_user_id, s.persona_id]));
+    assert.strictEqual(byBot[3], 'hattie');
+    assert.strictEqual(byBot[4], 'the-shark');
+  } finally { server.close(); }
+});
+
+test('bot persona is taken from the user row, not the request body', async () => {
+  const { server, db } = await setupNPlayer();
+  try {
+    const res = await call(server, 'POST', '/api/games',
+      { opponentIds: [3], gameType: 'risk' }, { 'x-test-user-id': '1' });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
+    const s = db.prepare("SELECT persona_id FROM ai_sessions WHERE game_id = ?").get(res.body.id);
+    assert.strictEqual(s.persona_id, 'hattie');
+  } finally { server.close(); }
+});
+
 test('GET /api/games lists active games for current user', async () => {
   const { server } = await setup();
   try {

@@ -71,7 +71,7 @@ test('POST /api/games: with bot opponent + valid personaId, creates ai_sessions 
   try {
     const r = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'hattie' });
     assert.equal(r.status, 200);
-    const sess = getAiSession(db, r.body.id);
+    const sess = getAiSession(db, r.body.id, botId);
     assert.ok(sess);
     assert.equal(sess.personaId, 'hattie');
     assert.equal(sess.botUserId, botId);
@@ -80,39 +80,44 @@ test('POST /api/games: with bot opponent + valid personaId, creates ai_sessions 
   }
 });
 
-test('POST /api/games: with bot opponent but missing personaId → 400', async () => {
-  const { app, botId } = makeApp();
+test('POST /api/games: with bot opponent and no body.personaId, uses persona from user row', async () => {
+  const { app, db, botId } = makeApp();
   const { srv, port } = await listen(app);
   try {
+    // persona_id comes from the bot user row — body.personaId is no longer required
     const r = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage' });
-    assert.equal(r.status, 400);
-    assert.match(r.body.error, /personaId required/i);
+    assert.equal(r.status, 200);
+    const sess = getAiSession(db, r.body.id, botId);
+    assert.ok(sess);
+    assert.equal(sess.personaId, 'hattie');
   } finally {
     srv.close();
   }
 });
 
-test('POST /api/games: with bot opponent + unknown personaId → 400', async () => {
-  const { app, botId } = makeApp();
+test('POST /api/games: body.personaId is ignored; persona always comes from user row', async () => {
+  const { app, db, botId } = makeApp();
   const { srv, port } = await listen(app);
   try {
+    // Passing a body.personaId that doesn't match is fine — it is simply ignored
     const r = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'nobody' });
-    assert.equal(r.status, 400);
-    assert.match(r.body.error, /unknown persona/i);
+    assert.equal(r.status, 200);
+    const sess = getAiSession(db, r.body.id, botId);
+    assert.equal(sess.personaId, 'hattie');
   } finally {
     srv.close();
   }
 });
 
-test('POST /api/games: with human opponent, personaId is ignored (no ai_sessions row)', async () => {
-  const { app, db, humanId } = makeApp();
+test('POST /api/games: with human opponent, no ai_sessions row created', async () => {
+  const { app, db, humanId, botId } = makeApp();
   const now = Date.now();
   const otherHumanId = db.prepare("INSERT INTO users (email, friendly_name, color, created_at) VALUES ('h2@x','H2','#222',?) RETURNING id").get(now).id;
   const { srv, port } = await listen(app);
   try {
     const r = await POST(port, '/api/games', { opponentId: otherHumanId, gameType: 'cribbage' });
     assert.equal(r.status, 200);
-    assert.equal(getAiSession(db, r.body.id), null);
+    assert.equal(getAiSession(db, r.body.id, botId), null);
   } finally {
     srv.close();
   }
@@ -124,11 +129,11 @@ test('POST /api/games/:id/ai/retry: clears stall and re-runs orchestrator', asyn
   try {
     const create = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'hattie' });
     const gameId = create.body.id;
-    markStalled(db, gameId, 'timeout');
+    markStalled(db, gameId, botId, 'timeout');
     const r = await POST(port, `/api/games/${gameId}/ai/retry`, {});
     assert.equal(r.status, 200);
     await new Promise(r => setImmediate(r));
-    const sess = getAiSession(db, gameId);
+    const sess = getAiSession(db, gameId, botId);
     assert.equal(sess.stalledAt, null);
   } finally {
     srv.close();
@@ -141,7 +146,7 @@ test('POST /api/games/:id/ai/abandon: ends game with endedReason ai_stalled', as
   try {
     const create = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'hattie' });
     const gameId = create.body.id;
-    markStalled(db, gameId, 'timeout');
+    markStalled(db, gameId, botId, 'timeout');
     const r = await POST(port, `/api/games/${gameId}/ai/abandon`, {});
     assert.equal(r.status, 200);
     const game = db.prepare("SELECT status, ended_reason FROM games WHERE id = ?").get(gameId);
@@ -158,7 +163,7 @@ test('GET /api/games/:id/events: replays current stall on subscribe', async () =
   try {
     const create = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'hattie' });
     const gameId = create.body.id;
-    markStalled(db, gameId, 'timeout');
+    markStalled(db, gameId, botId, 'timeout');
 
     const ctrl = new AbortController();
     const resp = await fetch(`http://localhost:${port}/api/games/${gameId}/events`, { signal: ctrl.signal });

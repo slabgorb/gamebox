@@ -9,7 +9,7 @@ import { writeGameState } from './state.js';
 import { getPlugin } from './plugins.js';
 import { appendTurnEntry, listTurnEntries } from './history.js';
 import { winSeatsFromState } from './win-result.js';
-import { createAiSession, getAiSession, clearStall, appendUserMessage } from './ai/agent-session.js';
+import { createAiSession, getAiSession, listAiSessions, clearStall, appendUserMessage } from './ai/agent-session.js';
 import { isSorryColor, CONTRAST } from '../../plugins/sorry/server/colors.js';
 
 export function mountRoutes(app, { db, registry, sse, ai = null }) {
@@ -127,27 +127,21 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
       return res.status(400).json({ error: 'invalid color' });
     }
     const opponentRows = opponentIds.map(id =>
-      db.prepare('SELECT id, is_bot FROM users WHERE id = ?').get(id));
+      db.prepare('SELECT id, is_bot, persona_id FROM users WHERE id = ?').get(id));
     if (opponentRows.some(r => !r)) {
       return res.status(400).json({ error: 'opponent not on roster' });
     }
-    const botRows = opponentRows.filter(r => r.is_bot === 1);
-    // AI orchestration is 2P-only (one bot per game): bots are allowed only
-    // in a 2-player game where the single opponent is the bot.
-    if (botRows.length > 0 && totalPlayers > 2) {
-      return res.status(400).json({ error: 'AI opponents are not supported in multiplayer games' });
-    }
-    const opponentIsBot = botRows.length === 1 && totalPlayers === 2;
-
-    let personaId = null;
-    if (opponentIsBot) {
-      personaId = req.body?.personaId;
-      if (typeof personaId !== 'string' || !personaId) {
-        return res.status(400).json({ error: 'personaId required for AI opponent' });
+    const botSeats = [];
+    for (let i = 0; i < opponentIds.length; i++) {
+      const row = opponentRows[i];
+      if (row.is_bot !== 1) continue;
+      if (!ai) {
+        return res.status(400).json({ error: 'AI opponents are not available' });
       }
-      if (!ai?.personas?.has(personaId)) {
-        return res.status(400).json({ error: `unknown personaId: ${personaId}` });
+      if (!row.persona_id || !ai.personas.has(row.persona_id)) {
+        return res.status(400).json({ error: `bot user ${row.id} has no valid persona` });
       }
+      botSeats.push({ seat: i + 1, botUserId: row.id, personaId: row.persona_id });
     }
 
     const roster = [req.user.id, ...opponentIds]; // seat order
@@ -172,11 +166,12 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     }
 
     const game = createGame(db, { userIds: roster, gameType, initialState });
-    if (opponentIsBot && ai) {
-      createAiSession(db, { gameId: game.id, botUserId: opponentIds[0], personaId });
-      // Kick the bot immediately so it can be working on its first move
-      // while the human is still reading their hand. Without this the
-      // bot doesn't start thinking until the SSE subscribe lands.
+    if (botSeats.length > 0 && ai) {
+      for (const b of botSeats) {
+        createAiSession(db, { gameId: game.id, botUserId: b.botUserId, personaId: b.personaId });
+      }
+      // Kick the orchestrator immediately so bots can start thinking
+      // while the human is still reading their hand.
       ai.orchestrator.scheduleTurn(game.id);
     }
     res.json({ id: game.id, gameType });
@@ -213,33 +208,40 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     // page reloads after a stall or while the bot is thinking leave the
     // user with no UI indication of what's happening.
     if (!ai) return;
-    const sess = getAiSession(db, req.game.id);
-    if (!sess) return;
-    const persona = ai.personas.get(sess.personaId);
-    const displayName = persona?.displayName ?? 'AI';
+    const sessions = listAiSessions(db, req.game.id);
+    if (sessions.length === 0) return;
     const state = req.game.state;
-    const botIdx = seatOfState(state, sess.botUserId) ?? 1;
-    const botSide = sideOfSeat(botIdx);
+    let anyEligible = false;
 
-    if (sess.stalledAt != null) {
-      const payload = { side: botSide, personaId: sess.personaId, displayName, reason: sess.stallReason ?? 'invalid_response' };
-      res.write(`event: bot_stalled\ndata: ${JSON.stringify(payload)}\n\n`);
-      return;
+    for (const sess of sessions) {
+      const persona = ai.personas.get(sess.personaId);
+      const displayName = persona?.displayName ?? 'AI';
+      const botIdx = seatOfState(state, sess.botUserId) ?? 1;
+      const botSide = sideOfSeat(botIdx);
+
+      if (sess.stalledAt != null) {
+        const payload = { side: botSide, personaId: sess.personaId, displayName, reason: sess.stallReason ?? 'invalid_response' };
+        res.write(`event: bot_stalled\ndata: ${JSON.stringify(payload)}\n\n`);
+        continue;
+      }
+
+      const botShouldAct =
+        state.activeUserId === sess.botUserId ||
+        (state.activeUserId == null && (
+          (state.phase === 'discard' && state.pendingDiscards?.[botIdx] == null) ||
+          (state.phase === 'show' && state.acknowledged?.[botIdx] === false)
+        ));
+      if (!botShouldAct) continue;
+
+      anyEligible = true;
+      if (ai.orchestrator.isInFlight(req.game.id)) {
+        const payload = { side: botSide, personaId: sess.personaId, displayName };
+        res.write(`event: bot_thinking\ndata: ${JSON.stringify(payload)}\n\n`);
+      }
     }
 
-    const botShouldAct =
-      state.activeUserId === sess.botUserId ||
-      (state.activeUserId == null && (
-        (state.phase === 'discard' && state.pendingDiscards?.[botIdx] == null) ||
-        (state.phase === 'show' && state.acknowledged?.[botIdx] === false)
-      ));
-    if (!botShouldAct) return;
-
-    if (ai.orchestrator.isInFlight(req.game.id)) {
-      const payload = { side: botSide, personaId: sess.personaId, displayName };
-      res.write(`event: bot_thinking\ndata: ${JSON.stringify(payload)}\n\n`);
-    } else {
-      // Bot's turn but nothing in flight — kick the orchestrator.
+    if (anyEligible && !ai.orchestrator.isInFlight(req.game.id)) {
+      // Bot's turn but nothing in flight — kick the orchestrator once.
       // Idempotent: runTurn serializes per game.
       ai.orchestrator.scheduleTurn(req.game.id);
     }
@@ -349,10 +351,16 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
   // -- AI stall resolution --
   app.post('/api/games/:gameId/ai/retry', requireIdentity, (req, res) => {
     if (!ai) return res.status(500).json({ error: 'ai subsystem not enabled' });
-    const sess = getAiSession(db, req.game.id);
-    if (!sess) return res.status(404).json({ error: 'no AI session' });
+    const sessions = listAiSessions(db, req.game.id);
+    if (sessions.length === 0) return res.status(404).json({ error: 'no AI session' });
+    const botUserId = Number.isInteger(req.body?.botUserId)
+      ? req.body.botUserId
+      : (sessions.length === 1 ? sessions[0].botUserId : null);
+    if (botUserId == null) return res.status(400).json({ error: 'botUserId required' });
+    const sess = getAiSession(db, req.game.id, botUserId);
+    if (!sess) return res.status(404).json({ error: 'no AI session for bot' });
     if (sess.stalledAt == null) return res.status(422).json({ error: 'not stalled' });
-    clearStall(db, req.game.id);
+    clearStall(db, req.game.id, botUserId);
     ai.orchestrator.scheduleTurn(req.game.id);
     res.json({ ok: true });
   });
@@ -363,14 +371,18 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
   // same user see their own message land.
   app.post('/api/games/:gameId/chat', requireIdentity, (req, res) => {
     if (!ai) return res.status(404).json({ error: 'no AI session' });
-    const sess = getAiSession(db, req.game.id);
-    if (!sess) return res.status(404).json({ error: 'no AI session' });
+    const sessions = listAiSessions(db, req.game.id);
+    if (sessions.length === 0) return res.status(404).json({ error: 'no AI session' });
+    const botUserId = Number.isInteger(req.body?.botUserId)
+      ? req.body.botUserId
+      : (sessions.length === 1 ? sessions[0].botUserId : null);
+    if (botUserId == null) return res.status(400).json({ error: 'botUserId required' });
     const raw = req.body?.text;
     if (typeof raw !== 'string') return res.status(400).json({ error: 'text required' });
     const text = raw.trim().slice(0, 200);
     if (!text) return res.status(400).json({ error: 'empty message' });
     const userSide = sideOfSeat(seatOfState(req.game.state, req.user.id) ?? seatForUser(req.game, req.user.id));
-    appendUserMessage(db, req.game.id, text);
+    appendUserMessage(db, req.game.id, botUserId, text);
     sse.broadcast(req.game.id, {
       type: 'user_chat',
       payload: { side: userSide, userId: req.user.id, friendlyName: req.user.friendlyName, text, sentAt: Date.now() },
@@ -380,9 +392,8 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
 
   app.post('/api/games/:gameId/ai/abandon', requireIdentity, (req, res) => {
     if (!ai) return res.status(500).json({ error: 'ai subsystem not enabled' });
-    const sess = getAiSession(db, req.game.id);
-    if (!sess) return res.status(404).json({ error: 'no AI session' });
-    db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_seat=NULL, updated_at=? WHERE id=?")
+    if (listAiSessions(db, req.game.id).length === 0) return res.status(404).json({ error: 'no AI session' });
+    db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_seats=NULL, updated_at=? WHERE id=?")
       .run('ai_stalled', Date.now(), req.game.id);
     sse.broadcast(req.game.id, { type: 'ended', payload: { reason: 'ai_stalled' } });
     res.json({ ok: true });
