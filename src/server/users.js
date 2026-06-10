@@ -19,7 +19,7 @@ export const GLYPHS = ['✦', '♤', '♡', '♢', '♧'];
 
 function rowToUser(row) {
   if (!row) return null;
-  return { id: row.id, email: row.email, friendlyName: row.friendly_name, color: row.color, glyph: row.glyph ?? null, isBot: row.is_bot === 1, createdAt: row.created_at };
+  return { id: row.id, email: row.email, friendlyName: row.friendly_name, color: row.color, glyph: row.glyph ?? null, isBot: row.is_bot === 1, personaId: row.persona_id ?? null, createdAt: row.created_at };
 }
 
 function nextPaletteColor(db) {

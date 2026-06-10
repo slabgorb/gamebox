@@ -134,8 +134,10 @@ function endedCard(game) {
   const oppColor = game.opponent.color || '#999';
   const opponents = game.opponents ?? [game.opponent];
   const oppNames = opponents.map(o => o.friendlyName).join(', ');
-  const won = game.winnerSeat != null && game.winnerSeat === game.you;
-  const winnerOpp = opponents.find(o => o.seat === game.winnerSeat);
+  const won = Array.isArray(game.winnerSeats) && game.winnerSeats.includes(game.you);
+  const winnerOpp = Array.isArray(game.winnerSeats)
+    ? opponents.find(o => game.winnerSeats.includes(o.seat))
+    : null;
   const outcome = won ? `You won` :
     (game.endedReason === 'draw' || game.isDraw) ? `Draw with ${oppNames}` :
     winnerOpp ? `${winnerOpp.friendlyName} won` :
@@ -300,7 +302,9 @@ function wireNewGame(me, plugins) {
   function showOpponentStep(users, plugins) {
     titleEl.textContent = 'Pick a sparring partner';
     stepsEl.innerHTML = `<div class="ng-step">Step 1 of ${PLUGIN_VARIANTS.words ? 3 : 2}</div>`;
-    for (const u of users) {
+    const humans = users.filter(u => !u.isBot);
+    const bots   = users.filter(u => u.isBot);
+    const renderUser = (u) => {
       const li = document.createElement('li');
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -312,6 +316,14 @@ function wireNewGame(me, plugins) {
       btn.onclick = () => showGameStep(u, plugins);
       li.appendChild(btn);
       stepsEl.appendChild(li);
+    };
+    for (const u of humans) renderUser(u);
+    if (bots.length > 0) {
+      const heading = document.createElement('li');
+      heading.className = 'ng-group-label';
+      heading.textContent = 'AI players';
+      stepsEl.appendChild(heading);
+      for (const u of bots) renderUser(u);
     }
   }
 
@@ -331,7 +343,7 @@ function wireNewGame(me, plugins) {
         </span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
       btn.onclick = () => {
-        if ((p.players?.max ?? 2) > 2 && !opponent.isBot) showAddPlayersStep(opponent, p, plugins);
+        if ((p.players?.max ?? 2) > 2) showAddPlayersStep(opponent, p, plugins);
         else if (PLUGIN_VARIANTS[p.id]) showVariantStep(opponent, p, plugins);
         else proceedAfterRules(opponent, p.id, null, plugins);
       };
@@ -341,11 +353,11 @@ function wireNewGame(me, plugins) {
   }
 
   // Multiplayer games (players.max > 2, e.g. Risk): after the first opponent
-  // is picked, offer the rest of the human roster as optional extra seats.
+  // is picked, offer the rest of the roster (humans and AI) as optional extra seats.
   // Seat order = creator, first opponent, then extras in tick order.
   function showAddPlayersStep(opponent, plugin, plugins) {
     const maxExtra = (plugin.players?.max ?? 2) - 2;
-    const others = allUsers.filter(u => u.id !== opponent.id && !u.isBot);
+    const others = allUsers.filter(u => u.id !== opponent.id);
     if (maxExtra === 0 || others.length === 0) {
       proceedAfterRules(opponent, plugin.id, null, plugins);
       return;
@@ -401,10 +413,10 @@ function wireNewGame(me, plugins) {
   }
 
   // After rules (variant) are settled: pick a checker colour if the game offers
-  // one, then a persona for bots, otherwise create the game.
+  // one, otherwise create the game. Bot persona is the bot user's own identity
+  // (no separate persona-pick step needed).
   function proceedAfterRules(opponent, gameType, variant, plugins) {
     if (PLUGIN_COLORS[gameType]) showColorStep(opponent, gameType, variant, plugins);
-    else if (opponent.isBot) showPersonaStep(opponent, gameType, variant, null);
     else startGame(opponent, gameType, variant, null, null);
   }
 
@@ -427,8 +439,7 @@ function wireNewGame(me, plugins) {
         <span class="ng-body"><span class="ng-name">${escapeHtml(c.label)}</span></span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
       btn.onclick = () => {
-        if (opponent.isBot) showPersonaStep(opponent, gameType, variant, c.color);
-        else startGame(opponent, gameType, variant, null, c.color);
+        startGame(opponent, gameType, variant, null, c.color);
       };
       li.appendChild(btn);
       stepsEl.appendChild(li);
@@ -484,10 +495,9 @@ function wireNewGame(me, plugins) {
     }
   }
 
-  async function startGame(opponent, gameType, variant, personaId = null, color = null, extraIds = []) {
+  async function startGame(opponent, gameType, variant, _personaId = null, color = null, extraIds = []) {
     const body = { opponentIds: [opponent.id, ...extraIds], gameType };
     if (variant) body.variant = variant;
-    if (personaId) body.personaId = personaId;
     if (color) body.color = color;
     const r = await fetch('/api/games', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

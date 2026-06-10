@@ -42,6 +42,8 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
       const yourSide = sideOfSeat(yourSeat);
       const yourScore = g.state?.scores?.[yourSide] ?? 0;
       const theirScore = g.state?.scores?.[yourSide === 'a' ? 'b' : 'a'] ?? 0;
+      const winnerSeats = g.winnerSeats; // array or null
+      const won = Array.isArray(winnerSeats) && winnerSeats.includes(yourSeat);
       return {
         id: g.id,
         gameType: g.gameType,
@@ -53,7 +55,8 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
         yourTurn: g.status === 'active' && g.state?.activeUserId === req.user.id,
         yourScore, theirScore,
         endedReason: g.endedReason,
-        winnerSeat: g.winnerSeat,
+        winnerSeats,
+        won,
         isDraw: g.isDraw,
         updatedAt: g.updatedAt
       };
@@ -65,7 +68,7 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
   });
 
   app.get('/api/users', requireIdentity, (_req, res) => {
-    res.json(listUsers(db).map(u => ({ id: u.id, friendlyName: u.friendlyName, color: u.color, glyph: u.glyph, isBot: u.isBot })));
+    res.json(listUsers(db).map(u => ({ id: u.id, friendlyName: u.friendlyName, color: u.color, glyph: u.glyph, isBot: u.isBot, personaId: u.personaId ?? null })));
   });
 
   app.get('/api/ai/personas', requireIdentity, (req, res) => {
