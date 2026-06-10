@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { openDb } from '../src/server/db.js';
 
-test('openDb creates users table with email/friendly_name/color/glyph/is_bot', () => {
+test('openDb creates users table with email/friendly_name/color/glyph/is_bot/persona_id', () => {
   const db = openDb(':memory:');
   const cols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
-  assert.deepEqual(cols.sort(), ['color', 'created_at', 'email', 'friendly_name', 'glyph', 'id', 'is_bot']);
+  assert.deepEqual(cols.sort(), ['color', 'created_at', 'email', 'friendly_name', 'glyph', 'id', 'is_bot', 'persona_id']);
 });
 
 test('openDb creates seat-indexed games table (no player_a/b columns)', () => {
@@ -85,4 +85,19 @@ test('legacy moves table is dropped on upgrade and absent on fresh DBs', () => {
   const db = openDb(':memory:');
   const row = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='moves'").get();
   assert.equal(row, undefined, 'moves table should not exist');
+});
+
+test('ai_sessions is keyed by (game_id, bot_user_id)', () => {
+  const db = openDb(':memory:');
+  const pk = db.prepare("PRAGMA table_info(ai_sessions)").all().filter(c => c.pk > 0);
+  const pkNames = pk.sort((a, b) => a.pk - b.pk).map(c => c.name);
+  assert.deepStrictEqual(pkNames, ['game_id', 'bot_user_id']);
+  db.close();
+});
+
+test('users has a persona_id column', () => {
+  const db = openDb(':memory:');
+  const names = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  assert.ok(names.includes('persona_id'));
+  db.close();
 });

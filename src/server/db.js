@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
   color         TEXT NOT NULL,
   glyph         TEXT,
   is_bot        INTEGER NOT NULL DEFAULT 0,
+  persona_id    TEXT,
   created_at    INTEGER NOT NULL
 );
 
@@ -48,7 +49,7 @@ CREATE TABLE IF NOT EXISTS turn_log (
 CREATE INDEX IF NOT EXISTS turn_log_by_game ON turn_log(game_id, id);
 
 CREATE TABLE IF NOT EXISTS ai_sessions (
-  game_id           INTEGER PRIMARY KEY REFERENCES games(id) ON DELETE CASCADE,
+  game_id           INTEGER NOT NULL REFERENCES games(id) ON DELETE CASCADE,
   bot_user_id       INTEGER NOT NULL REFERENCES users(id),
   persona_id        TEXT NOT NULL,
   claude_session_id TEXT,
@@ -58,8 +59,10 @@ CREATE TABLE IF NOT EXISTS ai_sessions (
   resume_count      INTEGER NOT NULL DEFAULT 0,
   pending_user_messages TEXT,
   created_at        INTEGER NOT NULL,
-  last_used_at      INTEGER NOT NULL
+  last_used_at      INTEGER NOT NULL,
+  PRIMARY KEY (game_id, bot_user_id)
 );
+CREATE INDEX IF NOT EXISTS ai_sessions_by_game ON ai_sessions(game_id);
 `;
 
 // A database created before the seat-indexed schema carries the old games
@@ -96,6 +99,9 @@ export function openDb(filePath = 'game.db') {
   }
   if (!userCols.includes('is_bot')) {
     db.exec("ALTER TABLE users ADD COLUMN is_bot INTEGER NOT NULL DEFAULT 0");
+  }
+  if (!userCols.includes('persona_id')) {
+    db.exec("ALTER TABLE users ADD COLUMN persona_id TEXT");
   }
 
   return db;
