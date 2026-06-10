@@ -353,9 +353,7 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     if (!ai) return res.status(500).json({ error: 'ai subsystem not enabled' });
     const sessions = listAiSessions(db, req.game.id);
     if (sessions.length === 0) return res.status(404).json({ error: 'no AI session' });
-    const botUserId = Number.isInteger(req.body?.botUserId)
-      ? req.body.botUserId
-      : (sessions.length === 1 ? sessions[0].botUserId : null);
+    const botUserId = resolveBotUserId(sessions, req.body);
     if (botUserId == null) return res.status(400).json({ error: 'botUserId required' });
     const sess = getAiSession(db, req.game.id, botUserId);
     if (!sess) return res.status(404).json({ error: 'no AI session for bot' });
@@ -370,13 +368,13 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
   // bot can react in its banter. Echoed back over SSE so other tabs of the
   // same user see their own message land.
   app.post('/api/games/:gameId/chat', requireIdentity, (req, res) => {
-    if (!ai) return res.status(404).json({ error: 'no AI session' });
+    if (!ai) return res.status(500).json({ error: 'ai subsystem not enabled' });
     const sessions = listAiSessions(db, req.game.id);
     if (sessions.length === 0) return res.status(404).json({ error: 'no AI session' });
-    const botUserId = Number.isInteger(req.body?.botUserId)
-      ? req.body.botUserId
-      : (sessions.length === 1 ? sessions[0].botUserId : null);
+    const botUserId = resolveBotUserId(sessions, req.body);
     if (botUserId == null) return res.status(400).json({ error: 'botUserId required' });
+    const sess = getAiSession(db, req.game.id, botUserId);
+    if (!sess) return res.status(404).json({ error: 'no AI session for bot' });
     const raw = req.body?.text;
     if (typeof raw !== 'string') return res.status(400).json({ error: 'text required' });
     const text = raw.trim().slice(0, 200);
@@ -415,6 +413,14 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
       });
     }
   }
+}
+
+// Resolve which bot a per-bot AI route targets: an explicit body.botUserId,
+// or the sole session when the game has exactly one bot. Returns null when
+// ambiguous (multi-bot game with no explicit pick).
+function resolveBotUserId(sessions, body) {
+  if (Number.isInteger(body?.botUserId)) return body.botUserId;
+  return sessions.length === 1 ? sessions[0].botUserId : null;
 }
 
 function parseAction(req) {

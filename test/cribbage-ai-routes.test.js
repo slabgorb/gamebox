@@ -10,7 +10,7 @@ import { mountRoutes } from '../src/server/routes.js';
 import { buildRegistry } from '../src/server/plugins.js';
 import cribbagePlugin from '../plugins/cribbage/plugin.js';
 import { bootAiSubsystem } from '../src/server/ai/index.js';
-import { getAiSession, markStalled } from '../src/server/ai/agent-session.js';
+import { getAiSession, markStalled, peekUserMessages } from '../src/server/ai/agent-session.js';
 
 function makeApp() {
   const dir = mkdtempSync(join(tmpdir(), 'ai-route-'));
@@ -135,6 +135,37 @@ test('POST /api/games/:id/ai/retry: clears stall and re-runs orchestrator', asyn
     await new Promise(r => setImmediate(r));
     const sess = getAiSession(db, gameId, botId);
     assert.equal(sess.stalledAt, null);
+  } finally {
+    srv.close();
+  }
+});
+
+test('POST /api/games/:id/chat: queues a message for the sole bot', async () => {
+  const { app, db, botId } = makeApp();
+  const { srv, port } = await listen(app);
+  try {
+    const create = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'hattie' });
+    const gameId = create.body.id;
+    const r = await POST(port, `/api/games/${gameId}/chat`, { text: 'good luck' });
+    assert.equal(r.status, 200);
+    const msgs = peekUserMessages(db, gameId, botId);
+    assert.equal(msgs.length, 1);
+    assert.equal(msgs[0].text, 'good luck');
+  } finally {
+    srv.close();
+  }
+});
+
+test('POST /api/games/:id/chat: unknown botUserId → 404 and enqueues nothing', async () => {
+  const { app, db, botId } = makeApp();
+  const { srv, port } = await listen(app);
+  try {
+    const create = await POST(port, '/api/games', { opponentId: botId, gameType: 'cribbage', personaId: 'hattie' });
+    const gameId = create.body.id;
+    const r = await POST(port, `/api/games/${gameId}/chat`, { botUserId: 999999, text: 'hello' });
+    assert.equal(r.status, 404);
+    // The real bot's inbox stays empty.
+    assert.equal(peekUserMessages(db, gameId, botId).length, 0);
   } finally {
     srv.close();
   }
