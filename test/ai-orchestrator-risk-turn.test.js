@@ -83,5 +83,5 @@ test('orchestrator: drives a full Risk turn (reinforce→attack→fortify→end-
   assert.equal(llm.calls.length, 3, 'deploy + end-attack + end-turn all driven in one wake-up');
   assert.ok(after.log.some(e => e.kind === 'end-turn'), 'turn ended (end-turn logged)');
   assert.equal(after.activeUserId, humanId, 'turn handed back to the human — bot did not stall mid-turn');
-  assert.equal(getAiSession(db, gameId).stalledAt, null, 'bot did not stall');
+  assert.equal(getAiSession(db, gameId, botId).stalledAt, null, 'bot did not stall');
 });

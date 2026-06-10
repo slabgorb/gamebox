@@ -89,7 +89,7 @@ test('show auto-ack: no blocking LLM call for the action, update broadcast immed
   assert.ok(!types.includes('bot_thinking'), 'no bot_thinking for auto-action');
 
   // No stall.
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stalledAt, null);
 
   // Let the banter side-call resolve (microtask + fake LLM is sync).

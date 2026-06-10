@@ -80,7 +80,7 @@ test('backgammon end-to-end: bot rolls, picks sequence, drains cache, then await
   const finalState = JSON.parse(db.prepare("SELECT state FROM games WHERE id = ?").get(gameId).state);
   assert.notEqual(finalState.turn.phase, 'initial-roll', 'phase advanced past initial-roll');
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   // After one runTurn at moving phase, the head move applied; depending on
   // recursion drain, the tail may have been consumed (pendingSequence=null)
   // or remain (pendingSequence has 0+ entries). Either way, the cache
@@ -118,7 +118,7 @@ test('backgammon: garbage LLM response stalls cleanly', async () => {
 
   await orchestrator.runTurn(gameId);
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.ok(sess.stalledAt, 'bot is stalled after garbage responses');
   assert.equal(sess.stallReason, 'invalid_response');
   const stallEvents = events.filter(e => e.type === 'bot_stalled');
