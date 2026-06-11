@@ -159,3 +159,19 @@ test('ClaudeCliClient: exposes its configured model and uses it as the --model a
   await client.send({ prompt: 'hi', sessionId: null, systemPrompt: 'sys' });
   assert.deepEqual(captured.slice(0, 2), ['--model', 'claude-sonnet-4-6']);
 });
+
+// A missing CLI binary (e.g. `claude` not on the server's PATH under launchd)
+// makes the real spawn emit an 'error' event. Without an error handler Node
+// rethrows it as an uncaught exception that crashes the whole server in a
+// respawn loop. send() must reject with a catchable error so the orchestrator
+// can stall the bot instead.
+test('ClaudeCliClient.send: a missing CLI binary rejects, never crashes the process', async () => {
+  const client = new ClaudeCliClient({
+    command: 'gamebox-no-such-binary-xyz',
+    timeoutMs: 5000,
+  });
+  await assert.rejects(
+    client.send({ prompt: 'hi', sessionId: null, systemPrompt: 'sys' }),
+    (err) => err instanceof Error,
+  );
+});
