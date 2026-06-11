@@ -11,5 +11,9 @@ test('AI index imports the risk plugin and player', () => {
 });
 
 test('AI index registers a risk adapter entry', () => {
-  assert.match(src, /risk:\s*\{\s*plugin:\s*riskPlugin,\s*chooseAction:\s*riskChoose\s*\}/);
+  assert.match(src, /risk:\s*\{[^}]*plugin:\s*riskPlugin[^}]*chooseAction:\s*riskChoose[^}]*\}/);
+});
+
+test('AI index wires the risk server-side combat resolver (bot-vs-bot)', () => {
+  assert.match(src, /risk:\s*\{[^}]*resolvePending:\s*riskResolvePending[^}]*\}/);
 });

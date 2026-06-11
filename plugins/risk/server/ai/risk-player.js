@@ -2,9 +2,31 @@
 import { enumerateLegalMoves } from './legal-moves.js';
 import { scoreCandidate } from './board-eval.js';
 import { buildTurnPrompt, parseLlmResponse } from './prompts.js';
+import { resolveAttack } from '../combat.js';
 import { InvalidLlmResponse, InvalidLlmMove } from '../../../../src/server/ai/errors.js';
 
 export { InvalidLlmResponse, InvalidLlmMove };
+
+// Server-side resolution of a pending bot-vs-bot combat. A bot attack only
+// stores intent (state.pendingCombat) and hands the turn to the defender to
+// drive the dice. When the defender is also a bot there is no client to roll,
+// so the orchestrator calls this to roll server-side and produce the
+// `resolved` attack action the engine applies (clearing pendingCombat). The
+// committed force is the source's armies-1, mirroring the client driver.
+// Returns null when there is no pending combat to resolve.
+export function resolvePendingCombat(state, rng) {
+  const pc = state.pendingCombat;
+  if (!pc) return null;
+  const src = state.territories[pc.from];
+  const tgt = state.territories[pc.to];
+  if (!src || !tgt) return null;
+  const committed = src.armies - 1;
+  const outcome = resolveAttack({ force: committed, defenders: tgt.armies }, rng);
+  return {
+    type: 'attack',
+    payload: { from: pc.from, to: pc.to, force: pc.force, resolved: { rounds: outcome.rounds } },
+  };
+}
 
 const MAX_SHORTLIST = 6;
 const TERMINATORS_BY_PHASE = { attack: 'end-attack', fortify: 'end-turn' };
