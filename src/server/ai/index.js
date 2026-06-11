@@ -12,7 +12,7 @@ import { chooseAction as backgammonChoose } from '../../../plugins/backgammon/se
 import wordsPlugin from '../../../plugins/words/plugin.js';
 import { chooseAction as wordsChoose } from '../../../plugins/words/server/ai/words-player.js';
 import riskPlugin from '../../../plugins/risk/plugin.js';
-import { chooseAction as riskChoose } from '../../../plugins/risk/server/ai/risk-player.js';
+import { chooseAction as riskChoose, resolvePendingCombat as riskResolvePending } from '../../../plugins/risk/server/ai/risk-player.js';
 import sorryPlugin from '../../../plugins/sorry/plugin.js';
 import { chooseAction as sorryChoose } from '../../../plugins/sorry/server/ai/sorry-player.js';
 
@@ -52,7 +52,7 @@ export function bootAiSubsystem({ db, sse, llm, personaDir = DEFAULT_PERSONA_DIR
     cribbage:   { plugin: cribbagePlugin,   chooseAction: cribbageChoose, chooseBanter: cribbageBanter },
     backgammon: { plugin: backgammonPlugin, chooseAction: backgammonChoose },
     words:      { plugin: wordsPlugin,      chooseAction: wordsChoose },
-    risk:       { plugin: riskPlugin,       chooseAction: riskChoose },
+    risk:       { plugin: riskPlugin,       chooseAction: riskChoose, resolvePending: riskResolvePending },
     sorry:      { plugin: sorryPlugin,      chooseAction: sorryChoose },
   };
   // Per-game-type client map: each adapter gets a client at its resolved

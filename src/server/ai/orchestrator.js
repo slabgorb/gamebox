@@ -437,6 +437,61 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
   // after each bot so a turn that passes bot->bot is continued in the same
   // wake-up. _runBot re-checks its own gate and no-ops if it fails, so this
   // scan only needs to avoid infinite looping.
+  // A bot attack stores pendingCombat and hands the turn to the defender to
+  // drive the dice client-side. When the defender is also a bot, no client
+  // exists to POST the resolved roll, so we resolve it server-side here. This
+  // is intentionally NOT part of the bot-eligible scan (it is a proxy action,
+  // not the defender taking its own turn) so it is not gated by `attempted`
+  // and can fire for every combat in a multi-attack turn. Returns true when it
+  // resolved a combat (caller should re-read state and keep driving).
+  function _resolveBotCombat(gameId, gameType, state, sessions) {
+    if (!state.pendingCombat) return false;
+    const adapter = adapters[gameType];
+    if (!adapter?.resolvePending) return false;
+    // pendingCombat hands activeUserId to the defender. If that is a human,
+    // their client drives the dice — leave it for the resolved POST.
+    const defenderId = state.activeUserId;
+    if (!sessions.some(s => s.botUserId === defenderId)) return false;
+
+    const action = adapter.resolvePending(state, rngFor(gameId));
+    if (!action) return false;
+    const result = adapter.plugin.applyAction({
+      state, action, actorId: defenderId, rng: rngFor(gameId),
+    });
+    if (result.error) {
+      logger.warn?.(`[ai] game ${gameId} server-side combat resolve rejected: ${result.error}`);
+      return false;
+    }
+    const newState = result.state;
+    // Mirror the route's resolved-attack attribution: the actor is the
+    // resolver (the defender seat), the same seat the human-proxy POST uses.
+    const defenderIdx = botPlayerIdxOf(state, defenderId);
+    let turnRow = null;
+    const tx = db.transaction(() => {
+      db.prepare("UPDATE games SET state = ?, updated_at = ? WHERE id = ?")
+        .run(JSON.stringify(newState), Date.now(), gameId);
+      if (result.summary) {
+        turnRow = appendTurnEntry(db, gameId, defenderIdx, result.summary.kind, result.summary);
+      }
+      if (result.ended) writeEndGame(db, gameId, newState);
+    });
+    tx();
+    sse.broadcast(gameId, { type: 'update', payload: {} });
+    if (turnRow) {
+      sse.broadcast(gameId, {
+        type: 'turn',
+        payload: {
+          turnNumber: turnRow.turnNumber,
+          side: turnRow.side,
+          kind: turnRow.kind,
+          summary: turnRow.summary,
+          createdAt: turnRow.createdAt,
+        },
+      });
+    }
+    return true;
+  }
+
   async function _runOnce(gameId) {
     // Bots already driven in THIS wake-up. A bot that stalled (or otherwise
     // failed to advance the turn) is not re-driven within the same scan —
@@ -445,11 +500,14 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
     // retries the stalled bot, preserving the single-bot retry semantics.
     const attempted = new Set();
     for (let pass = 0; pass < MAX_BOT_PASSES; pass++) {
-      const gameRow = db.prepare("SELECT state, status FROM games WHERE id = ?").get(gameId);
+      const gameRow = db.prepare("SELECT state, status, game_type FROM games WHERE id = ?").get(gameId);
       if (!gameRow || gameRow.status !== 'active') return;
       const state = JSON.parse(gameRow.state);
       const sessions = listAiSessions(db, gameId);
       if (sessions.length === 0) return;
+      // Resolve any bot-vs-bot combat awaiting dice before scanning for a bot
+      // to drive; the attacker can then continue its turn on the next pass.
+      if (_resolveBotCombat(gameId, gameRow.game_type, state, sessions)) continue;
       const eligible = sessions.find(
         s => !attempted.has(s.botUserId) && botEligible(state, s.botUserId),
       );
