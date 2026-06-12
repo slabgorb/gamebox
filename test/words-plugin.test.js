@@ -11,7 +11,7 @@ const rng = () => 0.5;
 test('manifest fields', () => {
   assert.equal(wordsPlugin.id, 'words');
   assert.equal(wordsPlugin.displayName, 'Words');
-  assert.equal(wordsPlugin.players, 2);
+  assert.deepEqual(wordsPlugin.players, { min: 2, max: 2 });
   assert.match(wordsPlugin.clientDir, /plugins\/words\/client/);
   assert.equal(typeof wordsPlugin.initialState, 'function');
   assert.equal(typeof wordsPlugin.applyAction, 'function');

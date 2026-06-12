@@ -96,6 +96,22 @@ bind - split-window -v -t '{top}'
 # terminal sizes (avoids the "small dots" problem in shared sessions)
 set -g aggressive-resize on
 
+# --- Window numbering ---
+# Start at 1 so prefix+1 reaches the first window (matches status-bar display)
+set -g base-index 1
+setw -g pane-base-index 1
+set -g renumber-windows on
+
+# --- No-prefix navigation ---
+# Shift+Left/Right cycles windows ("tabs"); Alt+arrows jump between panes.
+# Terminals pass these through unmodified in Ghostty/Kitty/iTerm2.
+bind -n S-Left  previous-window
+bind -n S-Right next-window
+bind -n M-Left  select-pane -L
+bind -n M-Right select-pane -R
+bind -n M-Up    select-pane -U
+bind -n M-Down  select-pane -D
+
 # --- Status line ---
 # Left/right read from .pennyfarthing/ cache files (written by hooks)
 set -g status on

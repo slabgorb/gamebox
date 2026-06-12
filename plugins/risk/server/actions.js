@@ -1,7 +1,7 @@
 import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
 import { validateDeploy, validateAttack, validateFortify, validateTradeIn } from './validate.js';
 import { replayAttack } from './combat.js';
-import { playerIndex, userIdOf } from './state.js';
+import { playerIndex, userIdOf, playerCount, isEliminated, liveSeats } from './state.js';
 import { shuffle } from '../../../src/shared/cards/deck.js';
 
 export function reinforcementFor(state, playerIdx) {
@@ -44,11 +44,17 @@ export function applyRiskAction({ state, action, actorId, rng }) {
   // — e.g. while the bot is thinking or stalled). Handled before the
   // turn-ownership guard for that reason.
   if (action.type === 'resign') {
+    // Multiplayer games can't end on a resign and seat elimination by
+    // forfeit isn't supported (yet) — conquest is the only exit.
+    if (playerCount(state) > 2) {
+      return { error: 'resign is not supported in multiplayer games' };
+    }
     const r = clone(state);
     r.winner = actorIdx === 0 ? 1 : 0;
     r.phase = 'gameover';
     return finishGame(r, 'resign');
   }
+  if (isEliminated(state, actorIdx)) return { error: 'you have been eliminated' };
 
   // Defender-as-proxy: when a bot's attack is awaiting client-side
   // resolution (state.pendingCombat set), the defender is allowed to act —
@@ -99,11 +105,12 @@ export function applyRiskAction({ state, action, actorId, rng }) {
   return { state: syncActiveUser(s) };
 }
 
-// Finalize a game-over state: derive the winning side from the winner
-// index, stamp the reason, and signal `ended` + a summary so the host
+// Finalize a game-over state: stamp the winning seat (plus the legacy 2P
+// side alias) and the reason, and signal `ended` + a summary so the host
 // records a turn row and marks the game ended.
 function finishGame(s, reason) {
-  s.winnerSide = s.winner === 0 ? 'a' : 'b';
+  s.winnerSeat = s.winner;
+  s.winnerSide = s.winner === 0 ? 'a' : s.winner === 1 ? 'b' : null;
   s.endedReason = reason;
   return {
     state: syncActiveUser(s),
@@ -186,9 +193,15 @@ function applySetupDeploy(s, playerIdx, payload) {
   s.setupPools[playerIdx] = 0;
   s.log.push({ kind: 'setup-deploy', player: playerIdx, placements });
 
-  const other = playerIdx === 0 ? 1 : 0;
-  if (s.setupPools[other] > 0) {
-    s.currentPlayer = other;
+  // Pass to the next seat (in turn order) that still has setup armies.
+  const n = playerCount(s);
+  let next = null;
+  for (let step = 1; step <= n; step++) {
+    const cand = (playerIdx + step) % n;
+    if (s.setupPools[cand] > 0) { next = cand; break; }
+  }
+  if (next !== null) {
+    s.currentPlayer = next;
   } else {
     s.currentPlayer = 0;
     s.phase = 'reinforce';
@@ -229,6 +242,7 @@ function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
       return `force must be an integer in 2..${src.armies - 1}`;
     }
     const forceCommitted = src.armies - 1;
+    const defenderIdx = tgt.owner;
     const eff = replayAttack({
       force: forceCommitted,
       defenders: tgt.armies,
@@ -257,10 +271,13 @@ function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
     };
     s.log.push({ kind: 'attack', player: attackerIdx, from, to, force: forceCommitted, captured: eff.captured });
     if (pc) delete s.pendingCombat;
-    const opponent = attackerIdx === 0 ? 1 : 0;
-    if (ownedCount(s, opponent) === 0) {
+    if (eff.captured && ownedCount(s, defenderIdx) === 0) {
+      eliminatePlayer(s, defenderIdx, attackerIdx);
+    }
+    const live = liveSeats(s);
+    if (live.length === 1) {
       s.phase = 'gameover';
-      s.winner = attackerIdx;
+      s.winner = live[0];
     }
     return null;
   }
@@ -272,9 +289,28 @@ function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
   // pendingCombat after applying the outcome.
   const verr = validateAttack(s, playerIdx, { from, to, force });
   if (verr) return verr;
-  const defenderIdx = playerIdx === 0 ? 1 : 0;
+  const defenderIdx = s.territories[to].owner;
   s.pendingCombat = { from, to, force, attackerIdx: playerIdx, defenderIdx };
   return null;
+}
+
+// A seat whose last territory just fell is out: the conqueror takes their
+// cards (canonical Risk). Hand-limit enforcement happens at the eliminator's
+// next reinforce phase via the existing 5+ must-trade gate — a deliberate
+// simplification of the canonical "trade immediately at 6+" rule (logged as
+// a design deviation in the multiplayer spec).
+function eliminatePlayer(s, victimIdx, byIdx) {
+  s.eliminated = s.eliminated ?? Array(playerCount(s)).fill(false);
+  if (s.eliminated[victimIdx]) return;
+  s.eliminated[victimIdx] = true;
+  s.eliminationOrder = s.eliminationOrder ?? [];
+  s.eliminationOrder.push(victimIdx);
+  const cards = s.hands?.[victimIdx] ?? [];
+  if (cards.length > 0 && Array.isArray(s.hands?.[byIdx])) {
+    s.hands[byIdx].push(...cards);
+    s.hands[victimIdx] = [];
+  }
+  s.log.push({ kind: 'eliminated', player: victimIdx, by: byIdx, cardsTaken: cards.length });
 }
 
 function applyFortify(s, playerIdx, payload) {
@@ -293,7 +329,14 @@ function endTurn(s, rng) {
   if (s.capturedThisTurn) drawCard(s, s.currentPlayer, rng);
   s.capturedThisTurn = false;
   s.fortifyUsed = false;
-  s.currentPlayer = s.currentPlayer === 0 ? 1 : 0;
+  // Rotate to the next live seat in turn order.
+  const n = playerCount(s);
+  let next = s.currentPlayer;
+  for (let step = 1; step <= n; step++) {
+    const cand = (s.currentPlayer + step) % n;
+    if (!isEliminated(s, cand)) { next = cand; break; }
+  }
+  s.currentPlayer = next;
   s.phase = 'reinforce';
   s.reinforcePool = reinforcementFor(s, s.currentPlayer);
   s.log.push({ kind: 'end-turn', next: s.currentPlayer });

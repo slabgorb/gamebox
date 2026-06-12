@@ -264,27 +264,37 @@ test('AC7: bringing the last pawn home ends the game with a scoreDelta for the w
 });
 
 // =========================================================================
-// AC8 — auto-pass when the next player has no legal move for the drawn card
+// AC8 — when the next player has no legal move, the turn STOPS on them with an
+// unplayable card and they must pass (explicit, not silently auto-resolved).
 // =========================================================================
 
-test('AC8: a drawn card the next player cannot use is auto-passed back', () => {
+test('AC8: a drawn card the next player cannot use stops the turn on them (they must pass)', () => {
   const state = makeState({
     drawnCard: 3, // a moves a track pawn forward 3
-    deck: [5, 2], // b draws 5 (no pawns out → no legal move → auto-pass), then a draws 2
+    deck: [5, 2], // b draws 5 (no pawns out → no legal move → b must pass), then a draws 2
     pawns: makePawns({
       a: [{ id: 0, zone: 'track', index: 10 }],
       // b: all in Start; card 5 yields neither an out (5 ≠ 1,2) nor a forward → empty
     }),
   });
   const m = requireMove(state, (x) => x.kind === 'forward' && x.pawnId === 0, 'forward');
-  const result = applySorryAction({ state, action: move(m.id), actorId: USER.a });
+  const afterMove = applySorryAction({ state, action: move(m.id), actorId: USER.a });
 
-  assert.equal(result.error, undefined);
-  assert.equal(result.state.currentPlayer, 'a', 'b had no move for the 5 → turn bounces back to a');
-  assert.equal(result.state.drawnCard, 2, 'the unusable 5 is skipped; a faces the next card');
-  assert.equal(result.state.discard.includes(3), true, 'the played card is discarded');
-  assert.equal(result.state.discard.includes(5), true, 'the auto-passed card is discarded, not left as drawnCard');
-  assert.equal(result.state.activeUserId, USER.a, 'activeUserId mirrors the resolved current player');
+  // No silent bounce-back: the turn lands on b with the unusable 5 face-up.
+  assert.equal(afterMove.error, undefined);
+  assert.equal(afterMove.state.currentPlayer, 'b', 'turn passes to b');
+  assert.equal(afterMove.state.drawnCard, 5, 'b faces the 5 it cannot play');
+  assert.equal(afterMove.state.activeUserId, USER.b);
+  assert.equal(legalMoves(afterMove.state).length, 0, 'b genuinely has no legal move');
+  assert.ok(afterMove.state.discard.includes(3), 'the played card is discarded');
+
+  // b acknowledges with an explicit pass → the 5 is discarded and a draws the 2.
+  const afterPass = applySorryAction({ state: afterMove.state, action: { type: 'pass' }, actorId: USER.b });
+  assert.equal(afterPass.error, undefined);
+  assert.equal(afterPass.state.currentPlayer, 'a', 'the pass yields the turn back to a');
+  assert.equal(afterPass.state.drawnCard, 2, 'a faces the next card');
+  assert.ok(afterPass.state.discard.includes(5), 'the passed 5 is discarded, not left face-up');
+  assert.equal(afterPass.state.activeUserId, USER.a);
 });
 
 // =========================================================================
@@ -367,4 +377,46 @@ test('finding#2: an unknown action type is rejected with an error and no mutatio
   assert.equal(result.error, 'unknown action: teleport', 'an unrecognized action type yields a specific error');
   assert.equal('state' in result, false, 'no state is produced for an unknown action');
   assert.deepEqual(state, before, 'unknown action does not mutate state');
+});
+
+// =========================================================================
+// Explicit pass — when the player on turn has no legal move, the only action
+// is `pass`: discard the drawn card, draw the next, switch the turn. Replaces
+// the old silent settleToPlayable auto-pass.
+// =========================================================================
+
+test('pass: discards the drawn card, draws the next, and switches the turn', () => {
+  // All pawns in Start + card 3 ⇒ no legal move (3 cannot leave Start).
+  const state = makeState({ drawnCard: 3, deck: [1, 2, 5], discard: [] });
+  assert.equal(legalMoves(state).length, 0, 'precondition: no legal move');
+
+  const r = applySorryAction({ state, action: { type: 'pass' }, actorId: USER.a });
+
+  assert.equal(r.error, undefined);
+  assert.equal(r.ended, false);
+  assert.equal(r.state.currentPlayer, 'b', 'pass yields the turn');
+  assert.equal(r.state.activeUserId, r.state.sides.b);
+  assert.equal(r.state.drawnCard, 1, 'opponent draws the next card (deck[0])');
+  assert.ok(r.state.discard.includes(3), 'the passed card is discarded');
+  assert.deepEqual(r.summary, { kind: 'pass', card: 3 });
+});
+
+test('pass: is rejected when the player still has a legal move', () => {
+  const state = makeState({ drawnCard: 1 }); // card 1 ⇒ four out:* moves exist
+  assert.ok(legalMoves(state).length > 0, 'precondition: a move exists');
+  const r = applySorryAction({ state, action: { type: 'pass' }, actorId: USER.a });
+  assert.match(r.error, /legal move/i);
+});
+
+test('pass: sets lastEvent to the pass breadcrumb', () => {
+  const state = makeState({ drawnCard: 3, deck: [1], discard: [] });
+  const r = applySorryAction({ state, action: { type: 'pass' }, actorId: USER.a });
+  assert.deepEqual(r.state.lastEvent, { kind: 'pass', side: 'a', card: 3 });
+});
+
+test('a move clears lastEvent (the pass breadcrumb does not persist past real play)', () => {
+  const state = makeState({ drawnCard: 1, deck: [1], lastEvent: { kind: 'pass', side: 'b', card: 4 } });
+  const r = applySorryAction({ state, action: move('out:0'), actorId: USER.a });
+  assert.equal(r.error, undefined);
+  assert.equal(r.state.lastEvent, null);
 });

@@ -1,15 +1,11 @@
 // src/clients/sorry/Board.tsx
-// The baked board image (the parquet trick — see scripts/render-sorry-board.py)
-// is the entire board surface; this component only overlays the live state:
-// pawn tokens positioned by zone/index, and a clickable hotspot for each legal
-// move destination. No board cells are drawn in the DOM.
+// The board surface: the inline SVG board (Board4P) plus DOM overlays for live
+// pawns and clickable legal-move hotspots. The SVG and the overlay share the
+// 16×16/1600px grid (board-geometry.js), so every overlay lands exactly on a
+// drawn cell.
 import type { SorryView, SorrySide, LegalMove } from "../shared/contracts/sorry";
-import {
-  BOARD_IMAGE,
-  pawnCenter,
-  moveDestCenter,
-  toPct,
-} from "./board-geometry.js";
+import { Board4P } from "./Board4P";
+import { pawnCenter, parkCenter, moveDestCenter, toPct, boardRotation, seatColors } from "./board-geometry.js";
 
 export interface BoardProps {
   view: SorryView;
@@ -18,51 +14,97 @@ export interface BoardProps {
 
 const SIDES: SorrySide[] = ["a", "b"];
 
+// The source pawn a move acts on (split moves carry it on their first leg).
+function movePawnId(move: LegalMove): number | undefined {
+  return move.pawnId ?? move.legs?.[0]?.pawnId;
+}
+
 export function Board({ view, onPick }: BoardProps) {
   const legalMoves: LegalMove[] = view.legalMoves ?? [];
   const turnSide = view.currentPlayer;
 
-  return (
-    <div className="sorry-board">
-      <img className="board-image" src={BOARD_IMAGE} alt="Sorry! board" />
+  // Viewer-relative orientation: rotate the entire surface (board + overlay, as
+  // one unit so cells and pawns stay aligned) so the human's colour sits at the
+  // bottom. The board is drawn into board-geometry's coordinate space; rotating
+  // the wrapper leaves that math untouched.
+  const rotation = boardRotation(view.youAre);
 
-      {/* Pawn tokens — every pawn of both sides, placed from the public view. */}
-      {SIDES.map((side) =>
-        view.pawns[side].map((pawn) => {
-          const pos = toPct(pawnCenter(side, pawn.zone, pawn.index, pawn.id));
+  // Per-side checker colour (chosen at creation; legacy games default red/blue).
+  // The board is drawn engine a→top / b→bottom and rotated for the viewer, so
+  // seat colour follows engine side and the checker for each side matches its
+  // seat circle. seatColors derives the four drawn-seat colours (+ decor sides).
+  const colors = view.colors ?? { a: "red", b: "blue" };
+  const seatCols = seatColors(view.colors);
+  const checkerFor = (side: SorrySide) => `assets/checker-${colors[side]}.png`;
+
+  // Pawns that can move this turn — ringed so it's obvious which pieces are live.
+  const movableIds = new Set(
+    legalMoves.map(movePawnId).filter((id): id is number => id != null),
+  );
+
+  // Collapse moves that land on the same square into one hotspot — several Start
+  // pawns coming out share a destination, which otherwise stacks identical
+  // overlapping targets (only the top one was clickable). Keep the first move's
+  // id for the click.
+  const targets = new Map<string, { moveId: string; left: string; top: string }>();
+  for (const move of legalMoves) {
+    const center = moveDestCenter(turnSide, move);
+    if (!center) continue;
+    const pos = toPct(center);
+    const key = `${pos.left}|${pos.top}`;
+    if (!targets.has(key)) targets.set(key, { moveId: move.id, left: pos.left, top: pos.top });
+  }
+
+  return (
+    <div className="board-surface" style={{ transform: `rotate(${rotation}deg)` }}>
+      <Board4P rotation={rotation} seatColors={seatCols} />
+
+      {/* Live pawns — every pawn of both sides, placed from the public view.
+          Parked pawns (start/home) are laid out as a centred cluster keyed to
+          their rank among same-zone pawns, so leftover pawns never slump low. */}
+      {SIDES.map((side) => {
+        const pawns = view.pawns[side];
+        const parkRank = new Map<number, { rank: number; count: number }>();
+        for (const zone of ["start", "home"] as const) {
+          const inZone = pawns.filter((p) => p.zone === zone).sort((a, b) => a.id - b.id);
+          inZone.forEach((p, i) => parkRank.set(p.id, { rank: i, count: inZone.length }));
+        }
+        return pawns.map((pawn) => {
+          const parked = parkRank.get(pawn.id);
+          const pos = toPct(
+            parked
+              ? parkCenter(side, pawn.zone, parked.rank, parked.count)
+              : pawnCenter(side, pawn.zone, pawn.index, pawn.id),
+          );
+          const movable = side === turnSide && movableIds.has(pawn.id);
           return (
             <div
               key={`pawn-${side}-${pawn.id}`}
-              className={`sorry-pawn side-${side} zone-${pawn.zone}`}
+              className={`pawn pawn-live side-${side} zone-${pawn.zone}${movable ? " movable" : ""}`}
               data-pawn={`${side}-${pawn.id}`}
               data-zone={pawn.zone}
               data-index={pawn.index}
               style={{ left: pos.left, top: pos.top }}
             >
-              <span className="pawn-id">{pawn.id + 1}</span>
+              <img className="pawn-svg" src={checkerFor(side)} alt="" draggable={false} />
             </div>
           );
-        }),
-      )}
+        });
+      })}
 
       {/* Legal-move hotspots — only the active viewer receives legalMoves, so
-          these appear only when it is the player's turn. */}
-      {legalMoves.map((move) => {
-        const center = moveDestCenter(turnSide, move);
-        if (!center) return null;
-        const pos = toPct(center);
-        return (
-          <button
-            key={`pick-${move.id}`}
-            type="button"
-            className="sorry-target"
-            data-pick={move.id}
-            style={{ left: pos.left, top: pos.top }}
-            onClick={() => onPick(move.id)}
-            aria-label={`Play move ${move.id}`}
-          />
-        );
-      })}
+          these appear only when it is the player's turn. Deduped by destination. */}
+      {[...targets.values()].map((t) => (
+        <button
+          key={`pick-${t.moveId}`}
+          type="button"
+          className="sorry-target"
+          data-pick={t.moveId}
+          style={{ left: t.left, top: t.top }}
+          onClick={() => onPick(t.moveId)}
+          aria-label={`Play move ${t.moveId}`}
+        />
+      ))}
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { createOrchestrator } from '../src/server/ai/orchestrator.js';
 import riskPlugin from '../plugins/risk/plugin.js';
 import { chooseAction as riskChoose } from '../plugins/risk/server/ai/risk-player.js';
 import { allTerritories } from '../plugins/risk/server/map.js';
+import { insertGame } from './_helpers/games.js';
 
 const HUMAN_IDX = 1, BOT_IDX = 0;
 
@@ -51,10 +52,7 @@ test('orchestrator: drives a full Risk turn (reinforce→attack→fortify→end-
     activeUserId: botId,
   };
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'risk', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'risk', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'admiral-vonnegut' });
 
   const events = [];
@@ -85,5 +83,5 @@ test('orchestrator: drives a full Risk turn (reinforce→attack→fortify→end-
   assert.equal(llm.calls.length, 3, 'deploy + end-attack + end-turn all driven in one wake-up');
   assert.ok(after.log.some(e => e.kind === 'end-turn'), 'turn ended (end-turn logged)');
   assert.equal(after.activeUserId, humanId, 'turn handed back to the human — bot did not stall mid-turn');
-  assert.equal(getAiSession(db, gameId).stalledAt, null, 'bot did not stall');
+  assert.equal(getAiSession(db, gameId, botId).stalledAt, null, 'bot did not stall');
 });

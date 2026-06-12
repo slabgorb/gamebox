@@ -10,6 +10,7 @@ import { createOrchestrator } from '../src/server/ai/orchestrator.js';
 import cribbagePlugin from '../plugins/cribbage/plugin.js';
 import { chooseAction as cribbageChoose } from '../plugins/cribbage/server/ai/cribbage-player.js';
 import { buildInitialState } from '../plugins/cribbage/server/state.js';
+import { insertGame } from './_helpers/games.js';
 
 function det(seed = 1) {
   let s = seed;
@@ -30,10 +31,7 @@ function setup(llm) {
   // botMustActConcurrently gate is what lets the bot act). Forcing it to
   // botId modelled a state cribbage never produces.
   state.activeUserId = null;
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'cribbage', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'hattie' });
 
   const events = [];
@@ -60,7 +58,7 @@ test('orchestrator: happy path — chooses action, applies it, broadcasts banter
   assert.ok(types.includes('update'), 'update emitted');
   assert.ok(types.indexOf('banter') < types.indexOf('update'));
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stalledAt, null);
 
   const game = db.prepare("SELECT state FROM games WHERE id = ?").get(gameId);
@@ -75,9 +73,9 @@ test('orchestrator: invalid response → retry once → success on retry', async
     { text: 'I dunno', sessionId: 'sid-B' },
     { text: '{"moveId":"discard:0,5","banter":""}', sessionId: 'sid-B' },
   ]);
-  const { db, gameId, events, orch } = setup(llm);
+  const { db, gameId, botId, events, orch } = setup(llm);
   await orch.runTurn(gameId);
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stalledAt, null, 'not stalled — succeeded on retry');
   assert.ok(events.some(e => e.type === 'banter'));
 });
@@ -87,12 +85,12 @@ test('orchestrator: two consecutive failures → stall + bot_stalled SSE + game 
     { text: 'nope', sessionId: 'sid-C' },
     { text: 'still nope', sessionId: 'sid-C' },
   ]);
-  const { db, gameId, events, orch } = setup(llm);
+  const { db, gameId, botId, events, orch } = setup(llm);
   const before = db.prepare("SELECT state FROM games WHERE id = ?").get(gameId).state;
 
   await orch.runTurn(gameId);
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.ok(sess.stalledAt > 0);
   assert.equal(sess.stallReason, 'invalid_response');
 
@@ -111,9 +109,9 @@ test('orchestrator: timeout maps to stall reason "timeout"', async () => {
     { throw: new TimeoutError(30000) },
     { throw: new TimeoutError(30000) },
   ]);
-  const { db, gameId, events, orch } = setup(llm);
+  const { db, gameId, botId, events, orch } = setup(llm);
   await orch.runTurn(gameId);
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stallReason, 'timeout');
   assert.equal(events.find(e => e.type === 'bot_stalled').payload.reason, 'timeout');
 });
@@ -133,11 +131,11 @@ test('orchestrator: clears stall on next successful runTurn', async () => {
     { text: 'nope', sessionId: 's' }, { text: 'still nope', sessionId: 's' },
     { text: '{"moveId":"discard:0,5","banter":""}', sessionId: 's' },
   ]);
-  const { db, gameId, orch } = setup(llm);
+  const { db, gameId, botId, orch } = setup(llm);
   await orch.runTurn(gameId);
-  assert.ok(getAiSession(db, gameId).stalledAt > 0);
+  assert.ok(getAiSession(db, gameId, botId).stalledAt > 0);
   await orch.runTurn(gameId);
-  assert.equal(getAiSession(db, gameId).stalledAt, null);
+  assert.equal(getAiSession(db, gameId, botId).stalledAt, null);
 });
 
 test('orchestrator: scheduleTurn after _runOnce when bot remains active (instrumented)', async () => {
@@ -195,10 +193,7 @@ test('orchestrator: bot acts twice in a row when discard auto-cuts into a peggin
   // would end the match in a contrived 121-target scenario).
   state.deck = [{ id: 'S-7-0', rank: '7', suit: 'S', deckIndex: 0 }];
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'cribbage', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'hattie' });
 
   // Bot discards C-A and C-2 (indexes 0,1); pegging hand becomes 3,4,5,6 of clubs.
@@ -237,10 +232,7 @@ test('orchestrator: auto-executes initial-roll without an LLM call', async () =>
   state.turn.phase = 'initial-roll';
   state.activeUserId = botId;
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'colonel-pip' });
 
   const events = [];
@@ -259,7 +251,7 @@ test('orchestrator: auto-executes initial-roll without an LLM call', async () =>
 
   const game = db.prepare("SELECT state FROM games WHERE id = ?").get(gameId);
   const newState = JSON.parse(game.state);
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stalledAt, null, 'auto-action did not stall');
   // CROSS-BUG-3: the auto-action no longer materializes a value server-side.
   // It POSTs a values-less intent; the engine stores pendingRoll and pauses
@@ -291,10 +283,7 @@ test('orchestrator: caches sequenceTail and drains the full tail in one wake-up'
   state.activeUserId = botId;
   state.sides = { a: botId, b: humanId };
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'colonel-pip' });
 
   const events = [];
@@ -320,7 +309,7 @@ test('orchestrator: caches sequenceTail and drains the full tail in one wake-up'
 
   // After the single wake-up: the orchestrator stores the tail and
   // immediately recurses to drain it without another LLM call.
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.pendingSequence, null, 'pendingSequence drained in same wake-up');
   assert.equal(sends.length, 1, 'LLM called exactly once — cache drained without LLM');
 });
@@ -340,10 +329,7 @@ test('orchestrator: unknown persona stalls instead of throwing', async () => {
   // botMustActConcurrently gate is what lets the bot act). Forcing it to
   // botId modelled a state cribbage never produces.
   state.activeUserId = null;
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'cribbage', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'ghost' });  // persona not in catalog
 
   const events = [];
@@ -358,7 +344,7 @@ test('orchestrator: unknown persona stalls instead of throwing', async () => {
 
   await orch.runTurn(gameId);  // should not throw
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stallReason, 'invalid_response');
   assert.ok(events.some(e => e.type === 'bot_stalled'));
 });
@@ -389,10 +375,7 @@ test('orchestrator: bot acts on backgammon initial-roll without explicit activeU
   state.sides = { a: botId, b: humanId };
   // state.activeUserId is intentionally absent/null here.
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'colonel-pip' });
 
   const events = [];

@@ -1,4 +1,5 @@
-import { getAiSession, markStalled, clearStall, setPendingSequence, clearPendingSequence, setClaudeSessionId, bumpResumeCount, rotateClaudeSession, peekUserMessages, clearUserMessages } from './agent-session.js';
+import { getAiSession, listAiSessions, markStalled, clearStall, setPendingSequence, clearPendingSequence, setClaudeSessionId, bumpResumeCount, rotateClaudeSession, peekUserMessages, clearUserMessages } from './agent-session.js';
+import { winSeatsFromState } from '../win-result.js';
 
 // Resume the same claude CLI session this many times before rotating to a
 // fresh one. Resumes hit the prompt cache (huge latency win) but each one
@@ -14,6 +15,9 @@ const MAX_RESUMES_PER_SESSION = 10;
 // never relinquishes the bot (LLM looping, an accepted no-op) can't recurse
 // without bound. Sized well above a worst-case Risk turn.
 const MAX_TURN_DEPTH = 40;
+
+// Backstop on how many bot turns one external wake-up will chain across a game.
+const MAX_BOT_PASSES = 60;
 import { InvalidLlmResponse, InvalidLlmMove } from './errors.js';
 import { TimeoutError, SubprocessFailed, ParseError, EmptyResponse } from './llm-client.js';
 import { appendTurnEntry } from '../history.js';
@@ -74,16 +78,65 @@ function stallReasonFor(err) {
 }
 
 function botPlayerIdxOf(state, botUserId) {
-  return state.sides.a === botUserId ? 0 : 1;
+  // N-player plugins declare seats: [userId, ...]; 2P plugins keep sides {a, b}.
+  if (Array.isArray(state.seats)) {
+    const i = state.seats.indexOf(botUserId);
+    return i === -1 ? 1 : i;
+  }
+  return state.sides?.a === botUserId ? 0 : 1;
+}
+
+// The single source of truth for concurrent-phase eligibility. In phases with
+// no single active player (activeUserId == null) — cribbage discard/show,
+// backgammon initial-roll — a bot may act if it hasn't yet submitted its half.
+// BOTH the scan predicate (botEligible) and _runBot's act-or-skip gate call
+// this, so a future fourth concurrent phase is added in exactly one place.
+// Self-contained: returns false unless activeUserId is null.
+function botMustActConcurrently(state, botUserId) {
+  if (state.activeUserId != null) return false;
+  const botPlayerIdx = botPlayerIdxOf(state, botUserId);
+  const botSideKey = botPlayerIdx === 0 ? 'a' : 'b';
+  return (
+    // Cribbage concurrent phases
+    (state.phase === 'discard' && state.pendingDiscards?.[botPlayerIdx] == null) ||
+    (state.phase === 'show' && state.acknowledged?.[botPlayerIdx] === false) ||
+    // Backgammon initial-roll: both sides roll; bot acts if its side hasn't rolled yet.
+    (state.turn?.phase === 'initial-roll' && state.initialRoll?.[botSideKey] == null)
+  );
+}
+
+// Mirror of _runBot's act-or-skip gate, used by the scan loop to pick the next
+// bot to drive. Shares the concurrent-phase block with _runBot via
+// botMustActConcurrently, so the two cannot drift.
+function botEligible(state, botUserId) {
+  // CROSS-BUG-3 continuation gate: bot is paused while an action awaits
+  // client-side dice resolution.
+  if (state.pendingCombat || state.pendingRoll) return false;
+  if (state.activeUserId === botUserId) return true;
+  if (state.activeUserId != null) return false;
+  return botMustActConcurrently(state, botUserId);
+}
+
+// Single place the orchestrator marks a game ended, so every bot-action path
+// records winnerSeats identically.
+function writeEndGame(db, gameId, newState) {
+  const { winnerSeats, isDraw } = winSeatsFromState(newState);
+  db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_seats=?, is_draw=? WHERE id=?")
+    .run(newState.endedReason ?? 'plugin',
+         winnerSeats == null ? null : JSON.stringify(winnerSeats),
+         isDraw ? 1 : 0, gameId);
 }
 
 export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adapters, logger = console }) {
   const inFlight = new Map();
 
-  async function _runOnce(gameId, depth = 0) {
-    const session = getAiSession(db, gameId);
+  async function _runBot(gameId, sess, depth = 0) {
+    // Re-read the session each invocation so a self-recursion (draining a
+    // cached pendingSequence, or continuing a multi-action turn) sees the
+    // freshest claude session id / pending sequence we just persisted.
+    const session = getAiSession(db, gameId, sess.botUserId);
     if (!session) {
-      logger.warn?.(`[ai] runTurn: no ai_sessions row for game ${gameId}`);
+      logger.warn?.(`[ai] runTurn: no ai_sessions row for game ${gameId} bot ${sess.botUserId}`);
       return;
     }
     const gameRow = db.prepare("SELECT * FROM games WHERE id = ?").get(gameId);
@@ -98,26 +151,17 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
     // activeUserId is null (concurrent phases: discard, show) and the bot
     // hasn't yet submitted its half.
     const botPlayerIdx = botPlayerIdxOf(state, session.botUserId);
-    const botSideKey = botPlayerIdx === 0 ? 'a' : 'b';
-    const botMustActConcurrently =
-      state.activeUserId == null &&
-      (
-        // Cribbage concurrent phases
-        (state.phase === 'discard' && state.pendingDiscards?.[botPlayerIdx] == null) ||
-        (state.phase === 'show' && state.acknowledged?.[botPlayerIdx] === false) ||
-        // Backgammon initial-roll: both sides roll; bot acts if its side hasn't rolled yet.
-        (state.turn?.phase === 'initial-roll' && state.initialRoll?.[botSideKey] == null)
-      );
-    if (state.activeUserId !== session.botUserId && !botMustActConcurrently) return;
+    if (state.activeUserId !== session.botUserId &&
+        !botMustActConcurrently(state, session.botUserId)) return;
 
     const persona = personas.get(session.personaId);
     const adapter = adapters[gameRow.game_type];
     if (!persona || !adapter) {
       const detail = !persona ? `unknown persona ${session.personaId}` : `no AI adapter for game_type ${gameRow.game_type}`;
       logger.error?.(`[ai] game ${gameId}: ${detail}`);
-      markStalled(db, gameId, 'invalid_response');
+      markStalled(db, gameId, session.botUserId, 'invalid_response');
       // Compute bot side from state so the client knows where to render the banner.
-      const botSide = state.sides.a === session.botUserId ? 'a' : 'b';
+      const botSide = botPlayerIdx === 0 ? 'a' : 'b';
       sse.broadcast(gameId, {
         type: 'bot_stalled',
         payload: {
@@ -147,7 +191,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
       });
       if (result.error) {
         logger.warn?.(`[ai] game ${gameId} auto-action ${phaseKey} rejected: ${result.error}`);
-        markStalled(db, gameId, 'invalid_response');
+        markStalled(db, gameId, session.botUserId, 'invalid_response');
         sse.broadcast(gameId, {
           type: 'bot_stalled',
           payload: { side: botSide, personaId: persona.id, displayName: persona.displayName, reason: 'invalid_response' },
@@ -160,15 +204,14 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         db.prepare("UPDATE games SET state = ?, updated_at = ? WHERE id = ?")
           .run(JSON.stringify(newState), Date.now(), gameId);
         if (result.summary) {
-          turnRow = appendTurnEntry(db, gameId, botSide, result.summary.kind, result.summary);
+          turnRow = appendTurnEntry(db, gameId, botPlayerIdx, result.summary.kind, result.summary);
         }
         if (result.ended) {
-          db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_side=? WHERE id=?")
-            .run(newState.endedReason ?? 'plugin', newState.winnerSide ?? null, gameId);
+          writeEndGame(db, gameId, newState);
         }
       });
       tx();
-      clearStall(db, gameId);
+      clearStall(db, gameId, session.botUserId);
       sse.broadcast(gameId, { type: 'update', payload: {} });
       if (turnRow) {
         sse.broadcast(gameId, {
@@ -205,7 +248,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
       if (!result.ended &&
           (newState.activeUserId === session.botUserId || newState.activeUserId == null) &&
           depth === 0) {
-        await _runOnce(gameId, 1);
+        await _runBot(gameId, session, 1);
       }
       return;
     }
@@ -217,8 +260,8 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         state, action: head, actorId: session.botUserId, rng: rngFor(gameId),
       });
       if (result.error) {
-        clearPendingSequence(db, gameId);
-        markStalled(db, gameId, 'illegal_move');
+        clearPendingSequence(db, gameId, session.botUserId);
+        markStalled(db, gameId, session.botUserId, 'illegal_move');
         sse.broadcast(gameId, {
           type: 'bot_stalled',
           payload: { side: botSide, personaId: persona.id, displayName: persona.displayName, reason: 'illegal_move' },
@@ -231,16 +274,15 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         db.prepare("UPDATE games SET state = ?, updated_at = ? WHERE id = ?")
           .run(JSON.stringify(newState), Date.now(), gameId);
         if (result.summary) {
-          turnRow = appendTurnEntry(db, gameId, botSide, result.summary.kind, result.summary);
+          turnRow = appendTurnEntry(db, gameId, botPlayerIdx, result.summary.kind, result.summary);
         }
         if (rest.length > 0 && newState.turn?.phase === 'moving') {
-          setPendingSequence(db, gameId, rest);
+          setPendingSequence(db, gameId, session.botUserId, rest);
         } else {
-          clearPendingSequence(db, gameId);
+          clearPendingSequence(db, gameId, session.botUserId);
         }
         if (result.ended) {
-          db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_side=? WHERE id=?")
-            .run(newState.endedReason ?? 'plugin', newState.winnerSide ?? null, gameId);
+          writeEndGame(db, gameId, newState);
         }
       });
       tx();
@@ -260,7 +302,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
       // Recurse to drain the next cached move immediately, if any. Bounded
       // by the tail length (drain shrinks the cache each call).
       if (!result.ended && rest.length > 0 && newState.activeUserId === session.botUserId) {
-        await _runOnce(gameId, depth + 1);
+        await _runBot(gameId, session, depth + 1);
       }
       return;
     }
@@ -273,7 +315,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
     // Drain user trash talk into the upcoming prompt. Peek (don't clear)
     // so a retried/stalled turn doesn't lose the message — it's only
     // cleared after the bot successfully acts.
-    const userMessages = peekUserMessages(db, gameId).map(m => m.text);
+    const userMessages = peekUserMessages(db, gameId, session.botUserId).map(m => m.text);
 
     let lastError;
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -293,12 +335,12 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
           // Adapter short-circuited (e.g., cribbage pegging with one legal
           // card) — no subprocess was launched, so don't burn a resume slot.
         } else if (resuming) {
-          bumpResumeCount(db, gameId);
+          bumpResumeCount(db, gameId, session.botUserId);
           session.resumeCount = (session.resumeCount ?? 0) + 1;
         } else if (r.sessionId) {
           // Fresh session — either no prior or just rotated. Reset counter.
-          if (session.claudeSessionId) rotateClaudeSession(db, gameId);
-          setClaudeSessionId(db, gameId, r.sessionId);
+          if (session.claudeSessionId) rotateClaudeSession(db, gameId, session.botUserId);
+          setClaudeSessionId(db, gameId, session.botUserId, r.sessionId);
           session.claudeSessionId = r.sessionId;
           session.resumeCount = 0;
         }
@@ -321,11 +363,10 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
           newState = result.state;
           updateGame.run(JSON.stringify(newState), Date.now(), gameId);
           if (result.summary) {
-            turnRow = appendTurnEntry(db, gameId, botSide, result.summary.kind, result.summary);
+            turnRow = appendTurnEntry(db, gameId, botPlayerIdx, result.summary.kind, result.summary);
           }
           if (result.ended) {
-            db.prepare("UPDATE games SET status='ended', ended_reason=?, winner_side=? WHERE id=?")
-              .run(newState.endedReason ?? 'plugin', newState.winnerSide ?? null, gameId);
+            writeEndGame(db, gameId, newState);
           }
         });
         tx();
@@ -334,13 +375,13 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
           logger.warn?.(`[ai] game ${gameId} attempt ${attempt + 1} engine-rejected ${JSON.stringify(r.action)}: ${result.error}`);
           continue;
         }
-        clearStall(db, gameId);
+        clearStall(db, gameId, session.botUserId);
         if (Array.isArray(r.sequenceTail) && r.sequenceTail.length > 0) {
-          setPendingSequence(db, gameId, r.sequenceTail);
+          setPendingSequence(db, gameId, session.botUserId, r.sequenceTail);
         }
         // Bot consumed any pending trash talk in its prompt — clear so we
         // don't double-feed the same message on the next turn.
-        if (userMessages.length > 0) clearUserMessages(db, gameId);
+        if (userMessages.length > 0) clearUserMessages(db, gameId, session.botUserId);
 
         if (r.banter != null) {
           sse.broadcast(gameId, {
@@ -348,10 +389,6 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
             payload: { side: botSide, personaId: persona.id, displayName: persona.displayName, text: r.banter },
           });
         }
-        // TEMP DIAGNOSTIC (banter-not-chatting investigation): always log
-        // r.banter so we can tell empty-vs-missing-vs-content. Remove once
-        // backgammon banter root cause is known.
-        logger.info?.(`[ai] game ${gameId} ${persona.id} banter=${JSON.stringify(r.banter ?? null)} subs=${sse.subscriberCount?.(gameId) ?? '?'}`);
         sse.broadcast(gameId, { type: 'update', payload: {} });
         if (turnRow) {
           sse.broadcast(gameId, {
@@ -379,7 +416,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         const hasCachedTail = Array.isArray(r.sequenceTail) && r.sequenceTail.length > 0;
         if (!result.ended && newState.activeUserId === session.botUserId &&
             (hasCachedTail || depth < MAX_TURN_DEPTH)) {
-          await _runOnce(gameId, depth + 1);
+          await _runBot(gameId, session, depth + 1);
         }
         return;
       } catch (err) {
@@ -389,11 +426,104 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
     }
 
     const reason = stallReasonFor(lastError);
-    markStalled(db, gameId, reason);
+    markStalled(db, gameId, session.botUserId, reason);
     sse.broadcast(gameId, {
       type: 'bot_stalled',
       payload: { side: botSide, personaId: persona.id, displayName: persona.displayName, reason },
     });
+  }
+
+  // Drive every bot eligible to act in this game, in seat order, re-scanning
+  // after each bot so a turn that passes bot->bot is continued in the same
+  // wake-up. _runBot re-checks its own gate and no-ops if it fails, so this
+  // scan only needs to avoid infinite looping.
+  // A bot attack stores pendingCombat and hands the turn to the defender to
+  // drive the dice client-side. When the defender is also a bot, no client
+  // exists to POST the resolved roll, so we resolve it server-side here. This
+  // is intentionally NOT part of the bot-eligible scan (it is a proxy action,
+  // not the defender taking its own turn) so it is not gated by `attempted`
+  // and can fire for every combat in a multi-attack turn. Returns true when it
+  // resolved a combat (caller should re-read state and keep driving).
+  function _resolveBotCombat(gameId, gameType, state, sessions) {
+    if (!state.pendingCombat) return { resolved: false };
+    const adapter = adapters[gameType];
+    if (!adapter?.resolvePending) return { resolved: false };
+    // pendingCombat hands activeUserId to the defender. If that is a human,
+    // their client drives the dice — leave it for the resolved POST.
+    const defenderId = state.activeUserId;
+    if (!sessions.some(s => s.botUserId === defenderId)) return { resolved: false };
+
+    const action = adapter.resolvePending(state, rngFor(gameId));
+    if (!action) return { resolved: false };
+    const result = adapter.plugin.applyAction({
+      state, action, actorId: defenderId, rng: rngFor(gameId),
+    });
+    if (result.error) {
+      logger.warn?.(`[ai] game ${gameId} server-side combat resolve rejected: ${result.error}`);
+      return { resolved: false };
+    }
+    const newState = result.state;
+    // Mirror the route's resolved-attack attribution: the actor is the
+    // resolver (the defender seat), the same seat the human-proxy POST uses.
+    const defenderIdx = botPlayerIdxOf(state, defenderId);
+    let turnRow = null;
+    const tx = db.transaction(() => {
+      db.prepare("UPDATE games SET state = ?, updated_at = ? WHERE id = ?")
+        .run(JSON.stringify(newState), Date.now(), gameId);
+      if (result.summary) {
+        turnRow = appendTurnEntry(db, gameId, defenderIdx, result.summary.kind, result.summary);
+      }
+      if (result.ended) writeEndGame(db, gameId, newState);
+    });
+    tx();
+    sse.broadcast(gameId, { type: 'update', payload: {} });
+    if (turnRow) {
+      sse.broadcast(gameId, {
+        type: 'turn',
+        payload: {
+          turnNumber: turnRow.turnNumber,
+          side: turnRow.side,
+          kind: turnRow.kind,
+          summary: turnRow.summary,
+          createdAt: turnRow.createdAt,
+        },
+      });
+    }
+    // Clearing pendingCombat hands the turn back to the attacker (now the
+    // active player). Return it so the scan can un-mark it as attempted and
+    // let it resume its turn in this same wake-up instead of waiting for an
+    // external nudge (a page refresh).
+    return { resolved: true, resumedBot: newState.activeUserId ?? null };
+  }
+
+  async function _runOnce(gameId) {
+    // Bots already driven in THIS wake-up. A bot that stalled (or otherwise
+    // failed to advance the turn) is not re-driven within the same scan —
+    // that would loop on the same failing decision and clobber its stall
+    // reason. A later external wake-up (fresh _runOnce) gets a fresh set and
+    // retries the stalled bot, preserving the single-bot retry semantics.
+    const attempted = new Set();
+    for (let pass = 0; pass < MAX_BOT_PASSES; pass++) {
+      const gameRow = db.prepare("SELECT state, status, game_type FROM games WHERE id = ?").get(gameId);
+      if (!gameRow || gameRow.status !== 'active') return;
+      const state = JSON.parse(gameRow.state);
+      const sessions = listAiSessions(db, gameId);
+      if (sessions.length === 0) return;
+      // Resolve any bot-vs-bot combat awaiting dice before scanning for a bot
+      // to drive; the attacker can then continue its turn on the next pass.
+      const combat = _resolveBotCombat(gameId, gameRow.game_type, state, sessions);
+      if (combat.resolved) {
+        // The attacker resumes as active player — let it act again this scan.
+        if (combat.resumedBot != null) attempted.delete(combat.resumedBot);
+        continue;
+      }
+      const eligible = sessions.find(
+        s => !attempted.has(s.botUserId) && botEligible(state, s.botUserId),
+      );
+      if (!eligible) return;
+      attempted.add(eligible.botUserId);
+      await _runBot(gameId, eligible);
+    }
   }
 
   async function runTurn(gameId) {

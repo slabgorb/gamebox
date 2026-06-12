@@ -1,24 +1,51 @@
 // src/clients/sorry/board-geometry.js
 //
-// The 1:1 geometry contract between the baked board image and the client
-// overlay — the same principle as the backgammon parquet renderer's CSS_FIT.
-// scripts/render-sorry-board.py bakes the board on a GRID×GRID cell grid at
-// CELL px per cell; this module maps every pawn location and move destination
-// to the matching pixel centre so the React overlay lands exactly on the
-// printed cells. KEEP THESE CONSTANTS IN SYNC WITH render-sorry-board.py.
+// The 1:1 geometry contract between the inline SVG board (Board4P.tsx) and the
+// pawn overlay. Board4P draws on a GRID×GRID cell grid at CELL px per cell;
+// this module maps every pawn location and move destination to the matching
+// cell centre so the React overlay lands exactly on the drawn cells.
+// KEEP THESE CONSTANTS IN SYNC WITH Board4P.tsx (START / HOME / SAFETY).
+//
+// The engine is 2-player (sides a, b). Visually those occupy two diagonally
+// opposite quadrants of the 4-player board: side a → the red top-left quadrant,
+// side b → the blue bottom-right quadrant. The green/orange quadrants are board
+// ART only and carry no pawns.
 
-export const BOARD_IMAGE = "assets/sorry-board.png";
 export const GRID = 16;
 export const CELL = 100;
 export const BOARD_PX = GRID * CELL; // 1600
 
 // Engine geometry mirror (plugins/sorry/server/geometry.js).
 export const START_EXIT = { a: 4, b: 34 };
-export const SAFETY_ENTRY = { a: 1, b: 31 };
+export const SAFETY_ENTRY = { a: 2, b: 32 };
+// Diamond squares (own-colour one-way barrier). All four edges so the board can
+// draw the marker on every seat.
+export const DIAMOND = { a: 3, b: 33, green: 18, orange: 48 };
 export const SLIDES = {
-  a: [{ start: 9, length: 4 }, { start: 34, length: 5 }],
-  b: [{ start: 39, length: 4 }, { start: 4, length: 5 }],
+  a:      [{ start: 1,  length: 3 }, { start: 9,  length: 5 }],
+  b:      [{ start: 31, length: 3 }, { start: 39, length: 5 }],
+  green:  [{ start: 16, length: 3 }, { start: 24, length: 5 }],
+  orange: [{ start: 46, length: 3 }, { start: 54, length: 5 }],
 };
+
+// The drawn slide arrows, derived from the engine SLIDES above so they always
+// land on the squares where a slide actually fires. Each segment runs from the
+// slide's start square to its end (start+length), tagged with its owner side
+// (a/b on the top/bottom edges, green/orange on the right/left edges). The board
+// renders these instead of hand-placed arrows, so a painted arrow can never
+// disagree with the engine — landing on one always triggers the slide for a
+// foreign-colour pawn.
+export function slideSegments() {
+  const segs = [];
+  for (const side of ["a", "b", "green", "orange"]) {
+    for (const s of SLIDES[side]) {
+      const from = trackCell(s.start);
+      const to = trackCell((s.start + s.length) % 60);
+      segs.push({ side, from: [from.row, from.col], to: [to.row, to.col] });
+    }
+  }
+  return segs;
+}
 
 // Absolute track index (0..59) → {row, col} on the perimeter ring, clockwise
 // from the top-left corner: across the top, down the right, back along the
@@ -31,19 +58,55 @@ export function trackCell(index) {
   return { row: 60 - i, col: 0 };
 }
 
-// Safety lanes run inward from each side's safety entry toward Home:
-//   a — down column 1 (rows 1..5); b — up column 14 (rows 14..10).
+// Canonical pinwheel seats (see ._mock_gen_reference.js): one reference side
+// rotated 90°×k. The two live engine sides sit on opposite top/bottom edges —
+// engine a is the TOP seat (reference, k=0), engine b the BOTTOM seat (the same
+// furniture rotated 180° about the board centre, row→15-row / col→15-col).
+//
+// Safety lanes run inward toward Home, matching Board4P.tsx's drawn cells. The
+// safety mouth attaches at the side's SAFETY_ENTRY edge square (col 2 for a,
+// col 13 for b), and the 5 safety squares run inward from there to Home.
 const SAFETY_CELL = {
-  a: (idx) => ({ row: 1 + idx, col: 1 }),
-  b: (idx) => ({ row: GRID - 2 - idx, col: GRID - 2 }),
+  a: (idx) => ({ row: 1 + idx, col: 2 }),
+  b: (idx) => ({ row: 14 - idx, col: 13 }),
 };
-// Home sits just past the last safety square.
-const HOME_CELL = { a: { row: 6, col: 1 }, b: { row: 9, col: GRID - 2 } };
-// Start pens are interior 2×2 clusters, diagonally opposite.
-const START_CENTER = { a: { row: 2.5, col: 3.5 }, b: { row: 13.5, col: 12.5 } };
+// Home sits just past the last safety square (Board4P HOME a/b).
+export const HOME_CELL = { a: { row: 6.6, col: 2 }, b: { row: 8.4, col: 13 } };
+// Start pens are interior clusters near each seat's corner (Board4P START a/b).
+export const START_CENTER = { a: { row: 2.6, col: 4 }, b: { row: 12.4, col: 11 } };
+
+// The five safety cells for a live side, in entry→home order. Exposed so the
+// drift guard can assert these stay aligned with Board4P.tsx's drawn cells.
+export function safetyCells(side) {
+  return [0, 1, 2, 3, 4].map((idx) => SAFETY_CELL[side](idx));
+}
 
 function cellCenter({ row, col }) {
   return { x: (col + 0.5) * CELL, y: (row + 0.5) * CELL };
+}
+
+// Centered-cluster offsets (in spacing units) for `count` parked pawns. Every
+// arrangement is centroid-zero, so the cluster always sits dead-centre on the
+// circle no matter how many pawns are parked or which ids they are.
+function parkOffsets(count) {
+  switch (count) {
+    case 1: return [[0, 0]];
+    case 2: return [[-0.5, 0], [0.5, 0]];
+    case 3: return [[-0.5, -0.3], [0.5, -0.3], [0, 0.6]];
+    default: return [[-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]]; // 4
+  }
+}
+const PARK_SPACING = { start: 0.62, home: 0.42 }; // cells between parked pawns
+
+// Pixel centre for the `rank`-th of `count` pawns parked in a side's START or
+// HOME, laid out as a centred cluster (see parkOffsets). Use this for parked
+// pawns instead of pawnCenter's id-keyed fan, which slumped when only the
+// higher-id pawns were home.
+export function parkCenter(side, zone, rank, count) {
+  const base = zone === "home" ? HOME_CELL[side] : START_CENTER[side];
+  const s = PARK_SPACING[zone === "home" ? "home" : "start"];
+  const [dx, dy] = parkOffsets(Math.min(Math.max(count, 1), 4))[Math.min(rank, 3)] ?? [0, 0];
+  return cellCenter({ row: base.row + dy * s, col: base.col + dx * s });
 }
 
 // Pixel centre for a pawn at {zone,index} owned by `side`. Multiple pawns in
@@ -68,6 +131,31 @@ export function moveDestCenter(side, move) {
   const dest = move.to ?? move.legs?.[0]?.to;
   if (!dest) return null;
   return pawnCenter(side, dest.zone, dest.index, move.pawnId ?? 0);
+}
+
+// Viewer-relative board orientation, in degrees. The human's colour is always
+// anchored at the bottom. The two live sides are 180° point-symmetric — side a
+// starts on the top edge, side b on the bottom — so this is a clean flip: side
+// b is already the bottom seat (0°); side a is rotated 180° to bring it down;
+// a spectator (no seat) keeps the default orientation.
+export function boardRotation(youAre) {
+  return youAre === "a" ? 180 : 0;
+}
+
+// Palette order, also the fallback assignment for legacy games (a→red, b→blue).
+export const SORRY_PALETTE_ORDER = ["red", "blue", "green", "orange"];
+
+// Colour the four drawn seats from the per-engine-side assignment. The board is
+// drawn in a fixed frame — engine a is the top seat, engine b the bottom — and
+// boardRotation (CSS) is what swings the viewer's side to the screen bottom, so
+// seat colour follows engine side, not the viewer. The two unused palette
+// colours decorate the right and left seats. Legacy games (no colors) fall back
+// to red (a) / blue (b).
+export function seatColors(colors) {
+  const c = colors ?? { a: "red", b: "blue" };
+  const used = [c.a, c.b];
+  const decor = SORRY_PALETTE_ORDER.filter((n) => !used.includes(n));
+  return { top: c.a, bottom: c.b, right: decor[0], left: decor[1] };
 }
 
 // Convert an absolute pixel point to a percentage of the board, so the overlay

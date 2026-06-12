@@ -64,6 +64,18 @@ function renderLine(
       </li>
     );
   }
+  if (entry.kind === "eliminated") {
+    return (
+      <li key={key}>
+        {turnMarker}
+        <span>
+          {who} was struck from the map by <b>{nameOf(entry.by)}</b>
+          {entry.cardsTaken ? ` — ${entry.cardsTaken} card${entry.cardsTaken === 1 ? "" : "s"} seized` : ""}.
+        </span>
+        <span className="verdict-pip lose">Eliminated</span>
+      </li>
+    );
+  }
   if (entry.kind === "end-turn") {
     return (
       <li key={key}>
@@ -83,6 +95,8 @@ interface HistoryProps {
   youAre?: number | null;
   yourName?: string;
   opponentName?: string;
+  // Display names by seat — preferred over the 2P your/opponent pair.
+  seatNames?: (string | undefined)[];
 }
 
 export function History({
@@ -90,9 +104,11 @@ export function History({
   youAre = null,
   yourName,
   opponentName,
+  seatNames,
 }: HistoryProps) {
   const nameOf = (p?: number): string => {
     if (p == null) return "—";
+    if (seatNames?.[p]) return seatNames[p]!;
     if (youAre != null && p === youAre) return yourName || `Player ${p + 1}`;
     if (youAre != null && p !== youAre) return opponentName || `Player ${p + 1}`;
     return `Player ${p + 1}`;

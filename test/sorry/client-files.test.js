@@ -18,7 +18,7 @@ for (const f of ['index.html', 'style.css', 'app.js']) {
 }
 
 test('sorry React sources exist in src/clients/sorry', () => {
-  for (const f of ['main.tsx', 'SorryApp.tsx', 'Board.tsx']) {
+  for (const f of ['main.tsx', 'SorryApp.tsx', 'Board.tsx', 'Board4P.tsx']) {
     assert.ok(
       existsSync(resolve(root, 'src/clients/sorry', f)),
       `missing src/clients/sorry/${f}`,
@@ -26,15 +26,15 @@ test('sorry React sources exist in src/clients/sorry', () => {
   }
 });
 
-// User directive (parquet trick): the board is rendered from a pre-baked
-// tile-grid image mapped 1:1 to the cell grid, NOT drawn per-cell in DOM/CSS.
-// That requires a baked board image asset to ship with the client.
-test('sorry client ships a baked board image asset (parquet trick)', () => {
+// The "Cabinet" redesign (Claude Design handoff) replaces the pre-baked board
+// PNG with an inline SVG board (Board4P.tsx), matching the risk-board inline-SVG
+// precedent. The DOM still overlays the live pieces on top, so the client must
+// ship the pawn/card art it references.
+test('sorry client ships the pawn + card art the overlay references', () => {
   const dir = resolve(root, 'plugins/sorry/client/assets');
   assert.ok(existsSync(dir), 'plugins/sorry/client/assets/ is missing');
-  const images = readdirSync(dir).filter((f) => /\.(png|jpe?g|webp|avif)$/i.test(f));
-  assert.ok(
-    images.length > 0,
-    'expected at least one baked board image in plugins/sorry/client/assets',
-  );
+  const images = readdirSync(dir);
+  for (const f of ['checker-red.png', 'checker-blue.png', 'card-back.png']) {
+    assert.ok(images.includes(f), `expected plugins/sorry/client/assets/${f}`);
+  }
 });

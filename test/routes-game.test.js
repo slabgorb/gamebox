@@ -25,7 +25,7 @@ function makeWordsGame(db, p1, p2) {
   const lo = Math.min(p1, p2), hi = Math.max(p1, p2);
   const participants = [{ userId: lo, side: 'a' }, { userId: hi, side: 'b' }];
   const initialState = wordsPlugin.initialState({ participants, rng: Math.random });
-  return createGame(db, { playerAId: lo, playerBId: hi, gameType: 'words', initialState });
+  return createGame(db, { userIds: [lo, hi], gameType: 'words', initialState });
 }
 
 function setup() {
@@ -59,7 +59,8 @@ test('POST /api/games/:id/action (pass) advances the turn', async () => {
   assert.equal(r.status, 200);
   const body = await r.json();
   assert.ok('state' in body, 'response should have state field');
-  assert.equal(getGameById(db, g.id).currentTurn, 'b');
+  const after = getGameById(db, g.id);
+  assert.equal(after.state.activeUserId, after.state.sides.b, 'turn advanced to side b');
   server.close();
 });
 

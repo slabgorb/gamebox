@@ -6,7 +6,7 @@ export type RiskPhase =
   | "fortify"
   | "gameover";
 
-export type PlayerIdx = 0 | 1;
+export type PlayerIdx = number;
 
 export interface Territory {
   owner: PlayerIdx | null;
@@ -39,8 +39,10 @@ export interface LastCombat {
 }
 
 export interface RiskLogEntry {
-  kind: "setup-deploy" | "deploy" | "attack" | "fortify" | "end-turn" | "trade-in";
+  kind: "setup-deploy" | "deploy" | "attack" | "fortify" | "end-turn" | "trade-in" | "eliminated";
   player?: number;
+  by?: number;
+  cardsTaken?: number;
   from?: string;
   to?: string;
   force?: number;
@@ -63,16 +65,23 @@ export interface RiskView {
   currentPlayer: PlayerIdx;
   territories: Record<string, Territory>;
   reinforcePool: number;
-  setupPools: [number, number];
+  setupPools: number[];
   fortifyUsed: boolean;
   lastCombat: LastCombat | null;
   winner: PlayerIdx | null;
+  winnerSeat?: number | null;
+  // Seat roster (userIds in turn order) and elimination bookkeeping.
+  seats?: number[];
+  eliminated?: boolean[];
+  eliminationOrder?: number[];
   log: RiskLogEntry[];
   youAre: PlayerIdx | null;
   // Card hands are private: the view exposes only the viewer's own hand and a
   // count of the opponent's. Absent in games with no card state.
   hand?: Card[];
   opponentCardCount?: number;
+  // Per-seat hand sizes (index = seat).
+  cardCounts?: number[];
   // Bonus armies the viewer's next trade-in would grant (escalating). Derived
   // server-side from the private trade counter; present when cards are in play.
   nextTradeBonus?: number;

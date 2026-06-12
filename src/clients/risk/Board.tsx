@@ -9,6 +9,7 @@
 //   - the from→to march arrow during attack/fortify
 //   - opaque legend overlays atop the printed key with held-state pips
 import type { RiskView } from "../shared/contracts/risk";
+import { seatFill, seatInk } from "./themes";
 import type { Pending } from "./ActionBar";
 import {
   TERRITORIES,
@@ -87,8 +88,8 @@ function ArmyToken({
   selected: boolean;
 }) {
   if (owner == null) return null;
-  const fill = owner === 0 ? "var(--p0-1)" : "var(--p1-1)";
-  const ink = owner === 0 ? "var(--p0-ink)" : "var(--p1-ink)";
+  const fill = seatFill(owner);
+  const ink = seatInk(owner);
   const stack = armies >= 10 ? 3 : armies >= 5 ? 2 : 1;
   const r = selected ? 21 : 17;
   return (
@@ -190,7 +191,7 @@ export function Board({ view, onPick, selected, plan = {}, to = null }: BoardPro
           {Object.entries(T).map(([id, g]) => {
             const t = view.territories[id];
             if (!t || t.owner == null) return null;
-            const fill = t.owner === 0 ? "var(--p0-1)" : "var(--p1-1)";
+            const fill = seatFill(t.owner);
             return (
               <circle
                 key={`wash-${id}`}
@@ -378,18 +379,8 @@ export function Board({ view, onPick, selected, plan = {}, to = null }: BoardPro
                 </text>
                 {ids.map((id, i) => {
                   const o = view.territories[id]?.owner ?? null;
-                  const fill =
-                    o === 0
-                      ? "var(--p0-1)"
-                      : o === 1
-                      ? "var(--p1-1)"
-                      : "rgba(255,255,255,0.32)";
-                  const stroke =
-                    o === 0
-                      ? "var(--p0-ink)"
-                      : o === 1
-                      ? "var(--p1-ink)"
-                      : "rgba(0,0,0,0.55)";
+                  const fill = o == null ? "rgba(255,255,255,0.32)" : seatFill(o);
+                  const stroke = o == null ? "rgba(0,0,0,0.55)" : seatInk(o);
                   return (
                     <rect
                       key={id}

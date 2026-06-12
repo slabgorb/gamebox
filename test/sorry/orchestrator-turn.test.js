@@ -42,7 +42,9 @@ function firstLegalMoveLlm(state) {
 }
 
 test('nominal bot turn: adapter move applies, turn passes, activeUserId tracks the new current player', async () => {
-  const base = buildInitialState({ participants });
+  // rng: () => 0 deals a usable opening (a 1) so side a legitimately starts —
+  // otherwise the auto-pass could hand the opening to b.
+  const base = buildInitialState({ participants, rng: () => 0 });
   // Card 1 brings a pawn out and PASSES the turn (only 2 grants draw-again).
   const state = { ...base, drawnCard: 1, deck: [1, ...base.deck] };
 
@@ -73,7 +75,8 @@ test('nominal bot turn: adapter move applies, turn passes, activeUserId tracks t
 });
 
 test('draw-again (card 2): the bot retains the turn so the orchestrator re-wakes it', async () => {
-  const base = buildInitialState({ participants });
+  // rng: () => 0 deals a usable opening (a 1) so side a legitimately starts.
+  const base = buildInitialState({ participants, rng: () => 0 });
   // Card 2 brings a pawn out AND grants a draw-again: same player keeps the turn.
   const state = { ...base, drawnCard: 2, deck: [1, ...base.deck] };
 

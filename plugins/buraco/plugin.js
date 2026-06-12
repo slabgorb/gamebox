@@ -5,7 +5,7 @@ import { buracoPublicView } from './server/view.js';
 export default {
   id: 'buraco',
   displayName: 'Buraco',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/buraco/client',
   initialState: buildInitialState,
   applyAction: applyBuracoAction,

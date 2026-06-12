@@ -1,15 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { openDb } from '../src/server/db.js';
+
+const REAL_PERSONA_DIR = join(process.cwd(), 'data', 'ai-personas');
 import { bootAiSubsystem } from '../src/server/ai/index.js';
 import { DEFAULT_MODEL } from '../src/server/ai/llm-client.js';
 import { createAiSession } from '../src/server/ai/agent-session.js';
 import cribbagePlugin from '../plugins/cribbage/plugin.js';
 import { buildInitialState as cribbageBuildInitialState } from '../plugins/cribbage/server/state.js';
 import { buildInitialState as backgammonBuildInitialState } from '../plugins/backgammon/server/state.js';
+import { insertGame } from './_helpers/games.js';
 
 function det(seed = 1) {
   let s = seed;
@@ -72,10 +75,7 @@ test('bootAiSubsystem: schedules pending bot turns from listStalledOrInFlight', 
   const participants = [{ userId: aId, side: 'a' }, { userId: bId, side: 'b' }];
   const state = cribbageBuildInitialState({ participants, rng: det(7) });
   state.activeUserId = botId;
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'cribbage', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'hattie' });
 
   let scheduled = 0;
@@ -107,10 +107,7 @@ test('bootAiSubsystem: registers backgammon adapter', async () => {
   const bot = db.prepare("SELECT id FROM users WHERE is_bot = 1 LIMIT 1").get().id;
   const aId = Math.min(h, bot), bId = Math.max(h, bot);
   const state = bgBuildInitialState({ participants: [{ userId: aId, side: 'a' }, { userId: bId, side: 'b' }] });
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createSessionFunc(db, { gameId, botUserId: bot, personaId: 'colonel-pip' });
 
   // No throw means the adapter is registered. scheduleTurn would otherwise
@@ -138,13 +135,36 @@ test('bootAiSubsystem: registers words adapter', async () => {
   let s = seed;
   const rng = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
   const state = wordsBuildInitialState({ participants: [{ userId: aId, side: 'a' }, { userId: bId, side: 'b' }], rng });
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'words', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'words', state: state });
   createSessionFunc(db, { gameId, botUserId: bot, personaId: 'samantha' });
 
   // No throw = adapter registered. scheduleTurn would otherwise stall
   // with "no AI adapter for game_type words".
   assert.doesNotThrow(() => orchestrator.scheduleTurn(gameId));
+});
+
+test('boot creates one bot user per persona, carrying persona_id', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-boot-per-persona-'));
+  const db = openDb(join(dir, 'test.db'));
+  const sse = { broadcast: () => {} };
+  const llm = { send: async () => ({ text: '{"moveId":"x","banter":""}' }) };
+  bootAiSubsystem({ db, sse, llm, personaDir: REAL_PERSONA_DIR });
+  const bots = db.prepare("SELECT friendly_name, persona_id, is_bot FROM users WHERE is_bot = 1 ORDER BY persona_id").all();
+  const personaCount = readdirSync(REAL_PERSONA_DIR).filter(f => f.endsWith('.yaml')).length;
+  assert.strictEqual(bots.length, personaCount);
+  assert.ok(bots.every(b => typeof b.persona_id === 'string' && b.persona_id.length > 0));
+  db.close();
+});
+
+test('boot is idempotent — second boot adds no duplicate bot users', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-boot-idempotent-'));
+  const db = openDb(join(dir, 'test.db'));
+  const sse = { broadcast: () => {} };
+  const llm = { send: async () => ({ text: '{"moveId":"x","banter":""}' }) };
+  bootAiSubsystem({ db, sse, llm, personaDir: REAL_PERSONA_DIR });
+  const first = db.prepare("SELECT COUNT(*) n FROM users WHERE is_bot = 1").get().n;
+  bootAiSubsystem({ db, sse, llm, personaDir: REAL_PERSONA_DIR });
+  const second = db.prepare("SELECT COUNT(*) n FROM users WHERE is_bot = 1").get().n;
+  assert.strictEqual(first, second);
+  db.close();
 });

@@ -4,11 +4,12 @@ import express from 'express';
 import http from 'node:http';
 import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
+import { insertGame } from './_helpers/games.js';
 
 const hidingPlugin = {
   id: 'hide',
   displayName: 'Hide',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/hide/client',
   initialState: () => ({ activeUserId: 1, racks: { a: ['secret-a'], b: ['secret-b'] } }),
   applyAction: ({ state }) => ({ state, ended: false }),
@@ -28,9 +29,7 @@ async function setupApp() {
   const now = Date.now();
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'a@b', 'A', '#f00', ?)").run(now);
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (2, 'b@b', 'B', '#0f0', ?)").run(now);
-  db.prepare(`INSERT INTO games (id, player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-              VALUES (1, 1, 2, 'active', 'hide', ?, ?, ?)`)
-    .run(JSON.stringify({ activeUserId: 1, racks: { a: ['secret-a'], b: ['secret-b'] } }), now, now);
+  insertGame(db, { id: 1, players: [1, 2], gameType: 'hide', state: { activeUserId: 1, racks: { a: ['secret-a'], b: ['secret-b'] } } });
 
   app.use((req, res, next) => {
     const id = Number(req.header('x-test-user-id'));

@@ -15,6 +15,8 @@ export interface GameCtx {
   opponentGlyph?: string | null;
   opponentColor?: string | null;
   opponentPersonaId?: string | null;
+  // Full roster in seat order (multiplayer games).
+  players?: { userId: number; seat: number; friendlyName: string; color: string | null; glyph: string | null }[];
 }
 
 declare global {

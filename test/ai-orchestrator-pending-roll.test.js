@@ -23,6 +23,7 @@ import { FakeLlmClient } from '../src/server/ai/fake-llm-client.js';
 import { bootAiSubsystem } from '../src/server/ai/index.js';
 import { createAiSession, getAiSession } from '../src/server/ai/agent-session.js';
 import { buildInitialState } from '../plugins/backgammon/server/state.js';
+import { insertGame } from './_helpers/games.js';
 
 function bootBackgammon({ stateMutator }) {
   const dir = mkdtempSync(join(tmpdir(), 'orch-pendingroll-'));
@@ -45,10 +46,7 @@ function bootBackgammon({ stateMutator }) {
   state.activeUserId = botId;
   stateMutator(state);
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'colonel-pip' });
 
   return { db, gameId, botId, humanId, events, orchestrator, llm };
@@ -90,7 +88,7 @@ test('AC4: bot wake-up in initial-roll leaves the bot side initialRoll null and 
 });
 
 test('AC6: orchestrator runTurn is a no-op while state.pendingRoll is set (continuation paused)', async () => {
-  const { db, gameId, orchestrator, llm } = bootBackgammon({
+  const { db, gameId, botId, orchestrator, llm } = bootBackgammon({
     stateMutator(state) {
       state.turn.phase = 'pre-roll';
       state.turn.activePlayer = 'a';
@@ -108,6 +106,6 @@ test('AC6: orchestrator runTurn is a no-op while state.pendingRoll is set (conti
   const llmCallsAfter = llm.calls?.length ?? 0;
   assert.equal(llmCallsAfter, llmCallsBefore, 'no LLM call while pendingRoll is set');
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.equal(sess.stalledAt, null, 'pause is NOT a stall — bot is healthy, just waiting');
 });

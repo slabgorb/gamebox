@@ -8,6 +8,7 @@ import { FakeLlmClient } from '../src/server/ai/fake-llm-client.js';
 import { bootAiSubsystem } from '../src/server/ai/index.js';
 import { createAiSession, getAiSession } from '../src/server/ai/agent-session.js';
 import { buildInitialState } from '../plugins/backgammon/server/state.js';
+import { insertGame } from './_helpers/games.js';
 
 test('backgammon end-to-end: bot rolls, picks sequence, drains cache, then awaits opponent', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'bg-full-'));
@@ -44,10 +45,7 @@ test('backgammon end-to-end: bot rolls, picks sequence, drains cache, then await
   // player to whoever rolled higher, with dice = both rolls).
   state.initialRoll = { a: null, b: 1, throwParamsA: null, throwParamsB: [] };
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'colonel-pip' });
 
   await orchestrator.runTurn(gameId);
@@ -82,7 +80,7 @@ test('backgammon end-to-end: bot rolls, picks sequence, drains cache, then await
   const finalState = JSON.parse(db.prepare("SELECT state FROM games WHERE id = ?").get(gameId).state);
   assert.notEqual(finalState.turn.phase, 'initial-roll', 'phase advanced past initial-roll');
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   // After one runTurn at moving phase, the head move applied; depending on
   // recursion drain, the tail may have been consumed (pendingSequence=null)
   // or remain (pendingSequence has 0+ entries). Either way, the cache
@@ -115,15 +113,12 @@ test('backgammon: garbage LLM response stalls cleanly', async () => {
   state.activeUserId = botId;
   state.sides = { a: botId, b: humanId };
 
-  const gameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'backgammon', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  const gameId = insertGame(db, { players: [aId, bId], gameType: 'backgammon', state: state });
   createAiSession(db, { gameId, botUserId: botId, personaId: 'colonel-pip' });
 
   await orchestrator.runTurn(gameId);
 
-  const sess = getAiSession(db, gameId);
+  const sess = getAiSession(db, gameId, botId);
   assert.ok(sess.stalledAt, 'bot is stalled after garbage responses');
   assert.equal(sess.stallReason, 'invalid_response');
   const stallEvents = events.filter(e => e.type === 'bot_stalled');

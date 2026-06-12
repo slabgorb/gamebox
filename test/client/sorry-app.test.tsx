@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 
 // Mutable, hoisted handles so each test can swap the view/post the mocked
 // useGameState hook returns before rendering SorryApp.
@@ -95,6 +95,79 @@ describe("SorryApp", () => {
     });
   });
 
+  it("prompts you to move on your turn and names the drawn card", () => {
+    h.view = baseView({
+      youAre: "a",
+      currentPlayer: "a",
+      drawnCard: 11,
+      legalMoves: [{ id: "forward:0:11", kind: "forward", pawnId: 0, to: { zone: "track", index: 15 } }],
+    });
+    render(<SorryApp />);
+    const prompt = screen.getByTestId("turn-prompt");
+    expect(prompt).toHaveTextContent(/your turn/i);
+    expect(prompt).toHaveTextContent(/11/);
+  });
+
+  it("says the opponent is thinking when it is not your turn", () => {
+    h.view = baseView({ youAre: "a", currentPlayer: "b" });
+    render(<SorryApp />);
+    expect(screen.getByTestId("turn-prompt")).toHaveTextContent(/the bully/i);
+  });
+
+  // Pause-for-acknowledgement: an unplayable card stops on the player, who must
+  // tap Pass (legalMoves is an empty array on their turn → no move available).
+  it("shows a Pass button on your turn when you have no legal move, and posts a pass", () => {
+    h.view = baseView({ youAre: "a", currentPlayer: "a", drawnCard: 3, legalMoves: [] });
+    render(<SorryApp />);
+    const btn = screen.getByTestId("pass-button");
+    fireEvent.click(btn);
+    expect(h.post).toHaveBeenCalledWith({ type: "pass" });
+  });
+
+  it("shows no Pass button when you have a legal move", () => {
+    h.view = baseView({
+      youAre: "a",
+      currentPlayer: "a",
+      legalMoves: [{ id: "out:0", kind: "out", pawnId: 0, to: { zone: "track", index: 4 } }],
+    });
+    render(<SorryApp />);
+    expect(screen.queryByTestId("pass-button")).toBeNull();
+  });
+
+  it("renders a note when the opponent had no move and passed", () => {
+    h.view = baseView({ youAre: "a", currentPlayer: "a", lastEvent: { kind: "pass", side: "b", card: 4 } });
+    render(<SorryApp />);
+    const note = screen.getByTestId("last-event");
+    expect(note).toHaveTextContent(/no legal move, passed/i);
+    expect(note).toHaveTextContent(/4/);
+  });
+
+  // The roster colours must agree with the board: each side shows its assigned
+  // colour (view.colors), and the viewer's row is listed first.
+  it("shows each side's chosen colour in the roster, viewer row first", () => {
+    h.view = baseView({ youAre: "b", currentPlayer: "a", colors: { a: "green", b: "orange" } });
+    const { container } = render(<SorryApp />);
+    const youImg = container.querySelector(".va-roster-row.is-you img") as HTMLImageElement;
+    const oppImg = container.querySelector(
+      ".va-roster-row:not(.is-you):not(.is-open) img",
+    ) as HTMLImageElement;
+    expect(youImg?.getAttribute("src")).toContain("checker-orange"); // viewer is side b → orange
+    expect(oppImg?.getAttribute("src")).toContain("checker-green"); // opponent side a → green
+    // The two open seats carry the unused palette colours.
+    const open = [...container.querySelectorAll(".va-roster-row.is-open img")].map(
+      (i) => i.getAttribute("src"),
+    );
+    expect(open.join(" ")).toContain("checker-red");
+    expect(open.join(" ")).toContain("checker-blue");
+  });
+
+  it("renders a link back to the lobby", () => {
+    h.view = baseView();
+    render(<SorryApp />);
+    const link = screen.getByRole("link", { name: /lobby/i });
+    expect(link).toHaveAttribute("href", "/");
+  });
+
   // AC #5 — win banner when youAre === winner.
   it("shows a WIN banner when the local player is the winner", () => {
     h.view = baseView({ winner: "a", youAre: "a" });
@@ -103,17 +176,19 @@ describe("SorryApp", () => {
   });
 
   // AC #5 — lose banner when the opponent is the winner.
-  it("shows a LOSE banner when the opponent is the winner", () => {
+  it("shows a LOSE banner reading 'Sorry!' when the opponent is the winner", () => {
     h.view = baseView({ winner: "b", youAre: "a" });
-    render(<SorryApp />);
-    expect(screen.getByText(/you lose|defeat/i)).toBeInTheDocument();
+    const { container } = render(<SorryApp />);
+    const banner = container.querySelector(".sorry-endbanner.lose");
+    expect(banner).not.toBeNull();
+    expect(banner?.textContent).toBe("Sorry!");
   });
 
   // AC #5 — no end banner while the game is still in progress.
   it("shows no end banner while winner is null", () => {
     h.view = baseView({ winner: null, youAre: "a" });
-    render(<SorryApp />);
+    const { container } = render(<SorryApp />);
     expect(screen.queryByText(/you win/i)).toBeNull();
-    expect(screen.queryByText(/you lose|defeat/i)).toBeNull();
+    expect(container.querySelector(".sorry-endbanner")).toBeNull();
   });
 });

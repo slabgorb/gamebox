@@ -12,10 +12,12 @@ import { SLIDES, TRACK_LEN } from '../geometry.js';
 //
 // Returns `{ finalIndex, bumped: [{ side, pawnId }, ...] }`.
 export function resolveLanding({ pawns, side, landingIndex }) {
-  // Find the slide (across both colors) whose start is this square.
+  // Find the slide (across all four edges) whose start is this square. The
+  // green/orange edges are owned by absent players, so they are foreign to —
+  // and fire for — both live sides a and b.
   let owner = null;
   let slide = null;
-  for (const color of ['a', 'b']) {
+  for (const color of ['a', 'b', 'green', 'orange']) {
     const found = SLIDES[color].find((s) => s.start === landingIndex);
     if (found) {
       owner = color;

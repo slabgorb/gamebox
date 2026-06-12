@@ -45,18 +45,31 @@ function defaultSpawn(command, args, options) {
   const stdoutChunks = [];
   const stderrChunks = [];
   let firstByteAt = null;
-  proc.stdout.on('data', c => {
+  // A spawn failure (e.g. ENOENT when the `claude` binary is not on the
+  // server's PATH) emits an 'error' event. With no listener Node rethrows it
+  // as an uncaught exception that crashes the whole server — and under a
+  // process supervisor that respawns into a tight crash loop. Capture it and
+  // surface it through wait() so the caller can stall the bot instead.
+  let spawnError = null;
+  proc.on('error', err => { spawnError = err; });
+  proc.stdout?.on('data', c => {
     if (firstByteAt == null) firstByteAt = Date.now();
     stdoutChunks.push(c.toString('utf8'));
   });
-  proc.stderr.on('data', c => stderrChunks.push(c.toString('utf8')));
+  proc.stderr?.on('data', c => stderrChunks.push(c.toString('utf8')));
   return {
     pid: proc.pid,
     spawnedAt: t0,
     get firstByteAt() { return firstByteAt; },
     stdoutChunks,
     stderrChunks,
-    wait() { return new Promise(resolve => proc.on('close', code => resolve(code))); },
+    wait() {
+      return new Promise((resolve, reject) => {
+        if (spawnError) return reject(spawnError);
+        proc.on('error', reject);
+        proc.on('close', code => resolve(code));
+      });
+    },
     kill() { try { proc.kill('SIGKILL'); } catch {} },
   };
 }

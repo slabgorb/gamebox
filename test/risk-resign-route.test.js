@@ -8,6 +8,7 @@ import express from 'express';
 import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
 import riskPlugin from '../plugins/risk/plugin.js';
+import { insertGame } from './_helpers/games.js';
 
 function setupApp() {
   const app = express();
@@ -24,8 +25,7 @@ function setupApp() {
     reinforcePool: 0, setupPools: [0, 0], fortifyUsed: false,
     lastCombat: null, winner: null, log: [], sides: { a: 1, b: 2 }, activeUserId: 1,
   };
-  db.prepare(`INSERT INTO games (id, player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-              VALUES (1, 1, 2, 'active', 'risk', ?, ?, ?)`).run(JSON.stringify(state), now, now);
+  insertGame(db, { id: 1, players: [1, 2], gameType: 'risk', state: state });
 
   app.use((req, res, next) => {
     const id = Number(req.header('x-test-user-id'));
@@ -61,10 +61,10 @@ test('player 2 can resign even though player 1 is the active player', async () =
     assert.equal(r.status, 200, 'resign must NOT be blocked by the turn guard');
     assert.equal(r.body.ended, true);
 
-    const row = db.prepare("SELECT status, winner_side, ended_reason FROM games WHERE id = 1").get();
+    const row = db.prepare("SELECT status, winner_seats, ended_reason FROM games WHERE id = 1").get();
     assert.equal(row.status, 'ended', 'game registers as ended');
     assert.equal(row.ended_reason, 'resign');
-    assert.equal(row.winner_side, 'a', 'the non-resigning player (side a) is the winner');
+    assert.deepStrictEqual(JSON.parse(row.winner_seats), [0], 'the non-resigning player (seat 0) is the winner');
   } finally { server.close(); }
 });
 

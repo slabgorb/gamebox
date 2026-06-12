@@ -77,3 +77,73 @@ test('chooseAction: emits a move action and never a draw action', async () => {
   const r = await chooseAction({ llm, persona, sessionId: null, state: baseState(), botPlayerIdx: 0, userMessages: [] });
   assert.equal(r.action.type, 'move');
 });
+
+// =========================================================================
+// No legal move ⇒ the bot passes mechanically, without calling the LLM.
+// (Guards the empty-move crash: moves[random*0] was undefined → undefined.id.)
+// =========================================================================
+
+test('chooseAction: returns a pass action and does not call the LLM when there are no legal moves', async () => {
+  let called = false;
+  const llm = { send: async () => { called = true; return { text: '{}', sessionId: 's' }; } };
+  // All pawns in Start + card 3 ⇒ no legal move (3 cannot leave Start).
+  const state = baseState({ drawnCard: 3 });
+  const r = await chooseAction({ llm, persona, sessionId: null, state, botPlayerIdx: 0, userMessages: [] });
+  assert.deepEqual(r.action, { type: 'pass' });
+  assert.equal(r.usedLlm, false);
+  assert.equal(called, false, 'the LLM must not be invoked on a forced pass');
+});
+
+// =========================================================================
+// Forced move (exactly one legal move): banter-only call, no move menu.
+// =========================================================================
+
+// These tests stub llm.send inline (not via stubLlm) so they can capture the
+// prompt that was sent and assert the banter-only path was used.
+
+// A state with exactly one legal move: pawn 0 on the track, the other three
+// already Home (Home pawns produce no move on a numeric card).
+const oneMoveState = () => baseState({
+  drawnCard: 8,
+  pawns: {
+    a: [
+      { id: 0, zone: 'track', index: 10 },
+      { id: 1, zone: 'home', index: 0 },
+      { id: 2, zone: 'home', index: 0 },
+      { id: 3, zone: 'home', index: 0 },
+    ],
+    b: [
+      { id: 0, zone: 'start', index: 0 },
+      { id: 1, zone: 'start', index: 0 },
+      { id: 2, zone: 'start', index: 0 },
+      { id: 3, zone: 'start', index: 0 },
+    ],
+  },
+});
+
+test('chooseAction: forced move plays the only legal move and uses a banter-only prompt', async () => {
+  let sentPrompt = null;
+  const llm = { send: async ({ prompt }) => { sentPrompt = prompt; return { text: '{"banter":"Forced, but fabulous."}', sessionId: 'bs1' }; } };
+  const r = await chooseAction({ llm, persona, sessionId: null, state: oneMoveState(), botPlayerIdx: 0, userMessages: [] });
+  assert.deepEqual(r.action, { type: 'move', payload: { moveId: 'forward:0:8' } });
+  assert.equal(r.banter, 'Forced, but fabulous.');
+  assert.equal(r.sessionId, 'bs1');
+  assert.doesNotMatch(sentPrompt, /choose exactly one by its id/i); // no decision menu
+  assert.ok(!('usedLlm' in r), 'forced move must not short-circuit resume-slot accounting');
+});
+
+test('chooseAction: forced-move banter degrades to empty string on unparseable output, move still plays', async () => {
+  const llm = { send: async () => ({ text: '', sessionId: 'bs2' }) };
+  const r = await chooseAction({ llm, persona, sessionId: null, state: oneMoveState(), botPlayerIdx: 0, userMessages: [] });
+  assert.deepEqual(r.action, { type: 'move', payload: { moveId: 'forward:0:8' } });
+  assert.equal(r.banter, '');
+});
+
+test('chooseAction: forced-move prompt still reacts to opponent chat', async () => {
+  let sentPrompt = null;
+  const llm = { send: async ({ prompt }) => { sentPrompt = prompt; return { text: '{"banter":"Heard that."}', sessionId: 'bs3' }; } };
+  const r = await chooseAction({ llm, persona, sessionId: null, state: oneMoveState(), botPlayerIdx: 0, userMessages: ['nice try'] });
+  assert.match(sentPrompt, /opponent just said/i);
+  assert.match(sentPrompt, /nice try/);
+  assert.equal(r.banter, 'Heard that.');
+});

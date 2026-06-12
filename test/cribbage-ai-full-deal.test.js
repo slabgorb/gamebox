@@ -10,6 +10,7 @@ import { createAiSession } from '../src/server/ai/agent-session.js';
 import { buildInitialState } from '../plugins/cribbage/server/state.js';
 import cribbagePlugin from '../plugins/cribbage/plugin.js';
 import { enumerateLegalMoves } from '../plugins/cribbage/server/ai/legal-moves.js';
+import { insertGame } from './_helpers/games.js';
 
 function det(seed = 7) {
   let s = seed;
@@ -50,10 +51,7 @@ test('full deal: bot drives all bot-side actions, deal completes, both players r
   const aId = Math.min(humanId, botId), bId = Math.max(humanId, botId);
   const participants = [{ userId: aId, side: 'a' }, { userId: bId, side: 'b' }];
   const state = buildInitialState({ participants, rng: det(7) });
-  currentGameId = db.prepare(`
-    INSERT INTO games (player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-    VALUES (?, ?, 'active', 'cribbage', ?, ?, ?) RETURNING id`)
-    .get(aId, bId, JSON.stringify(state), now, now).id;
+  currentGameId = insertGame(db, { players: [aId, bId], gameType: 'cribbage', state: state });
   createAiSession(db, { gameId: currentGameId, botUserId: botId, personaId: 'hattie' });
 
   let safety = 100;

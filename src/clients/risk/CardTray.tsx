@@ -111,7 +111,13 @@ export function CardTray({ view, post }: Props) {
       <div className="card-tray__head">
         <span className="card-tray__title">Your cards</span>
         <span className="card-tray__opp" data-testid="opponent-card-count">
-          {`Opponent holds ${view.opponentCardCount ?? 0}`}
+          {(view.seats?.length ?? 2) > 2 && view.cardCounts
+            ? view.cardCounts
+                .map((c, seat) => ({ c, seat }))
+                .filter(({ seat }) => seat !== view.youAre && !view.eliminated?.[seat])
+                .map(({ c, seat }) => `P${seat + 1}: ${c}`)
+                .join(" · ")
+            : `Opponent holds ${view.opponentCardCount ?? 0}`}
         </span>
       </div>
 

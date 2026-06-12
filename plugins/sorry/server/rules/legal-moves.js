@@ -1,39 +1,57 @@
-import { path, START_EXIT } from '../geometry.js';
+import { START_EXIT, SAFETY_ENTRY, DIAMOND, TRACK_LEN } from '../geometry.js';
 
-// Resolve a pawn's current position to its index within its side's path()
-// list. Start pawns sit "before" the path (index -1).
-function pathPos(side, pawn) {
-  if (pawn.zone === 'start') return -1;
-  const p = path(side);
-  if (pawn.zone === 'track') return p.indexOf(pawn.index);
-  if (pawn.zone === 'safety') return p.indexOf(`${side}-safe-${pawn.index}`);
-  if (pawn.zone === 'home') return p.length - 1;
-  return -1;
+// One physical step along the absolute 60-square loop (dir = +1 forward, -1
+// backward). Forward diverts into Safety at the side's safety mouth and ends at
+// Home; Safety is a one-way lane (no backing out). The diamond square (own
+// colour) is a one-way barrier — own pawns may not cross it clockwise (forward),
+// which forces an own pawn approaching the safety mouth to enter Safety rather
+// than continue past their own start. Backward across the diamond is legal —
+// that's the canonical "back-1 twice and you're on the mouth" play. Returns
+// null for an illegal step.
+function step(side, loc, dir) {
+  if (dir > 0) {
+    if (loc.zone === 'home') return null; // already Home — cannot advance
+    if (loc.zone === 'safety') {
+      return loc.index === 4 ? { zone: 'home', index: 0 } : { zone: 'safety', index: loc.index + 1 };
+    }
+    // track: if currently on the safety-entry square, a forward step enters the Safety lane.
+    if (loc.index === SAFETY_ENTRY[side]) return { zone: 'safety', index: 0 };
+    // own-colour diamond — clockwise crossing forbidden.
+    if (loc.index === DIAMOND[side]) return null;
+    return { zone: 'track', index: (loc.index + 1) % TRACK_LEN };
+  }
+  // backward
+  if (loc.zone !== 'track') return null; // Safety/Home are forward-only
+  return { zone: 'track', index: (loc.index - 1 + TRACK_LEN) % TRACK_LEN };
 }
 
-// Map a physical path square id back to a tagged location.
-function squareToLoc(sq) {
-  if (typeof sq === 'number') return { zone: 'track', index: sq };
-  if (sq.endsWith('-home')) return { zone: 'home', index: 0 };
-  const m = sq.match(/-safe-(\d)$/);
-  if (m) return { zone: 'safety', index: Number(m[1]) };
-  return null;
-}
-
-// Advance `steps` (may be negative) along the path from a pawn; return the
-// destination loc, or null if it would overshoot Home or fall off the path
-// start. Exactly landing on Home (last path index) is legal.
+// Advance `steps` (may be negative) along the loop from a pawn; return the
+// destination loc, or null if any step is illegal. Only called for track/safety
+// pawns (Start pawns move via the `out` move, never through here).
 function advance(side, pawn, steps) {
-  const p = path(side);
-  const pos = pathPos(side, pawn);
-  const target = pos + steps;
-  if (target < 0) return null; // backward off the track / out of start
-  if (target > p.length - 1) return null; // overshoot Home
-  return squareToLoc(p[target]);
+  let loc = { zone: pawn.zone, index: pawn.index };
+  const dir = steps >= 0 ? 1 : -1;
+  for (let i = 0; i < Math.abs(steps); i++) {
+    loc = step(side, loc, dir);
+    if (loc === null) return null;
+  }
+  return loc;
 }
 
 function ownTrackOrSafety(pawns, side) {
   return pawns[side].filter((p) => p.zone === 'track' || p.zone === 'safety');
+}
+
+// True if one of `side`'s pawns (other than the movers in `exclude`) sits on
+// track square `index`. Sorry! forbids a pawn from LANDING on a square one of
+// its own pawns holds (self-capture); the moving pawn(s) vacate their own
+// square, so they are excluded. This guards only the direct landing square — a
+// slide that sweeps your own pawns elsewhere still bumps them (resolveLanding),
+// which is a separate, legal mechanic.
+function ownAt(pawns, side, index, exclude) {
+  return pawns[side].some(
+    (p) => p.zone === 'track' && p.index === index && !exclude.includes(p.id),
+  );
 }
 
 // Enumerate every legal move for the side to move, given the drawn card.
@@ -47,13 +65,17 @@ export function legalMoves(state) {
 
   const pushForward = (pawn, steps, kind = 'forward') => {
     const to = advance(side, pawn, steps);
-    if (to) moves.push({ id: `${kind}:${pawn.id}:${steps}`, kind, pawnId: pawn.id, steps, to });
+    if (!to) return;
+    if (to.zone === 'track' && ownAt(state.pawns, side, to.index, [pawn.id])) return; // no self-capture
+    moves.push({ id: `${kind}:${pawn.id}:${steps}`, kind, pawnId: pawn.id, steps, to });
   };
 
   // Out of Start (cards 1 and 2 only).
   if (card === 1 || card === 2) {
     for (const pawn of mine) {
       if (pawn.zone === 'start') {
+        // Can't come out onto a square one of your own pawns already holds.
+        if (ownAt(state.pawns, side, START_EXIT[side], [pawn.id])) continue;
         moves.push({
           id: `out:${pawn.id}`,
           kind: 'out',
@@ -96,16 +118,21 @@ export function legalMoves(state) {
           if (p1.id === p2.id) continue;
           const to1 = advance(side, p1, s);
           const to2 = advance(side, p2, other);
-          if (to1 && to2) {
-            moves.push({
-              id: `split:${p1.id}:${s}:${p2.id}:${other}`,
-              kind: 'split',
-              legs: [
-                { pawnId: p1.id, steps: s, to: to1 },
-                { pawnId: p2.id, steps: other, to: to2 },
-              ],
-            });
-          }
+          if (!to1 || !to2) continue;
+          // Neither leg may land on a non-mover own pawn, and the two legs may
+          // not stack on the same track square (the two movers vacate their own).
+          const exclude = [p1.id, p2.id];
+          if (to1.zone === 'track' && ownAt(state.pawns, side, to1.index, exclude)) continue;
+          if (to2.zone === 'track' && ownAt(state.pawns, side, to2.index, exclude)) continue;
+          if (to1.zone === 'track' && to2.zone === 'track' && to1.index === to2.index) continue;
+          moves.push({
+            id: `split:${p1.id}:${s}:${p2.id}:${other}`,
+            kind: 'split',
+            legs: [
+              { pawnId: p1.id, steps: s, to: to1 },
+              { pawnId: p2.id, steps: other, to: to2 },
+            ],
+          });
         }
       }
     }

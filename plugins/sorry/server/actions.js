@@ -98,31 +98,24 @@ function applyChosenMove(state, side, m) {
 
 const allHome = (sidePawns) => sidePawns.every((p) => p.zone === 'home');
 
-// Discard the played card, draw the next, switch player unless a 2 was played,
-// and auto-pass any drawn card the new player cannot use (discard it and switch
-// again), up to a small guard limit before committing whatever state exists.
-function advanceTurn(state, pawnsAfter, playedCard, rng) {
-  let deck = state.deck;
-  let discard = [...state.discard, playedCard];
-  let currentPlayer = playedCard === 2 ? state.currentPlayer : opponent(state.currentPlayer);
-
-  let drawn = draw({ deck, discard, rng });
-  deck = drawn.deck;
-  discard = drawn.discard;
-  let card = drawn.card;
-
-  for (let guard = 0; guard < 8; guard++) {
-    const probe = { ...state, pawns: pawnsAfter, currentPlayer, drawnCard: card };
-    if (legalMoves(probe).length > 0) break;
-    discard = [...discard, card];
-    currentPlayer = opponent(currentPlayer);
-    drawn = draw({ deck, discard, rng });
-    deck = drawn.deck;
-    discard = drawn.discard;
-    card = drawn.card;
-  }
-
-  return { ...state, pawns: pawnsAfter, deck, discard, drawnCard: card, currentPlayer, winner: null };
+// Discard the just-resolved card, draw the next, and set the player on turn.
+// `keepTurn` is true after a draw-again (a played 2); a pass never keeps the
+// turn. No auto-settle: if the new player cannot use the drawn card they have
+// zero legal moves and must pass (an acknowledged turn), instead of the engine
+// silently burning cards. Always re-anchors activeUserId to the new current
+// player so the orchestrator's bot-wake gate stays consistent.
+function drawAndSwitch(state, pawnsAfter, discardedCard, keepTurn, rng) {
+  const currentPlayer = keepTurn ? state.currentPlayer : opponent(state.currentPlayer);
+  const drawn = draw({ deck: state.deck, discard: [...state.discard, discardedCard], rng });
+  return {
+    ...state,
+    pawns: pawnsAfter,
+    deck: drawn.deck,
+    discard: drawn.discard,
+    drawnCard: drawn.card,
+    currentPlayer,
+    activeUserId: state.sides[currentPlayer],
+  };
 }
 
 // The host turn engine. Validates the actor, turn ownership, and move legality,
@@ -134,8 +127,20 @@ function advanceTurn(state, pawnsAfter, playedCard, rng) {
 export function applySorryAction({ state, action, actorId, rng = Math.random }) {
   const side = actorSide(state, actorId);
   if (side === null) return { error: 'unknown participant' };
-  if (!action || action.type !== 'move') return { error: `unknown action: ${action?.type}` };
+  if (!action || (action.type !== 'move' && action.type !== 'pass')) {
+    return { error: `unknown action: ${action?.type}` };
+  }
   if (side !== state.currentPlayer) return { error: 'not your turn' };
+
+  // Explicit pass: only legal when the player on turn has no legal move. The
+  // drawn card is discarded, the opponent draws the next, and the turn yields.
+  if (action.type === 'pass') {
+    if (legalMoves(state).length > 0) return { error: 'you still have a legal move' };
+    const card = state.drawnCard;
+    const next = drawAndSwitch(state, state.pawns, card, false, rng);
+    const withEvent = { ...next, winner: null, lastEvent: { kind: 'pass', side, card } };
+    return { state: withEvent, ended: false, summary: { kind: 'pass', card } };
+  }
 
   const moveId = action.payload?.moveId;
   const m = legalMoves(state).find((x) => x.id === moveId);
@@ -159,7 +164,8 @@ export function applySorryAction({ state, action, actorId, rng = Math.random }) 
     return { state: winState, ended: true, scoreDelta: { [winnerUserId]: 1 }, summary: { kind: 'win', side } };
   }
 
-  const next = advanceTurn(state, pawnsAfter, state.drawnCard, rng);
-  const withActive = { ...next, activeUserId: next.sides[next.currentPlayer] };
-  return { state: withActive, ended: false, summary: { kind: m.kind } };
+  const playedCard = state.drawnCard;
+  const next = drawAndSwitch(state, pawnsAfter, playedCard, playedCard === 2, rng);
+  const withEvent = { ...next, winner: null, lastEvent: null };
+  return { state: withEvent, ended: false, summary: { kind: m.kind } };
 }

@@ -2,6 +2,8 @@
 // Vanilla JS, no build step. Renders top-down board-game-lid cards into
 // the same DOM structure the previous lobby.js used (#sec-yours, etc).
 
+import { boxArt } from './box-art.js';
+
 async function fetchJson(path) {
   const r = await fetch(path);
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
@@ -14,11 +16,23 @@ const PLUGIN_META = {
   backgammon: { tagline: 'Race off the board' },
   cribbage:   { tagline: 'Pegs, pairs, and fifteen-twos' },
   buraco:     { tagline: 'Brazilian rummy — sequences, jokers, mortos' },
+  risk:       { tagline: 'Conquer the map, one die at a time' },
+  sorry:      { tagline: 'The slidy diagonal chasing game' },
 };
 const PLUGIN_VARIANTS = {
   words: [
     { variant: 'wwf',      label: 'Words with Friends' },
     { variant: 'scrabble', label: 'Scrabble rules' },
+  ],
+};
+// Games where the creator picks their checker colour (the opponent takes the
+// contrast; see plugins/sorry/server/colors.js). Hex mirrors the board palette.
+const PLUGIN_COLORS = {
+  sorry: [
+    { color: 'red',    label: 'Red',    hex: '#b8332a' },
+    { color: 'blue',   label: 'Blue',   hex: '#2c647f' },
+    { color: 'green',  label: 'Green',  hex: '#3e9a5c' },
+    { color: 'orange', label: 'Orange', hex: '#d4863a' },
   ],
 };
 
@@ -67,181 +81,6 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) { return escapeHtml(s); }
 
-// Per-game illustrated box-lid art — inline SVG strings.
-// Each takes a `variant` for words; others ignore it.
-
-function boxArtWords(variant) {
-  const accent = variant === 'scrabble' ? '#cf3a2c' : '#d97757';
-  const accent2 = variant === 'scrabble' ? '#3a6db0' : '#c2a14e';
-  const tiles = [['W',4],['O',1],['R',1],['D',2],['S',1]];
-  const tileSvgs = tiles.map(([ch, val], i) => `
-    <g transform="translate(${i*30}, 0)">
-      <rect x="0" y="0" width="26" height="30" rx="2.5" fill="#fff8e3" stroke="#9a7e3a" stroke-width="0.8"/>
-      <rect x="0" y="0" width="26" height="3" fill="#000" opacity="0.06"/>
-      <text x="13" y="19" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="15" fill="#3a2a18">${ch}</text>
-      <text x="21" y="26" text-anchor="middle" font-family="Georgia, serif" font-weight="600" font-size="6" fill="#3a2a18">${val}</text>
-    </g>`).join('');
-  let grid = '';
-  for (let i = 0; i < 9; i++) grid += `<line x1="0" x2="420" y1="${i*15}" y2="${i*15}"/>`;
-  for (let i = 0; i < 29; i++) grid += `<line y1="0" y2="120" x1="${i*15}" x2="${i*15}"/>`;
-  return `
-    <svg viewBox="0 0 420 120" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <pattern id="aw-paper-${variant||'wwf'}" width="3" height="3" patternUnits="userSpaceOnUse">
-          <rect width="3" height="3" fill="#f3ead3"/>
-          <circle cx="1" cy="1" r="0.3" fill="#c9b88a" opacity="0.4"/>
-        </pattern>
-      </defs>
-      <rect width="420" height="120" fill="url(#aw-paper-${variant||'wwf'})"/>
-      <g stroke="#c9b88a" stroke-width="0.4" opacity="0.5">${grid}</g>
-      <rect x="30" y="18" width="15" height="15" fill="${accent}" opacity="0.85"/>
-      <rect x="375" y="87" width="15" height="15" fill="${accent2}" opacity="0.85"/>
-      <rect x="105" y="75" width="15" height="15" fill="${accent}" opacity="0.7"/>
-      <rect x="330" y="30" width="15" height="15" fill="${accent2}" opacity="0.7"/>
-      <g transform="translate(135, 45)">${tileSvgs}</g>
-    </svg>`;
-}
-
-function boxArtRummikub() {
-  const tiles = [
-    {n:8, c:'#3a6db0'}, {n:9, c:'#3a6db0'}, {n:10, c:'#3a6db0'}, {n:11, c:'#3a6db0'}, {n:12, c:'#3a6db0'},
-  ];
-  const sevens = [{n:7,c:'#cf3a2c'},{n:7,c:'#3a6db0'},{n:7,c:'#1f6b3a'},{n:7,c:'#2a1808'}];
-  const tileGroup = (arr) => arr.map((t,i) => `
-    <g transform="translate(${i*24}, 0)">
-      <rect x="0" y="0" width="22" height="32" rx="3" fill="#f7f0d8" stroke="#5a4a2a" stroke-width="0.6"/>
-      <rect x="0" y="0" width="22" height="3" fill="#fff" opacity="0.5"/>
-      <text x="11" y="24" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="18" fill="${t.c}">${t.n}</text>
-    </g>`).join('');
-  return `
-    <svg viewBox="0 0 420 120" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <pattern id="ar-felt" width="2" height="2" patternUnits="userSpaceOnUse">
-          <rect width="2" height="2" fill="#1d4f47"/>
-          <circle cx="1" cy="1" r="0.3" fill="#2a6960" opacity="0.6"/>
-        </pattern>
-      </defs>
-      <rect width="420" height="120" fill="url(#ar-felt)"/>
-      <path d="M8 8 H40 M8 8 V36" stroke="#c9a14e" stroke-width="1.2" fill="none"/>
-      <path d="M412 112 H380 M412 112 V84" stroke="#c9a14e" stroke-width="1.2" fill="none"/>
-      <g transform="translate(50, 22)">${tileGroup(tiles)}</g>
-      <g transform="translate(110, 70)">${tileGroup(sevens)}</g>
-      <g transform="translate(360, 24) rotate(12)">
-        <rect x="0" y="0" width="22" height="32" rx="3" fill="#f7f0d8" stroke="#5a4a2a" stroke-width="0.6"/>
-        <text x="11" y="24" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="20" fill="#cf3a2c">★</text>
-      </g>
-      <g transform="translate(330, 76) rotate(-8)">
-        <rect x="0" y="0" width="22" height="32" rx="3" fill="#f7f0d8" stroke="#5a4a2a" stroke-width="0.6"/>
-        <text x="11" y="24" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="18" fill="#1f6b3a">13</text>
-      </g>
-    </svg>`;
-}
-
-function boxArtBackgammon() {
-  let pts = '';
-  for (let i = 0; i < 6; i++) {
-    const x = 28 + i*26;
-    const c1 = i%2 ? '#3a1f12' : '#fff5d8';
-    const c2 = i%2 ? '#fff5d8' : '#3a1f12';
-    pts += `<path d="M${x},17 L${x+22},17 L${x+11},58 Z" fill="${c1}"/>`;
-    pts += `<path d="M${x},103 L${x+22},103 L${x+11},62 Z" fill="${c2}"/>`;
-  }
-  for (let i = 0; i < 6; i++) {
-    const x = 230 + i*26;
-    const c1 = i%2 ? '#fff5d8' : '#3a1f12';
-    const c2 = i%2 ? '#3a1f12' : '#fff5d8';
-    pts += `<path d="M${x},17 L${x+22},17 L${x+11},58 Z" fill="${c1}"/>`;
-    pts += `<path d="M${x},103 L${x+22},103 L${x+11},62 Z" fill="${c2}"/>`;
-  }
-  return `
-    <svg viewBox="0 0 420 120" preserveAspectRatio="xMidYMid slice">
-      <rect width="420" height="120" fill="#7a3a28"/>
-      <rect x="15" y="15" width="390" height="90" fill="#c9a872" stroke="#3a1f12" stroke-width="1.2"/>
-      ${pts}
-      <rect x="206" y="15" width="8" height="90" fill="#3a1f12"/>
-      <circle cx="39" cy="96" r="7" fill="#f7e7c2" stroke="#5a3a18" stroke-width="0.6"/>
-      <circle cx="39" cy="83" r="7" fill="#f7e7c2" stroke="#5a3a18" stroke-width="0.6"/>
-      <circle cx="39" cy="70" r="7" fill="#f7e7c2" stroke="#5a3a18" stroke-width="0.6"/>
-      <circle cx="377" cy="24" r="7" fill="#3a1f12" stroke="#1a0a04" stroke-width="0.6"/>
-      <circle cx="377" cy="37" r="7" fill="#3a1f12" stroke="#1a0a04" stroke-width="0.6"/>
-      <g transform="translate(310, 50) rotate(-8)">
-        <rect x="0" y="0" width="26" height="26" rx="3.5" fill="#fff8e3" stroke="#3a1f12" stroke-width="0.8"/>
-        <circle cx="7" cy="7"  r="1.7" fill="#3a1f12"/>
-        <circle cx="19" cy="19" r="1.7" fill="#3a1f12"/>
-        <circle cx="13" cy="13" r="1.7" fill="#3a1f12"/>
-      </g>
-      <g transform="translate(342, 66) rotate(15)">
-        <rect x="0" y="0" width="26" height="26" rx="3.5" fill="#fff8e3" stroke="#3a1f12" stroke-width="0.8"/>
-        <circle cx="7" cy="7"  r="1.7" fill="#cf3a2c"/>
-        <circle cx="19" cy="7" r="1.7" fill="#cf3a2c"/>
-        <circle cx="7" cy="19" r="1.7" fill="#cf3a2c"/>
-        <circle cx="19" cy="19" r="1.7" fill="#cf3a2c"/>
-      </g>
-    </svg>`;
-}
-
-function boxArtBuraco() {
-  // A fan of three cards on green felt with a joker peeking out.
-  // suit pip = ♥ (red), card values 5-6-7 of hearts, plus a jester face cap.
-  return `
-    <svg viewBox="0 0 420 120" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <pattern id="bu-felt" width="3" height="3" patternUnits="userSpaceOnUse">
-          <rect width="3" height="3" fill="#275e3a"/>
-          <circle cx="1.5" cy="1.5" r="0.4" fill="#1c4329" opacity="0.7"/>
-        </pattern>
-      </defs>
-      <rect width="420" height="120" fill="url(#bu-felt)"/>
-      <!-- gold corner flourishes echoing rummikub -->
-      <path d="M8 8 H40 M8 8 V36" stroke="#d8b75a" stroke-width="1.2" fill="none"/>
-      <path d="M412 112 H380 M412 112 V84" stroke="#d8b75a" stroke-width="1.2" fill="none"/>
-
-      <!-- Card fan, centered around (210, 64), each card 56x80, rotated -->
-      <g transform="translate(150, 28) rotate(-14 28 40)">
-        <rect x="0" y="0" width="56" height="80" rx="4" fill="#fff" stroke="#222" stroke-width="0.7"/>
-        <text x="6" y="16" font-family="Georgia, serif" font-size="14" font-weight="700" fill="#cf3a2c">5</text>
-        <text x="6" y="28" font-size="10" fill="#cf3a2c">♥</text>
-        <text x="28" y="50" text-anchor="middle" font-family="Georgia, serif" font-size="26" fill="#cf3a2c">♥</text>
-      </g>
-      <g transform="translate(186, 22)">
-        <rect x="0" y="0" width="56" height="80" rx="4" fill="#fff" stroke="#222" stroke-width="0.7"/>
-        <text x="6" y="16" font-family="Georgia, serif" font-size="14" font-weight="700" fill="#cf3a2c">6</text>
-        <text x="6" y="28" font-size="10" fill="#cf3a2c">♥</text>
-        <text x="28" y="50" text-anchor="middle" font-family="Georgia, serif" font-size="26" fill="#cf3a2c">♥</text>
-      </g>
-      <g transform="translate(222, 28) rotate(14 28 40)">
-        <rect x="0" y="0" width="56" height="80" rx="4" fill="#fff" stroke="#222" stroke-width="0.7"/>
-        <text x="6" y="16" font-family="Georgia, serif" font-size="14" font-weight="700" fill="#cf3a2c">7</text>
-        <text x="6" y="28" font-size="10" fill="#cf3a2c">♥</text>
-        <text x="28" y="50" text-anchor="middle" font-family="Georgia, serif" font-size="26" fill="#cf3a2c">♥</text>
-      </g>
-
-      <!-- Joker card peeking from the right -->
-      <g transform="translate(312, 30) rotate(22 28 40)">
-        <rect x="0" y="0" width="56" height="80" rx="4" fill="#fff8e3" stroke="#222" stroke-width="0.7"/>
-        <!-- jester hat: three points with bell-tip dots -->
-        <path d="M14 38 L20 18 L28 30 L36 18 L42 38 Z" fill="#cf3a2c" stroke="#1a0a04" stroke-width="0.6"/>
-        <circle cx="20" cy="18" r="1.6" fill="#d8b75a"/>
-        <circle cx="36" cy="18" r="1.6" fill="#d8b75a"/>
-        <!-- face -->
-        <circle cx="28" cy="46" r="9" fill="#f7e7c2" stroke="#5a3a18" stroke-width="0.5"/>
-        <circle cx="25" cy="44" r="0.9" fill="#1a0a04"/>
-        <circle cx="31" cy="44" r="0.9" fill="#1a0a04"/>
-        <path d="M24 49 Q28 52 32 49" stroke="#1a0a04" stroke-width="0.9" fill="none" stroke-linecap="round"/>
-        <text x="6" y="14" font-family="Georgia, serif" font-size="9" font-weight="700" fill="#cf3a2c">JK</text>
-        <text x="50" y="76" text-anchor="end" font-family="Georgia, serif" font-size="9" font-weight="700" fill="#cf3a2c">JK</text>
-      </g>
-    </svg>`;
-}
-
-function boxArt(gameType, variant) {
-  if (gameType === 'words')      return boxArtWords(variant);
-  if (gameType === 'rummikub')   return boxArtRummikub();
-  if (gameType === 'backgammon') return boxArtBackgammon();
-  if (gameType === 'buraco')     return boxArtBuraco();
-  return `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="#e9d9a8"/></svg>`;
-}
-
 // Card builders
 
 function activeCard(game) {
@@ -252,11 +91,13 @@ function activeCard(game) {
   const yourTurn = !!game.yourTurn;
   const overdue  = yourTurn && (Date.now() - game.updatedAt) > 24*60*60*1000;
 
+  const opponents = game.opponents ?? [game.opponent];
+  const oppNames = opponents.map(o => o.friendlyName).join(', ');
   const variantText = variantLabel(game.gameType, game.variant);
   const variantHTML = variantText ? `<div class="variant">${escapeHtml(variantText)}</div>` : '';
   const meta = yourTurn
     ? `Your move · ${escapeHtml(relTime(game.updatedAt))}`
-    : `${escapeHtml(game.opponent.friendlyName)} is pondering · ${escapeHtml(relTime(game.updatedAt))}`;
+    : `${escapeHtml(oppNames)} ${opponents.length > 1 ? 'are' : 'is'} pondering · ${escapeHtml(relTime(game.updatedAt))}`;
   const oppColor = game.opponent.color || '#1a73e8';
 
   a.innerHTML = `
@@ -270,7 +111,7 @@ function activeCard(game) {
       <div>
         <div class="opp-row">
           <span class="opp-mono"${glyphAttr(game.opponent)} style="background:${escapeAttr(oppColor)}">${escapeHtml(avatarInitial(game.opponent.friendlyName))}</span>
-          <span><span class="opp-vs">vs.</span> <strong class="opp-name" style="color:${escapeAttr(oppColor)}">${escapeHtml(game.opponent.friendlyName)}${glyphMark(game.opponent)}</strong></span>
+          <span><span class="opp-vs">vs.</span> <strong class="opp-name" style="color:${escapeAttr(oppColor)}">${escapeHtml(oppNames)}${opponents.length > 1 ? '' : glyphMark(game.opponent)}</strong></span>
         </div>
         <div class="meta">${meta}</div>
       </div>
@@ -291,12 +132,16 @@ function endedCard(game) {
   a.href = `/play/${game.gameType}/${game.id}/`;
 
   const oppColor = game.opponent.color || '#999';
-  const won = game.winnerSide && game.winnerSide === game.you;
-  const opp = game.opponent.friendlyName;
+  const opponents = game.opponents ?? [game.opponent];
+  const oppNames = opponents.map(o => o.friendlyName).join(', ');
+  const won = Array.isArray(game.winnerSeats) && game.winnerSeats.includes(game.you);
+  const winnerOpp = Array.isArray(game.winnerSeats)
+    ? opponents.find(o => game.winnerSeats.includes(o.seat))
+    : null;
   const outcome = won ? `You won` :
-    (game.endedReason === 'draw' || game.winnerSide === 'draw') ? `Draw with ${opp}` :
-    game.winnerSide ? `${opp} won` :
-    `Ended vs ${opp}`;
+    (game.endedReason === 'draw' || game.isDraw) ? `Draw with ${oppNames}` :
+    winnerOpp ? `${winnerOpp.friendlyName} won` :
+    `Ended vs ${oppNames}`;
 
   a.innerHTML = `
     <div class="lid">${boxArt(game.gameType, game.variant)}
@@ -307,7 +152,7 @@ function endedCard(game) {
     <div class="sideband">
       <div>
         <div class="opp-row">
-          <span class="opp-mono"${glyphAttr(game.opponent)} style="background:${escapeAttr(oppColor)}">${escapeHtml(avatarInitial(opp))}</span>
+          <span class="opp-mono"${glyphAttr(game.opponent)} style="background:${escapeAttr(oppColor)}">${escapeHtml(avatarInitial(game.opponent.friendlyName))}</span>
           <span class="opp-name" style="color:${escapeAttr(oppColor)}">${escapeHtml(outcome)}${glyphMark(game.opponent)}</span>
         </div>
         <div class="meta">${escapeHtml(relTime(game.updatedAt))}</div>
@@ -440,8 +285,11 @@ function wireNewGame(me, plugins) {
   cancel.onclick = () => dlg.close();
   dlg.addEventListener('cancel', () => dlg.close());
 
+  let allUsers = [];
+
   fab.onclick = async () => {
     const users = await fetchJson('/api/users').then(arr => arr.filter(u => u.id !== me.id));
+    allUsers = users;
     if (users.length === 0) {
       alert("You're the only player on this server.");
       return;
@@ -454,7 +302,9 @@ function wireNewGame(me, plugins) {
   function showOpponentStep(users, plugins) {
     titleEl.textContent = 'Pick a sparring partner';
     stepsEl.innerHTML = `<div class="ng-step">Step 1 of ${PLUGIN_VARIANTS.words ? 3 : 2}</div>`;
-    for (const u of users) {
+    const humans = users.filter(u => !u.isBot);
+    const bots   = users.filter(u => u.isBot);
+    const renderUser = (u) => {
       const li = document.createElement('li');
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -466,6 +316,14 @@ function wireNewGame(me, plugins) {
       btn.onclick = () => showGameStep(u, plugins);
       li.appendChild(btn);
       stepsEl.appendChild(li);
+    };
+    for (const u of humans) renderUser(u);
+    if (bots.length > 0) {
+      const heading = document.createElement('li');
+      heading.className = 'ng-group-label';
+      heading.textContent = 'AI players';
+      stepsEl.appendChild(heading);
+      for (const u of bots) renderUser(u);
     }
   }
 
@@ -485,13 +343,103 @@ function wireNewGame(me, plugins) {
         </span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
       btn.onclick = () => {
-        if (PLUGIN_VARIANTS[p.id]) {
-          showVariantStep(opponent, p, plugins);
-        } else if (opponent.isBot) {
-          showPersonaStep(opponent, p.id, null);
-        } else {
-          startGame(opponent, p.id, null);
+        if ((p.players?.max ?? 2) > 2) showAddPlayersStep(opponent, p, plugins);
+        else if (PLUGIN_VARIANTS[p.id]) showVariantStep(opponent, p, plugins);
+        else proceedAfterRules(opponent, p.id, null, plugins);
+      };
+      li.appendChild(btn);
+      stepsEl.appendChild(li);
+    }
+  }
+
+  // Multiplayer games (players.max > 2, e.g. Risk): after the first opponent
+  // is picked, offer the rest of the roster (humans and AI) as optional extra seats.
+  // Seat order = creator, first opponent, then extras in tick order.
+  function showAddPlayersStep(opponent, plugin, plugins) {
+    const maxExtra = (plugin.players?.max ?? 2) - 2;
+    const others = allUsers.filter(u => u.id !== opponent.id);
+    if (maxExtra === 0 || others.length === 0) {
+      proceedAfterRules(opponent, plugin.id, null, plugins);
+      return;
+    }
+    titleEl.textContent = `${plugin.displayName} — add more players?`;
+    stepsEl.innerHTML = `<div class="ng-step">vs. ${escapeHtml(opponent.friendlyName)} — tick up to ${maxExtra} more</div>`;
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'ng-back';
+    back.textContent = 'back';
+    back.onclick = () => showGameStep(opponent, plugins);
+    stepsEl.appendChild(back);
+
+    const picked = new Set();
+    const checkboxes = [];
+    for (const u of others) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ng-tile';
+      btn.setAttribute('aria-pressed', 'false');
+      btn.innerHTML = `
+        <span class="ng-mono"${glyphAttr(u)} style="background:${escapeAttr(u.color || '#888')};margin-left:16px">${escapeHtml(avatarInitial(u.friendlyName))}</span>
+        <span class="ng-body"><span class="ng-name">${escapeHtml(u.friendlyName)}${glyphMark(u)}</span></span>
+        <span class="ng-chev" aria-hidden="true">＋</span>`;
+      btn.onclick = () => {
+        if (picked.has(u.id)) {
+          picked.delete(u.id);
+          btn.setAttribute('aria-pressed', 'false');
+          btn.style.outline = '';
+        } else if (picked.size < maxExtra) {
+          picked.add(u.id);
+          btn.setAttribute('aria-pressed', 'true');
+          btn.style.outline = '2px solid currentColor';
         }
+        go.textContent = startLabel();
+      };
+      checkboxes.push(btn);
+      li.appendChild(btn);
+      stepsEl.appendChild(li);
+    }
+
+    const startLabel = () => `Start with ${2 + picked.size} players`;
+    const goLi = document.createElement('li');
+    const go = document.createElement('button');
+    go.type = 'button';
+    go.className = 'ng-tile';
+    go.style.justifyContent = 'center';
+    go.textContent = startLabel();
+    go.onclick = () => startGame(opponent, plugin.id, null, null, null, [...picked]);
+    goLi.appendChild(go);
+    stepsEl.appendChild(goLi);
+  }
+
+  // After rules (variant) are settled: pick a checker colour if the game offers
+  // one, otherwise create the game. Bot persona is the bot user's own identity
+  // (no separate persona-pick step needed).
+  function proceedAfterRules(opponent, gameType, variant, plugins) {
+    if (PLUGIN_COLORS[gameType]) showColorStep(opponent, gameType, variant, plugins);
+    else startGame(opponent, gameType, variant, null, null);
+  }
+
+  function showColorStep(opponent, gameType, variant, plugins) {
+    titleEl.textContent = `${displayName(gameType)} — pick your colour`;
+    stepsEl.innerHTML = `<div class="ng-step">Choose your checker colour</div>`;
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'ng-back';
+    back.textContent = 'back';
+    back.onclick = () => showGameStep(opponent, plugins);
+    stepsEl.appendChild(back);
+    for (const c of PLUGIN_COLORS[gameType]) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ng-tile';
+      btn.innerHTML = `
+        <span class="ng-mono" style="background:${escapeAttr(c.hex)};margin-left:16px"></span>
+        <span class="ng-body"><span class="ng-name">${escapeHtml(c.label)}</span></span>
+        <span class="ng-chev" aria-hidden="true">›</span>`;
+      btn.onclick = () => {
+        startGame(opponent, gameType, variant, null, c.color);
       };
       li.appendChild(btn);
       stepsEl.appendChild(li);
@@ -516,47 +464,16 @@ function wireNewGame(me, plugins) {
         <span class="ng-art">${boxArt(plugin.id, v.variant)}</span>
         <span class="ng-body" style="padding-left:0"><span class="ng-name">${escapeHtml(v.label)}</span></span>
         <span class="ng-chev" aria-hidden="true">›</span>`;
-      btn.onclick = () => {
-        if (opponent.isBot) {
-          showPersonaStep(opponent, plugin.id, v.variant);
-        } else {
-          startGame(opponent, plugin.id, v.variant);
-        }
-      };
+      btn.onclick = () => proceedAfterRules(opponent, plugin.id, v.variant, plugins);
       li.appendChild(btn);
       stepsEl.appendChild(li);
     }
   }
 
-  async function showPersonaStep(opponent, gameType, variant) {
-    titleEl.textContent = `Choose your AI opponent`;
-    stepsEl.innerHTML = `<div class="ng-step">Final step — pick a persona</div>`;
-    const back = document.createElement('button');
-    back.type = 'button';
-    back.className = 'ng-back';
-    back.textContent = 'back';
-    back.onclick = () => showGameStep(opponent, plugins);
-    stepsEl.appendChild(back);
-    const data = await fetchJson(`/api/ai/personas?game=${encodeURIComponent(gameType)}`);
-    for (const p of data.personas) {
-      const li = document.createElement('li');
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'ng-tile';
-      btn.innerHTML = `
-        <span class="ng-mono"${p.glyph ? ` data-glyph="${escapeAttr(p.glyph)}"` : ''} style="background:${escapeAttr(p.color || '#888')};margin-left:16px">${escapeHtml(avatarInitial(p.displayName))}</span>
-        <span class="ng-body"><span class="ng-name">${escapeHtml(p.displayName)}</span></span>
-        <span class="ng-chev" aria-hidden="true">›</span>`;
-      btn.onclick = () => startGame(opponent, gameType, variant, p.id);
-      li.appendChild(btn);
-      stepsEl.appendChild(li);
-    }
-  }
-
-  async function startGame(opponent, gameType, variant, personaId = null) {
-    const body = { opponentId: opponent.id, gameType };
+  async function startGame(opponent, gameType, variant, _personaId = null, color = null, extraIds = []) {
+    const body = { opponentIds: [opponent.id, ...extraIds], gameType };
     if (variant) body.variant = variant;
-    if (personaId) body.personaId = personaId;
+    if (color) body.color = color;
     const r = await fetch('/api/games', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

@@ -8,8 +8,11 @@ export function validatePlugin(p) {
   if (typeof p.displayName !== 'string' || p.displayName.length === 0) {
     throw new Error(`plugin(${p.id}).displayName must be a non-empty string`);
   }
-  if (p.players !== 2) {
-    throw new Error(`plugin(${p.id}).players must be 2; got ${p.players}`);
+  const pl = p.players;
+  if (!pl || typeof pl !== 'object'
+      || !Number.isInteger(pl.min) || !Number.isInteger(pl.max)
+      || pl.min < 2 || pl.max < pl.min || pl.max > 6) {
+    throw new Error(`plugin(${p.id}).players must be {min, max} with 2 <= min <= max <= 6; got ${JSON.stringify(pl)}`);
   }
   if (typeof p.clientDir !== 'string' || p.clientDir.length === 0) {
     throw new Error(`plugin(${p.id}).clientDir must be a non-empty string`);

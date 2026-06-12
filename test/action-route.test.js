@@ -4,11 +4,12 @@ import http from 'node:http';
 import express from 'express';
 import { openDb } from '../src/server/db.js';
 import { mountRoutes } from '../src/server/routes.js';
+import { insertGame } from './_helpers/games.js';
 
 const stubPlugin = {
   id: 'stub',
   displayName: 'Stub',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/stub/client',
   initialState: () => ({ activeUserId: 1, count: 0 }),
   applyAction: ({ state, action, actorId }) => {
@@ -40,8 +41,7 @@ function setupApp() {
   const now = Date.now();
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (1, 'a@b', 'A', '#f00', ?)").run(now);
   db.prepare("INSERT INTO users (id, email, friendly_name, color, created_at) VALUES (2, 'b@b', 'B', '#0f0', ?)").run(now);
-  db.prepare(`INSERT INTO games (id, player_a_id, player_b_id, status, game_type, state, created_at, updated_at)
-              VALUES (1, 1, 2, 'active', 'stub', ?, ?, ?)`).run(JSON.stringify({ activeUserId: 1, count: 0 }), now, now);
+  insertGame(db, { id: 1, players: [1, 2], gameType: 'stub', state: { activeUserId: 1, count: 0 } });
 
   // Test identity middleware — sets req.user from a header
   app.use((req, res, next) => {
@@ -138,7 +138,7 @@ test('action writes a turn_log row and broadcasts a turn event', async () => {
     const rows = db.prepare("SELECT * FROM turn_log WHERE game_id = 1 ORDER BY id").all();
     assert.equal(rows.length, 1);
     assert.equal(rows[0].turn_number, 1);
-    assert.equal(rows[0].side, 'a');
+    assert.equal(rows[0].seat, 0);
     assert.equal(rows[0].kind, 'inc');
     assert.deepEqual(JSON.parse(rows[0].summary), { kind: 'inc', count: 1 });
 
@@ -163,8 +163,8 @@ test('ending action writes synthetic game-ended row after the action row', async
     assert.equal(rows[0].kind, 'finish');
     assert.equal(rows[1].kind, 'game-ended');
     assert.equal(rows[1].turn_number, 2);
-    assert.equal(rows[1].side, 'a');
-    assert.deepEqual(JSON.parse(rows[1].summary), { kind: 'game-ended', reason: 'done', winnerSide: 'a' });
+    assert.equal(rows[1].seat, 0);
+    assert.deepEqual(JSON.parse(rows[1].summary), { kind: 'game-ended', reason: 'done', winnerSeats: [0], winnerSide: 'a' });
 
     const turnEvents = broadcasts.filter(b => b.event.type === 'turn');
     assert.equal(turnEvents.length, 2);
@@ -194,5 +194,17 @@ test('GET /api/games/:id/history rejects non-participants', async () => {
   try {
     const r = await call(server, 'GET', '/api/games/1/history', null, { 'x-test-user-id': '99' });
     assert.equal(r.status, 403);
+  } finally { server.close(); }
+});
+
+test('winning action records winnerSeats on the game', async () => {
+  const { app, db } = setupApp();
+  const server = await startServer(app);
+  try {
+    const r = await call(server, 'POST', '/api/games/1/action', { type: 'finish' }, { 'x-test-user-id': '1' });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ended, true);
+    const ended = db.prepare("SELECT winner_seats FROM games WHERE id = 1").get();
+    assert.deepStrictEqual(JSON.parse(ended.winner_seats), [0]);
   } finally { server.close(); }
 });

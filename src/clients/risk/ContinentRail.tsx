@@ -31,7 +31,7 @@ export function ContinentRail({ view }: { view: RiskView }) {
             <div className="roster" aria-hidden="true">
               {ids.map((id) => {
                 const o = view.territories[id]?.owner ?? null;
-                const cls = o === 0 ? " p0" : o === 1 ? " p1" : "";
+                const cls = o == null ? "" : ` p${o}`;
                 return <span key={id} className={`pip${cls}`} title={id} />;
               })}
             </div>

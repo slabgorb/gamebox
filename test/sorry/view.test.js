@@ -21,6 +21,14 @@ test("sorryPublicView: the current player's view carries the engine legalMoves v
   assert.deepEqual(view.legalMoves, legalMoves(state));
 });
 
+test('sorryPublicView: per-side checker colours flow through to every viewer', () => {
+  const state = { ...baseState(), colors: { a: 'green', b: 'orange' } };
+  for (const viewerId of ['user-a', 'user-b', 'spectator']) {
+    const view = sorryPublicView({ state, viewerId });
+    assert.deepEqual(view.colors, { a: 'green', b: 'orange' }, `colors must reach ${viewerId}`);
+  }
+});
+
 test("sorryPublicView: the opponent's view does NOT receive a populated legalMoves list", () => {
   const state = baseState(); // 'a' is to move; 'b' is the opponent
   const view = sorryPublicView({ state, viewerId: 'user-b' });

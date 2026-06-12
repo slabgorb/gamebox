@@ -12,24 +12,31 @@ import { chooseAction as backgammonChoose } from '../../../plugins/backgammon/se
 import wordsPlugin from '../../../plugins/words/plugin.js';
 import { chooseAction as wordsChoose } from '../../../plugins/words/server/ai/words-player.js';
 import riskPlugin from '../../../plugins/risk/plugin.js';
-import { chooseAction as riskChoose } from '../../../plugins/risk/server/ai/risk-player.js';
+import { chooseAction as riskChoose, resolvePendingCombat as riskResolvePending } from '../../../plugins/risk/server/ai/risk-player.js';
 import sorryPlugin from '../../../plugins/sorry/plugin.js';
 import { chooseAction as sorryChoose } from '../../../plugins/sorry/server/ai/sorry-player.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, '..', '..', '..');
 const DEFAULT_PERSONA_DIR = resolve(PROJECT_ROOT, 'data', 'ai-personas');
-const DEFAULT_BOT_EMAIL = 'ai+default@bot.local';
-const DEFAULT_BOT_NAME = 'AI Opponent';
 
-function ensureBotUser(db) {
-  const existing = db.prepare("SELECT id FROM users WHERE is_bot = 1 LIMIT 1").get();
-  if (existing) return existing.id;
+// One bot user per persona. The user IS the persona: its persona_id ties the
+// roster pick to the AI session created at game start, and to the portrait
+// served at /shared/portraits/{personaId}.png. Idempotent on email.
+function ensureBotUsers(db, catalog) {
   const now = Date.now();
-  return db.prepare(`
-    INSERT INTO users (email, friendly_name, color, glyph, is_bot, created_at)
-    VALUES (?, ?, ?, ?, 1, ?) RETURNING id
-  `).get(DEFAULT_BOT_EMAIL, DEFAULT_BOT_NAME, '#888888', '✦', now).id;
+  const insert = db.prepare(`
+    INSERT INTO users (email, friendly_name, color, glyph, is_bot, persona_id, created_at)
+    VALUES (?, ?, ?, ?, 1, ?, ?)
+    ON CONFLICT(email) DO UPDATE SET
+      friendly_name = excluded.friendly_name,
+      color = excluded.color,
+      glyph = excluded.glyph,
+      persona_id = excluded.persona_id
+  `);
+  for (const p of catalog.values()) {
+    insert.run(`ai+${p.id}@bot.local`, p.displayName, p.color, p.glyph, p.id, now);
+  }
 }
 
 export function bootAiSubsystem({ db, sse, llm, personaDir = DEFAULT_PERSONA_DIR }) {
@@ -38,14 +45,14 @@ export function bootAiSubsystem({ db, sse, llm, personaDir = DEFAULT_PERSONA_DIR
   }
   const catalog = loadPersonaCatalog(personaDir);
   if (catalog.size === 0) throw new Error(`No personas loaded from ${personaDir}`);
-  ensureBotUser(db);
+  ensureBotUsers(db, catalog);
 
   const client = llm ?? new ClaudeCliClient({});
   const adapters = {
     cribbage:   { plugin: cribbagePlugin,   chooseAction: cribbageChoose, chooseBanter: cribbageBanter },
     backgammon: { plugin: backgammonPlugin, chooseAction: backgammonChoose },
     words:      { plugin: wordsPlugin,      chooseAction: wordsChoose },
-    risk:       { plugin: riskPlugin,       chooseAction: riskChoose },
+    risk:       { plugin: riskPlugin,       chooseAction: riskChoose, resolvePending: riskResolvePending },
     sorry:      { plugin: sorryPlugin,      chooseAction: sorryChoose },
   };
   // Per-game-type client map: each adapter gets a client at its resolved

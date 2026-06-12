@@ -5,6 +5,10 @@
 
 export type SorrySide = "a" | "b";
 
+// The four checker colours (plugins/sorry/server/colors.js). Each engine side is
+// assigned one at game creation; the client maps the name to a palette + art.
+export type SorryColor = "red" | "blue" | "green" | "orange";
+
 export type SorryCard = 1 | 2 | 3 | 4 | 5 | 7 | 8 | 10 | 11 | 12 | "sorry" | null;
 
 export type PawnZone = "start" | "track" | "safety" | "home";
@@ -34,6 +38,14 @@ export interface LegalMove {
   legs?: MoveLeg[];
 }
 
+// The breadcrumb of the most recent notable transition. Set when a player has
+// no legal move and passes (server/actions.js); cleared to null on a real move.
+export interface SorryPassEvent {
+  kind: "pass";
+  side: SorrySide;
+  card: SorryCard;
+}
+
 export interface SorryView {
   sides: Record<SorrySide, number>;
   pawns: Record<SorrySide, PawnLoc[]>;
@@ -41,15 +53,19 @@ export interface SorryView {
   drawnCard: SorryCard;
   currentPlayer: SorrySide;
   winner: SorrySide | null;
-  lastEvent: unknown;
+  lastEvent: SorryPassEvent | null;
   activeUserId: number | null;
   deckCount: number;
   youAre: SorrySide | null;
-  // Present only on the active viewer's view (server/view.js).
+  // Per-side checker colour chosen at game creation. Absent on legacy games,
+  // where the client falls back to red (a) / blue (b).
+  colors?: Record<SorrySide, SorryColor>;
+  // Present only on the active viewer's view (server/view.js). An empty array
+  // means it is the viewer's turn but they have no legal move and must pass.
   legalMoves?: LegalMove[];
 }
 
-export type SorryAction = {
-  type: "move";
-  payload: { moveId: string };
-};
+export type SorryAction =
+  | { type: "move"; payload: { moveId: string } }
+  // A pass — only legal when the player on turn has no legal move.
+  | { type: "pass" };

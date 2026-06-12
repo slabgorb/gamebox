@@ -5,7 +5,7 @@ import { validatePlugin, buildRegistry } from '../src/server/plugins.js';
 const makeStub = (overrides = {}) => ({
   id: 'stub',
   displayName: 'Stub',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/stub/client',
   initialState: () => ({}),
   applyAction: () => ({ state: {}, ended: false }),

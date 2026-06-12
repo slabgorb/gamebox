@@ -15,7 +15,7 @@ export function mountPluginClients(app, { db, registry, ai = null }) {
       const game = getGameById(db, id);
       if (!game) return res.status(404).end();
       if (game.gameType !== plugin.id) return res.status(404).end();
-      if (req.user.id !== game.playerAId && req.user.id !== game.playerBId) {
+      if (!game.participants.some(p => p.userId === req.user.id)) {
         return res.status(403).end();
       }
       req.game = game;
@@ -41,12 +41,18 @@ function serveIndex(clientDir, db, req, res, ai = null) {
   try { html = fs.readFileSync(indexPath, 'utf8'); }
   catch { return res.status(500).end('plugin index.html missing'); }
 
-  const opponentId = req.game.playerAId === req.user.id ? req.game.playerBId : req.game.playerAId;
-  const opponentRow = db.prepare('SELECT id, friendly_name, color, glyph, is_bot FROM users WHERE id = ?').get(opponentId);
-  const opponent = opponentRow ? {
-    id: opponentRow.id, friendlyName: opponentRow.friendly_name,
-    color: opponentRow.color, glyph: opponentRow.glyph, is_bot: opponentRow.is_bot === 1,
-  } : null;
+  const userRow = db.prepare('SELECT id, friendly_name, color, glyph, is_bot FROM users WHERE id = ?');
+  const players = req.game.participants.map(p => {
+    const u = userRow.get(p.userId);
+    return {
+      userId: p.userId, seat: p.seat,
+      friendlyName: u?.friendly_name ?? `Player ${p.seat + 1}`,
+      color: u?.color ?? null, glyph: u?.glyph ?? null,
+      is_bot: u?.is_bot === 1,
+    };
+  });
+  // Legacy single-opponent fields for 2P clients: the first other player.
+  const opponent = players.find(p => p.userId !== req.user.id) ?? null;
 
   let personaOverlay = null;
   if (ai && opponent && opponent.is_bot) {
@@ -64,6 +70,7 @@ function serveIndex(clientDir, db, req, res, ai = null) {
     yourFriendlyName: req.user.friendlyName,
     yourGlyph: req.user.glyph ?? null,
     yourColor: req.user.color ?? null,
+    players: players.map(({ is_bot, ...p }) => p),
     opponentFriendlyName: personaOverlay?.displayName ?? opponent?.friendlyName ?? 'Opponent',
     opponentGlyph: personaOverlay?.glyph ?? opponent?.glyph ?? null,
     opponentColor: personaOverlay?.color ?? opponent?.color ?? null,

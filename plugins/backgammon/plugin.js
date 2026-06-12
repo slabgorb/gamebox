@@ -5,7 +5,7 @@ import { backgammonPublicView } from './server/view.js';
 export default {
   id: 'backgammon',
   displayName: 'Backgammon',
-  players: 2,
+  players: { min: 2, max: 2 },
   clientDir: 'plugins/backgammon/client',
 
   initialState: buildInitialState,
