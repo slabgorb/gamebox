@@ -445,22 +445,22 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
   // and can fire for every combat in a multi-attack turn. Returns true when it
   // resolved a combat (caller should re-read state and keep driving).
   function _resolveBotCombat(gameId, gameType, state, sessions) {
-    if (!state.pendingCombat) return false;
+    if (!state.pendingCombat) return { resolved: false };
     const adapter = adapters[gameType];
-    if (!adapter?.resolvePending) return false;
+    if (!adapter?.resolvePending) return { resolved: false };
     // pendingCombat hands activeUserId to the defender. If that is a human,
     // their client drives the dice — leave it for the resolved POST.
     const defenderId = state.activeUserId;
-    if (!sessions.some(s => s.botUserId === defenderId)) return false;
+    if (!sessions.some(s => s.botUserId === defenderId)) return { resolved: false };
 
     const action = adapter.resolvePending(state, rngFor(gameId));
-    if (!action) return false;
+    if (!action) return { resolved: false };
     const result = adapter.plugin.applyAction({
       state, action, actorId: defenderId, rng: rngFor(gameId),
     });
     if (result.error) {
       logger.warn?.(`[ai] game ${gameId} server-side combat resolve rejected: ${result.error}`);
-      return false;
+      return { resolved: false };
     }
     const newState = result.state;
     // Mirror the route's resolved-attack attribution: the actor is the
@@ -489,7 +489,11 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         },
       });
     }
-    return true;
+    // Clearing pendingCombat hands the turn back to the attacker (now the
+    // active player). Return it so the scan can un-mark it as attempted and
+    // let it resume its turn in this same wake-up instead of waiting for an
+    // external nudge (a page refresh).
+    return { resolved: true, resumedBot: newState.activeUserId ?? null };
   }
 
   async function _runOnce(gameId) {
@@ -507,7 +511,12 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
       if (sessions.length === 0) return;
       // Resolve any bot-vs-bot combat awaiting dice before scanning for a bot
       // to drive; the attacker can then continue its turn on the next pass.
-      if (_resolveBotCombat(gameId, gameRow.game_type, state, sessions)) continue;
+      const combat = _resolveBotCombat(gameId, gameRow.game_type, state, sessions);
+      if (combat.resolved) {
+        // The attacker resumes as active player — let it act again this scan.
+        if (combat.resumedBot != null) attempted.delete(combat.resumedBot);
+        continue;
+      }
       const eligible = sessions.find(
         s => !attempted.has(s.botUserId) && botEligible(state, s.botUserId),
       );
