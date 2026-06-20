@@ -74,4 +74,29 @@ describe("AiRoster", () => {
     );
     expect(container.querySelector(".ai-roster")).toBeNull();
   });
+
+  it("shows a thinking bubble for the matching bot and clears it on update", async () => {
+    render(<AiRoster bots={bots} gameId={7} userId={1} sseUrl="/api/games/7/events" />);
+    emit("bot_thinking", { personaId: "hattie", displayName: "Hattie" });
+    await waitFor(() => expect(screen.getByText(/Hattie is thinking/i)).toBeInTheDocument());
+    expect(document.querySelectorAll(".opp-card__bubble").length).toBe(1);
+    emit("update", {});
+    await waitFor(() =>
+      expect(document.querySelectorAll(".opp-card__bubble").length).toBe(0),
+    );
+  });
+
+  it("abandons the game with no request body", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+    render(<AiRoster bots={bots} gameId={7} userId={1} sseUrl="/api/games/7/events" />);
+    emit("bot_stalled", { personaId: "hattie", displayName: "Hattie", reason: "invalid_response" });
+    const abandon = await screen.findByRole("button", { name: /abandon game/i });
+    await userEvent.click(abandon);
+    expect(fetchMock).toHaveBeenCalledWith("/api/games/7/ai/abandon", { method: "POST" });
+  });
 });
