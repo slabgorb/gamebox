@@ -31,6 +31,26 @@ export function resolvePendingCombat(state, rng) {
 const MAX_SHORTLIST = 6;
 const TERMINATORS_BY_PHASE = { attack: 'end-attack', fortify: 'end-turn' };
 
+// The LLM is shown each candidate as "id: summary" and told to return one of
+// the ids — but it sometimes echoes the whole rendered line back as the moveId
+// (e.g. "trade-in: trade in card set 0,1,2") or drops the colon. Resolve such a
+// response to the legal move whose id is its leading token. Longest id wins so
+// "deploy:10" is not shadowed by "deploy:1", and the match must end on a token
+// boundary so an id can't swallow an unrelated longer word.
+function resolveLlmMove(shortlist, raw) {
+  if (typeof raw !== 'string') return null;
+  const exact = shortlist.find(m => m.id === raw);
+  if (exact) return exact;
+  const byLongest = [...shortlist].sort((a, b) => b.id.length - a.id.length);
+  for (const m of byLongest) {
+    if (raw.startsWith(m.id)) {
+      const rest = raw.slice(m.id.length);
+      if (rest === '' || /^[\s:]/.test(rest)) return m;
+    }
+  }
+  return null;
+}
+
 export async function chooseAction({
   llm, persona, sessionId, state, botPlayerIdx, userMessages = [], mode = 'live',
 }) {
@@ -62,7 +82,7 @@ export async function chooseAction({
   try { parsed = parseLlmResponse(r.text); }
   catch (e) { throw new InvalidLlmResponse(e.message); }
 
-  const match = shortlist.find(m => m.id === parsed.moveId);
+  const match = resolveLlmMove(shortlist, parsed.moveId);
   if (!match) throw new InvalidLlmMove(parsed.moveId, shortlist.map(m => m.id));
 
   // Serialize shortlist to a slim {id, summary, score} shape suitable for

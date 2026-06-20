@@ -132,3 +132,51 @@ test('chooseAction shortlist always includes end-attack in attack phase', async 
   assert.match(capturedPrompt, /end-attack/, 'shortlist must include end-attack');
   assert.equal(r.action.type, 'end-attack');
 });
+
+// ---- the LLM sometimes echoes the rendered "id: summary" candidate line back
+// as the moveId (e.g. "trade-in: trade in card set 0,1,2"). The matcher must
+// recover instead of stalling the bot on a forced trade. ----
+
+function reinforceTradeState() {
+  const territories = {};
+  for (const id of allTerritories()) territories[id] = { owner: 1, armies: 1 };
+  territories.alaska = { owner: 0, armies: 1 };
+  return {
+    phase: 'reinforce', currentPlayer: 0, territories,
+    reinforcePool: 3, setupPools: [0, 0],
+    hands: [
+      [{ territory: 'alaska', type: 'infantry' },
+       { territory: 'alberta', type: 'infantry' },
+       { territory: 'nwt', type: 'infantry' }],
+      [],
+    ],
+    tradeInCount: 0, activeUserId: 7,
+  };
+}
+
+test('chooseAction resolves a trade-in when the LLM echoes the rendered candidate line', async () => {
+  const llm = new FakeLlmClient([
+    { text: '{"moveId":"trade-in: trade in card set 0,1,2","banter":"cashing in"}', sessionId: 's' },
+  ]);
+  const r = await chooseAction({ llm, persona, sessionId: null, state: reinforceTradeState(), botPlayerIdx: 0 });
+  assert.equal(r.action.type, 'trade-in');
+  assert.deepEqual(r.action.payload, { cardIndices: [0, 1, 2] });
+  assert.equal(r.chosenMoveId, 'trade-in');
+});
+
+test('chooseAction resolves a trade-in when the LLM drops the colon', async () => {
+  const llm = new FakeLlmClient([
+    { text: '{"moveId":"trade-in card set 0,1,2","banter":"go"}' },
+  ]);
+  const r = await chooseAction({ llm, persona, sessionId: null, state: reinforceTradeState(), botPlayerIdx: 0 });
+  assert.equal(r.action.type, 'trade-in');
+  assert.equal(r.chosenMoveId, 'trade-in');
+});
+
+test('chooseAction still rejects a genuinely illegal moveId', async () => {
+  const llm = new FakeLlmClient([{ text: '{"moveId":"trade-out everything","banter":"x"}' }]);
+  await assert.rejects(
+    () => chooseAction({ llm, persona, sessionId: null, state: reinforceTradeState(), botPlayerIdx: 0 }),
+    InvalidLlmMove,
+  );
+});

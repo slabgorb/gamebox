@@ -105,3 +105,31 @@ test('card value does not dominate continent control', () => {
   assert.ok(continentNoCards > evaluateBoard(scattered, 0).total,
     'a held set must not outweigh losing a continent territory');
 });
+
+// ---- a trade-in is scored by the escalating bonus it grants, so the bot
+// cashes sets in promptly instead of hoarding (board-eval blind spot fix) ----
+
+function reinforceWithSet(tradeInCount = 0) {
+  const s = fullNamerica();
+  s.phase = 'reinforce';
+  s.reinforcePool = 3;
+  s.hands = [[inf('alaska'), inf('alberta'), inf('nwt')], []];
+  s.tradeInCount = tradeInCount;
+  return s;
+}
+
+test('scoreCandidate credits a trade-in above the no-op board baseline', () => {
+  const s = reinforceWithSet(0);
+  const baseline = evaluateBoard(s, 0).total;
+  const action = { type: 'trade-in', payload: { cardIndices: [0, 1, 2] } };
+  assert.ok(scoreCandidate(s, 0, action) > baseline,
+    'trade-in must score above the unchanged board so it is not ranked dead last');
+});
+
+test('scoreCandidate values a later (bigger-bonus) trade-in more', () => {
+  const action = { type: 'trade-in', payload: { cardIndices: [0, 1, 2] } };
+  const early = scoreCandidate(reinforceWithSet(0), 0, action);
+  const late = scoreCandidate(reinforceWithSet(4), 0, action);
+  assert.ok(late > early,
+    'a higher tradeInCount (escalating bonus) must score higher');
+});
