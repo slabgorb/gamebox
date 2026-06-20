@@ -180,3 +180,9 @@
   .opp-card__name { font-size: 11px; }
   .opp-card__bubble { font-size: 12px; padding: 6px 8px; }
 }
+
+.ai-roster {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
