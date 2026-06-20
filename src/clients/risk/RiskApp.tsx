@@ -12,8 +12,7 @@ import { History } from "./History";
 import { EndScreen } from "./EndScreen";
 import { Header } from "./Header";
 import { CombatReveal } from "./CombatReveal";
-import { OpponentCard } from "../shared/OpponentCard";
-import { OpponentBanter } from "../shared/OpponentBanter";
+import { AiRoster, type BotSeat } from "../shared/AiRoster";
 import { play, primeAudio } from "./sounds";
 import { seatHex } from "./themes";
 
@@ -93,6 +92,26 @@ export function RiskApp() {
     (uid, seat) => ctx.players?.find((p) => p.userId === uid)?.friendlyName ?? `Player ${seat + 1}`,
   );
 
+  // Bots to surface in the AI roster. A bot's userId is its botUserId.
+  // personaId comes from the enriched roster; for a legacy 2P game that
+  // predates the server change, fall back to the singular overlay.
+  const bots: BotSeat[] = (ctx.players ?? [])
+    .filter((p) => p.isBot && p.userId !== ctx.userId)
+    .map((p) => {
+      const personaId =
+        p.personaId ?? (nPlayers === 2 ? ctx.opponentPersonaId ?? null : null);
+      if (!personaId) return null;
+      return {
+        seat: p.seat,
+        userId: p.userId,
+        personaId,
+        friendlyName: nPlayers === 2 ? ctx.opponentFriendlyName ?? p.friendlyName : p.friendlyName,
+        color: nPlayers > 2 ? seatHex(p.seat) : ctx.opponentColor ?? p.color,
+        glyph: nPlayers === 2 ? ctx.opponentGlyph ?? p.glyph : p.glyph,
+      } satisfies BotSeat;
+    })
+    .filter((b): b is BotSeat => b !== null);
+
   if (view.phase === "gameover") return <EndScreen view={view} seatNames={seatNames} />;
 
   const attackerColor =
@@ -160,21 +179,12 @@ export function RiskApp() {
 
       <CardTray view={view} post={post} />
 
-      {nPlayers === 2 && (
-        <OpponentCard
-          personaId={ctx.opponentPersonaId ?? null}
-          friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
-          color={ctx.opponentColor}
-          glyph={ctx.opponentGlyph}
-        >
-          <OpponentBanter
-            gameId={ctx.gameId}
-            userId={ctx.userId}
-            sseUrl={ctx.sseUrl}
-            friendlyName={ctx.opponentFriendlyName ?? "Opponent"}
-          />
-        </OpponentCard>
-      )}
+      <AiRoster
+        bots={bots}
+        gameId={ctx.gameId}
+        userId={ctx.userId}
+        sseUrl={ctx.sseUrl}
+      />
 
       <Board
         view={view}
