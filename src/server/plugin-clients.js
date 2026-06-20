@@ -42,20 +42,28 @@ function serveIndex(clientDir, db, req, res, ai = null) {
   catch { return res.status(500).end('plugin index.html missing'); }
 
   const userRow = db.prepare('SELECT id, friendly_name, color, glyph, is_bot FROM users WHERE id = ?');
+  // botUserId -> personaId for this game (one bot user per persona).
+  const sessionPersona = new Map(
+    db.prepare('SELECT bot_user_id, persona_id FROM ai_sessions WHERE game_id = ?')
+      .all(req.game.id)
+      .map(r => [r.bot_user_id, r.persona_id]),
+  );
   const players = req.game.participants.map(p => {
     const u = userRow.get(p.userId);
+    const isBot = u?.is_bot === 1;
     return {
       userId: p.userId, seat: p.seat,
       friendlyName: u?.friendly_name ?? `Player ${p.seat + 1}`,
       color: u?.color ?? null, glyph: u?.glyph ?? null,
-      is_bot: u?.is_bot === 1,
+      isBot,
+      personaId: isBot ? (sessionPersona.get(p.userId) ?? null) : null,
     };
   });
   // Legacy single-opponent fields for 2P clients: the first other player.
   const opponent = players.find(p => p.userId !== req.user.id) ?? null;
 
   let personaOverlay = null;
-  if (ai && opponent && opponent.is_bot) {
+  if (ai && opponent && opponent.isBot) {
     const sess = db.prepare("SELECT persona_id FROM ai_sessions WHERE game_id = ?").get(req.game.id);
     if (sess) personaOverlay = ai.personas?.get(sess.persona_id) ?? null;
   }
@@ -70,7 +78,7 @@ function serveIndex(clientDir, db, req, res, ai = null) {
     yourFriendlyName: req.user.friendlyName,
     yourGlyph: req.user.glyph ?? null,
     yourColor: req.user.color ?? null,
-    players: players.map(({ is_bot, ...p }) => p),
+    players,
     opponentFriendlyName: personaOverlay?.displayName ?? opponent?.friendlyName ?? 'Opponent',
     opponentGlyph: personaOverlay?.glyph ?? opponent?.glyph ?? null,
     opponentColor: personaOverlay?.color ?? opponent?.color ?? null,
