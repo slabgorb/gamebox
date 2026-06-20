@@ -1,0 +1,87 @@
+id: E4
+type: epic
+title: N-Player AI Platform
+description: "Multi-bot-per-game AI platform. E4-1 (seat-indexed ai_sessions, multi-bot orchestrator drive loop, winner_seats array, one bot user per persona, 4P Risk vs human/bot mix) shipped in PR #74. Remaining stories surface the multi-bot AI on the CLIENT and close two server seams that are inert for the shipped 4P Risk path but latent for any N-player client. Frame stays 'Risk LLM is about style, server-side first' — these make the bot personalities visible and correct per-seat."
+priority: p2
+status: in_progress
+repos: g-1
+stories:
+  - id: E4-1
+    title: N-player AI platform (seat-indexed sessions, multi-bot orchestrator, winner_seats)
+    description: |-
+      Generalize the 2P/single-bot server to N bots per game. Re-key ai_sessions to
+      composite (game_id, bot_user_id); every accessor 3-arg + listAiSessions. Orchestrator
+      _runOnce drives every eligible bot in seat order, chaining bot->bot in one wake-up.
+      winner_seat INTEGER -> winner_seats TEXT (JSON int array) via the single winSeatsFromState
+      normalizer. One bot user per persona (users.persona_id); game creation makes one session
+      per bot seat. Proven by 4P Risk vs a human/bot mix driven server-side to a single winner.
+      Full suite 1140 pass / 0 fail / 1 skipped.
+    points: 8
+    priority: p1
+    status: done
+    repos: g-1
+    workflow: superpowers
+    type: feature
+    branch: feat/e4-1-nplayer-ai-platform
+    completed: '2026-06-10'
+    review_verdict: approved
+  - id: E4-2
+    title: Multi-bot AI client surface for N>2 games
+    description: |-
+      The multi-bot AI is server-side only today. In a 4P Risk game the bot
+      banter/thinking/stalled SSE events fire, but the Risk client mounts per-bot UI only at
+      2 players (gated `d === 2` in plugins/risk/client/app.js), and the opponent-card
+      retry/abandon POSTs omit `botUserId` — which `resolveBotUserId` rejects for >1 session.
+      So bot personalities are invisible in 4P and a stalled bot cannot be retried/abandoned
+      from the UI.
+
+      Scope: render an AI roster/status surface for N>2 (per-seat persona portrait, banter,
+      thinking indicator, stalled badge); wire retry/abandon to send the target `botUserId`
+      so the >1-session routes accept them. The server already accepts `botUserId` on
+      /ai/retry and /chat (E4-1).
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: superpowers
+    type: feature
+    acceptance_criteria:
+      - In a 4P Risk game with 3 bots, each bot's banter is shown attributed to its seat/persona.
+      - Each bot's thinking indicator and stalled badge render per seat (not only at 2 players).
+      - A stalled bot can be retried from the client (POST carries its botUserId, route accepts it).
+      - A stalled bot can be abandoned from the client (POST carries its botUserId).
+  - id: E4-3
+    title: Seat-to-side SSE coercion breaks for seats >= 2
+    description: |-
+      orchestrator.js collapses `botPlayerIdx === 0 ? 'a' : 'b'` when building SSE
+      banter/bot_thinking/bot_stalled payloads (~lines 98, 164, 176), so seats 2 and 3 both
+      report `side: 'b'`. Inert today because the 4P Risk client renders no per-bot status UI
+      for d>2, but latent the moment an N-player client consumes these events (blocks E4-2).
+      Replace the binary side coercion with a seat-accurate identifier (seat index and/or
+      botUserId) in the SSE payloads.
+    points: 2
+    priority: p3
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    type: bug
+    acceptance_criteria:
+      - SSE banter/bot_thinking/bot_stalled payloads carry a seat-accurate identifier for seats >= 2.
+      - A test asserts seat 2 and seat 3 are distinguishable in the emitted payloads (not both 'b').
+  - id: E4-4
+    title: Persona overlay picks arbitrary session in multi-bot game
+    description: |-
+      src/server/plugin-clients.js:59 runs `SELECT persona_id FROM ai_sessions WHERE game_id = ?`
+      with a bare `.get()`, so in a multi-bot game it grabs whichever row sqlite returns first.
+      Only consumed by the 2P opponent-card overlay (gated `d === 2` in Risk), so harmless for the
+      shipped path, but it's a 2P-shaped assumption in an N-bot world. Make the persona lookup
+      seat/bot-scoped (resolve the persona for the specific opponent seat being rendered).
+    points: 2
+    priority: p3
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    type: bug
+    acceptance_criteria:
+      - The persona overlay resolves the persona for the specific opponent seat, not an arbitrary session.
+      - A test with two bot sessions in one game asserts the correct persona is returned per seat.
