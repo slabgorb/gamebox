@@ -1,5 +1,6 @@
 import { CONTINENTS, continentBonus, neighborsOf } from '../map.js';
 import { findTradeInSet } from './legal-moves.js';
+import { tradeBonus } from '../actions.js';
 
 // Held cards are a strategic asset: each guarantees future reinforcements and a
 // completable set unlocks an escalating army bonus. Valued modestly (per-card +
@@ -63,6 +64,13 @@ export function scoreCandidate(state, p, action) {
     return advantage + targetValue;
   }
   if (action.type === 'end-attack' || action.type === 'end-turn') return -0.5;
+  if (action.type === 'trade-in') {
+    // Cashing a set adds the escalating bonus to the reinforce pool. Score it as
+    // the board plus that bonus so trade-in ranks above an ordinary deploy's
+    // positional delta — and climbs as the bonus grows — instead of falling
+    // through to the no-op baseline and being ranked dead last (then ignored).
+    return evaluateBoard(state, p).total + tradeBonus(state.tradeInCount ?? 0);
+  }
   // deploy / setup-deploy / fortify: score the resulting board positionally.
   const after = JSON.parse(JSON.stringify(state));
   if (action.type === 'deploy' || action.type === 'setup-deploy') {
