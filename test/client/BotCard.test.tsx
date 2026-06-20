@@ -14,8 +14,9 @@ describe("BotCard", () => {
     const card = container.querySelector(".opp-card");
     expect(card).not.toBeNull();
     expect(card!.querySelector(".opp-card__name")!.textContent).toBe("Hattie");
-    const img = card!.querySelector("img.opp-card__img") as HTMLImageElement;
-    expect(img.getAttribute("src")).toBe("/shared/portraits/hattie.png");
+    const img = card!.querySelector("img.opp-card__img");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("/shared/portraits/hattie.png");
   });
 
   it("shows a banter bubble when bubble is set", () => {
@@ -38,5 +39,15 @@ describe("BotCard", () => {
     );
     await userEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it("renders the thinking dots when bubble.thinking is true", () => {
+    const { container } = render(
+      <BotCard
+        personaId="hattie" friendlyName="Hattie"
+        bubble={{ text: "Hattie is thinking", thinking: true }} stall={null} onRetry={vi.fn()}
+      />,
+    );
+    expect(container.querySelector(".opp-card__dots")).not.toBeNull();
   });
 });
