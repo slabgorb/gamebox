@@ -51,6 +51,9 @@ describe("AiRoster", () => {
         body: JSON.stringify({ botUserId: 13 }),
       }),
     );
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /retry/i })).toBeNull(),
+    );
   });
 
   it("broadcasts a chat message to every bot", async () => {
@@ -83,6 +86,16 @@ describe("AiRoster", () => {
     emit("update", {});
     await waitFor(() =>
       expect(document.querySelectorAll(".opp-card__bubble").length).toBe(0),
+    );
+  });
+
+  it("flashes a failure message when a chat broadcast POST fails", async () => {
+    fetchMock.mockResolvedValue({ ok: false, json: async () => ({ error: "nope" }) });
+    render(<AiRoster bots={bots} gameId={7} userId={1} sseUrl="/api/games/7/events" />);
+    const input = screen.getByPlaceholderText(/talk smack/i);
+    await userEvent.type(input, "hi{enter}");
+    await waitFor(() =>
+      expect(screen.getByText(/message failed to send/i)).toBeInTheDocument(),
     );
   });
 

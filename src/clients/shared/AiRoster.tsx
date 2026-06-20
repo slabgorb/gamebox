@@ -27,6 +27,7 @@ const EMPTY: PersonaState = { bubble: null, stall: null };
 export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
   const [state, setState] = useState<Record<string, PersonaState>>({});
   const [myFlash, setMyFlash] = useState<string | null>(null);
+  const [chatSubmitting, setChatSubmitting] = useState(false);
   const hideTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -141,15 +142,27 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
     const text = (inputRef.current?.value ?? "").trim();
     if (!text) return;
     if (inputRef.current) inputRef.current.value = "";
-    await Promise.all(
-      bots.map((b) =>
-        fetch(`/api/games/${gameId}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, botUserId: b.userId }),
-        }).catch(() => {}),
-      ),
-    );
+    setChatSubmitting(true);
+    try {
+      const results = await Promise.all(
+        bots.map((b) =>
+          fetch(`/api/games/${gameId}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text, botUserId: b.userId }),
+          })
+            .then((r) => r.ok)
+            .catch(() => false),
+        ),
+      );
+      if (results.some((ok) => !ok)) {
+        setMyFlash("(message failed to send)");
+        if (flashTimer.current) clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => setMyFlash(null), 4000);
+      }
+    } finally {
+      setChatSubmitting(false);
+    }
   }
 
   if (bots.length === 0) return null;
@@ -180,6 +193,7 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
           maxLength={200}
           placeholder="Talk smack…"
           autoComplete="off"
+          disabled={chatSubmitting}
         />
         <button type="submit" hidden>
           Submit
