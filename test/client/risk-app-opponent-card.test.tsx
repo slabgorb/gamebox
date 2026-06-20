@@ -70,6 +70,7 @@ describe("RiskApp AI roster", () => {
     expect(cards.length).toBe(1);
     const img = cards[0].querySelector("img.opp-card__img") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/shared/portraits/hattie.png");
+    expect(cards[0].querySelector(".opp-card__name")?.textContent).toBe("Hattie");
   });
 
   it("renders no card when the only opponent is human", async () => {
@@ -84,6 +85,47 @@ describe("RiskApp AI roster", () => {
       expect(screen.getByText(/Phase: attack/i)).toBeInTheDocument(),
     );
     expect(container.querySelector(".opp-card")).toBeNull();
+  });
+
+  it("renders one card per bot for an N>2 game", async () => {
+    vi.resetModules();
+    vi.doMock("../../src/clients/shared/useGameState", () => ({
+      useGameState: () => ({
+        view: { ...view, seats: [1, 11, 22] },
+        status: "live",
+        actionError: null,
+        post: vi.fn(),
+        ctx: {
+          gameId: 99,
+          userId: 1,
+          gameType: "risk",
+          sseUrl: "/api/games/99/events",
+          actionUrl: "/api/games/99/action",
+          stateUrl: "/api/games/99",
+          yourFriendlyName: "Me",
+          yourColor: "#c33",
+          players: [
+            { userId: 1, seat: 0, friendlyName: "Me", color: "#c33", glyph: null, isBot: false, personaId: null },
+            { userId: 11, seat: 1, friendlyName: "Hattie", color: "#a00", glyph: "x", isBot: true, personaId: "hattie" },
+            { userId: 22, seat: 2, friendlyName: "Shark", color: "#0a0", glyph: "y", isBot: true, personaId: "the-shark" },
+          ],
+        },
+      }),
+    }));
+    const { RiskApp } = await import("../../src/clients/risk/RiskApp");
+    const { container } = render(<RiskApp />);
+    await waitFor(() =>
+      expect(screen.getByText(/Phase: attack/i)).toBeInTheDocument(),
+    );
+    const cards = container.querySelectorAll(".opp-card");
+    expect(cards.length).toBe(2);
+    const srcs = Array.from(container.querySelectorAll("img.opp-card__img"))
+      .map((i) => i.getAttribute("src"))
+      .sort();
+    expect(srcs).toEqual([
+      "/shared/portraits/hattie.png",
+      "/shared/portraits/the-shark.png",
+    ]);
   });
 
   it("falls back to opponentPersonaId for a legacy 2P bot seat", async () => {
@@ -102,5 +144,6 @@ describe("RiskApp AI roster", () => {
     );
     const img = container.querySelector("img.opp-card__img") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/shared/portraits/professor-doofi.png");
+    expect(container.querySelector(".opp-card__name")?.textContent).toBe("Professor Doofi");
   });
 });
