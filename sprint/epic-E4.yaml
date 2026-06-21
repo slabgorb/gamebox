@@ -21,9 +21,9 @@ stories:
     status: done
     repos: g-1
     workflow: superpowers
+    completed: '2026-06-10'
     type: feature
     branch: feat/e4-1-nplayer-ai-platform
-    completed: '2026-06-10'
     review_verdict: approved
   - id: E4-2
     title: Multi-bot AI client surface for N>2 games
@@ -41,15 +41,16 @@ stories:
       /ai/retry and /chat (E4-1).
     points: 5
     priority: p2
-    status: backlog
+    status: done
     repos: g-1
     workflow: superpowers
-    type: feature
     acceptance_criteria:
       - In a 4P Risk game with 3 bots, each bot's banter is shown attributed to its seat/persona.
       - Each bot's thinking indicator and stalled badge render per seat (not only at 2 players).
       - A stalled bot can be retried from the client (POST carries its botUserId, route accepts it).
       - A stalled bot can be abandoned from the client (POST carries its botUserId).
+    completed: '2026-06-21'
+    type: feature
   - id: E4-3
     title: Seat-to-side SSE coercion breaks for seats >= 2
     description: |-
@@ -64,10 +65,10 @@ stories:
     status: backlog
     repos: g-1
     workflow: tdd
-    type: bug
     acceptance_criteria:
       - SSE banter/bot_thinking/bot_stalled payloads carry a seat-accurate identifier for seats >= 2.
       - A test asserts seat 2 and seat 3 are distinguishable in the emitted payloads (not both 'b').
+    type: bug
   - id: E4-4
     title: Persona overlay picks arbitrary session in multi-bot game
     description: |-
@@ -81,7 +82,7 @@ stories:
     status: backlog
     repos: g-1
     workflow: tdd
-    type: bug
     acceptance_criteria:
       - The persona overlay resolves the persona for the specific opponent seat, not an arbitrary session.
       - A test with two bot sessions in one game asserts the correct persona is returned per seat.
+    type: bug
