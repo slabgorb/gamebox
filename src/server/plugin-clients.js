@@ -62,10 +62,12 @@ function serveIndex(clientDir, db, req, res, ai = null) {
   // Legacy single-opponent fields for 2P clients: the first other player.
   const opponent = players.find(p => p.userId !== req.user.id) ?? null;
 
+  // Resolve the overlay from the rendered opponent's own persona — already
+  // scoped to that seat via the sessionPersona map above — not whichever
+  // ai_sessions row the DB happens to return first in a multi-bot game.
   let personaOverlay = null;
-  if (ai && opponent && opponent.isBot) {
-    const sess = db.prepare("SELECT persona_id FROM ai_sessions WHERE game_id = ?").get(req.game.id);
-    if (sess) personaOverlay = ai.personas?.get(sess.persona_id) ?? null;
+  if (ai && opponent && opponent.isBot && opponent.personaId) {
+    personaOverlay = ai.personas?.get(opponent.personaId) ?? null;
   }
 
   const ctx = {
