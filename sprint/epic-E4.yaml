@@ -79,10 +79,13 @@ stories:
       seat/bot-scoped (resolve the persona for the specific opponent seat being rendered).
     points: 2
     priority: p3
-    status: backlog
+    status: done
+    started: '2026-06-21'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
       - The persona overlay resolves the persona for the specific opponent seat, not an arbitrary session.
       - A test with two bot sessions in one game asserts the correct persona is returned per seat.
+    completed: '2026-06-21'
     type: bug
+    review_verdict: approved
