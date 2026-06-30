@@ -10,10 +10,11 @@ stories:
     title: 'Interactive attack overlay: per-round battle cards + Manual/Blitz/Stop'
     points: 5
     priority: p1
-    status: in_review
+    status: done
     started: '2026-06-30'
     repos: g-1
     workflow: tdd
+    completed: '2026-06-30'
     review_verdict: approved
   - id: E5-2
     title: 'Territory trade-in bonus: verify it forces placement + record in log'

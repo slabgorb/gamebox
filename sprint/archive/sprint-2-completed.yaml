@@ -41,3 +41,8 @@ completed_stories:
     title: Client UI (board, card flip, move interaction, win banner) + orchestrator integration + playtest
     points: 3
     completed: '2026-05-28'
+  - id: E5-1
+    epic: E5
+    title: 'Interactive attack overlay: per-round battle cards + Manual/Blitz/Stop'
+    points: 5
+    completed: '2026-06-30'
