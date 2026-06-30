@@ -142,9 +142,14 @@ function applyTradeIn(s, playerIdx, payload) {
   s.tradeInCount = (s.tradeInCount ?? 0) + 1;
 
   // Territory-match: +2 armies on one owned territory named by a traded card.
+  // Capture which territory got the bonus so the log can record it (E5-6 reads this).
+  let bonusTerritory = null;
+  let bonusArmies = 0;
   for (const c of cards) {
     if (c.territory !== null && s.territories[c.territory]?.owner === playerIdx) {
       s.territories[c.territory].armies += 2;
+      bonusTerritory = c.territory;
+      bonusArmies = 2;
       break;
     }
   }
@@ -152,7 +157,11 @@ function applyTradeIn(s, playerIdx, payload) {
   s.discard = s.discard ?? [];
   s.hands[playerIdx] = hand.filter((_, i) => !remove.has(i));
   for (const c of cards) s.discard.push(c);
-  s.log.push({ kind: 'trade-in', player: playerIdx });
+  s.log.push({
+    kind: 'trade-in',
+    player: playerIdx,
+    ...(bonusTerritory !== null ? { bonusTerritory, bonusArmies } : {}),
+  });
   return null;
 }
 

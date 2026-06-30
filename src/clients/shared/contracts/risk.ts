@@ -50,6 +50,10 @@ export interface RiskLogEntry {
   captured?: boolean;
   next?: number;
   placements?: Record<string, number>;
+  // Territory trade-in bonus (E5-2): set on a `trade-in` entry when a traded
+  // card named an owned territory, which auto-received +2 armies. E5-6 itemizes it.
+  bonusTerritory?: string;
+  bonusArmies?: number;
 }
 
 export interface PendingCombat {
