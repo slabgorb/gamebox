@@ -144,6 +144,68 @@ test('no territory-match bonus when no traded card matches an owned territory', 
   }
 });
 
+// ---- E5-2 AC2: once per trade ---------------------------------------------
+
+test('only one +2 is applied even when multiple traded cards match owned territories', () => {
+  // alaska AND nwt are both owned by player 0 and both named by traded cards.
+  // The rule breaks after the first match, so exactly one +2 lands in total.
+  const s = reinforceWithHand([inf('alaska'), cav('nwt'), art('japan')]);
+  const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
+  assert.equal(r.error, undefined, `trade rejected: ${r.error}`);
+  const matchedTotal = r.state.territories.alaska.armies + r.state.territories.nwt.armies;
+  // Each owned territory starts at 1 (total 2). Exactly one +2 => total 4, never 6.
+  assert.equal(matchedTotal, 4,
+    'exactly one +2 lands across all owned territories named by the set');
+});
+
+// ---- E5-2 AC3: wild cards never trigger a bonus ---------------------------
+
+test('a wild card (null territory) never triggers a territory bonus', () => {
+  // Two wilds + a card on an UNOWNED territory: nothing names an owned territory.
+  const s = reinforceWithHand([wild(), wild(), inf('egypt')]);
+  const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
+  assert.equal(r.error, undefined, `trade rejected: ${r.error}`);
+  for (const id of OWNED0) {
+    assert.equal(r.state.territories[id].armies, 1,
+      `no +2 should land on ${id} via a wild card`);
+  }
+});
+
+test('with a wild in the set, only the real owned-territory card grants the +2', () => {
+  // alaska is owned by player 0; the wild contributes no territory match.
+  const s = reinforceWithHand([inf('alaska'), cav('egypt'), wild()]);
+  const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
+  assert.equal(r.error, undefined, `trade rejected: ${r.error}`);
+  assert.equal(r.state.territories.alaska.armies, 3,
+    'the real owned-territory card grants +2; the wild grants nothing');
+});
+
+// ---- E5-2 AC4: the bonus is recorded in the trade-in log entry -------------
+
+test('the trade-in log entry records the territory bonus when one fires', () => {
+  const s = reinforceWithHand([inf('alaska'), cav('egypt'), art('japan')]);
+  const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
+  assert.equal(r.error, undefined, `trade rejected: ${r.error}`);
+  const entry = r.state.log.find(e => e.kind === 'trade-in');
+  assert.ok(entry, 'a trade-in log entry is recorded');
+  assert.equal(entry.bonusTerritory, 'alaska',
+    'the log entry names the territory that received the +2');
+  assert.equal(entry.bonusArmies, 2,
+    'the log entry records the +2 amount so E5-6 can itemize it');
+});
+
+test('the trade-in log entry omits the bonus fields when no territory matched', () => {
+  const s = reinforceWithHand([inf('egypt'), cav('japan'), art('peru')]);
+  const r = applyRiskAction({ state: s, action: tradeIn([0, 1, 2]), actorId: 7 });
+  assert.equal(r.error, undefined, `trade rejected: ${r.error}`);
+  const entry = r.state.log.find(e => e.kind === 'trade-in');
+  assert.ok(entry, 'a trade-in log entry is recorded');
+  assert.equal(entry.bonusTerritory ?? null, null,
+    'no bonusTerritory is recorded when nothing matched');
+  assert.equal(entry.bonusArmies ?? null, null,
+    'no bonusArmies is recorded when nothing matched');
+});
+
 // ---- AC6: forced trade-in at >=5 cards -------------------------------------
 
 test('a player holding five cards must trade before deploying', () => {
