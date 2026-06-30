@@ -21,9 +21,12 @@ stories:
     description: 'The +2-on-owned-matched-territory rule is ALREADY implemented (plugins/risk/server/actions.js applyTradeIn, ~line 144): it auto-adds 2 armies to the first traded card whose territory the player owns, once per trade. Gap: it is silent (the trade-in log entry carries no bonus info) and untested. Lock the behavior with a test and enrich the log/view so E5-6 can surface it. NOT a from-scratch rule build.'
     points: 2
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-06-30'
     repos: g-1
     workflow: tdd
+    completed: '2026-06-30'
+    review_verdict: approved
   - id: E5-3
     title: 'Pre-game lobby: pick colors + roll-off for turn order'
     points: 5

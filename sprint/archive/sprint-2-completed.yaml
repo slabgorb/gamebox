@@ -46,3 +46,8 @@ completed_stories:
     title: 'Interactive attack overlay: per-round battle cards + Manual/Blitz/Stop'
     points: 5
     completed: '2026-06-30'
+  - id: E5-2
+    epic: E5
+    title: 'Territory trade-in bonus: verify it forces placement + record in log'
+    points: 2
+    completed: '2026-06-30'
