@@ -10,10 +10,11 @@ stories:
     title: 'Interactive attack overlay: per-round battle cards + Manual/Blitz/Stop'
     points: 5
     priority: p1
-    status: in_progress
+    status: in_review
     started: '2026-06-30'
     repos: g-1
     workflow: tdd
+    review_verdict: approved
   - id: E5-2
     title: 'Territory trade-in bonus: verify it forces placement + record in log'
     description: 'The +2-on-owned-matched-territory rule is ALREADY implemented (plugins/risk/server/actions.js applyTradeIn, ~line 144): it auto-adds 2 armies to the first traded card whose territory the player owns, once per trade. Gap: it is silent (the trade-in log entry carries no bonus info) and untested. Lock the behavior with a test and enrich the log/view so E5-6 can surface it. NOT a from-scratch rule build.'
