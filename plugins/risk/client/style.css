@@ -741,6 +741,59 @@ body::before {
   align-self: center;
 }
 
+/* Interactive battle log: a thin card per resolved round (human attacker). */
+#risk-root .combat-reveal__log {
+  list-style: none;
+  margin: .5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+#risk-root .combat-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  padding: .2rem .5rem;
+  border: 1px solid var(--ink);
+  border-radius: .25rem;
+  background: rgba(74, 58, 30, .25);
+  font-family: var(--serif-map-sc, Georgia, serif);
+  font-size: .95rem;
+}
+#risk-root .combat-card__round { opacity: .6; font-size: .8rem; min-width: 1.6rem; text-align: left; }
+#risk-root .combat-card__dice { letter-spacing: .2rem; }
+#risk-root .combat-card__dice.atk { color: var(--p0); }
+#risk-root .combat-card__dice.def { color: var(--p1); }
+#risk-root .combat-card__vs { opacity: .5; }
+#risk-root .combat-card__loss { color: #8a7c5c; font-size: .85rem; }
+#risk-root .combat-card__survivors { margin-left: auto; opacity: .7; font-size: .85rem; }
+
+/* Between-round controls: Roll again / Blitz / Stop. */
+#risk-root .combat-reveal__controls {
+  display: flex;
+  justify-content: center;
+  gap: .5rem;
+  margin-top: .5rem;
+  flex-wrap: wrap;
+}
+#risk-root .combat-btn {
+  font-family: var(--serif-map-sc, Georgia, serif);
+  font-size: .9rem;
+  letter-spacing: .03em;
+  padding: .35rem .8rem;
+  border: 1px solid var(--ink);
+  border-radius: .25rem;
+  background: #4a3a1e;
+  color: #f3e8c8;
+  cursor: pointer;
+}
+#risk-root .combat-btn:hover:not(:disabled) { background: #5a4824; }
+#risk-root .combat-btn:disabled { opacity: .4; cursor: not-allowed; }
+#risk-root .combat-btn.roll { border-color: var(--brass); color: var(--brass); }
+#risk-root .combat-btn.stop { border-color: #8a7c5c; }
+
 /* End-screen */
 #risk-root .end { text-align: center; padding: 2rem; }
 #risk-root .end h1 { color: var(--brass); letter-spacing: 0.08em; }

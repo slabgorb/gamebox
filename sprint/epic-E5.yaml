@@ -10,7 +10,8 @@ stories:
     title: 'Interactive attack overlay: per-round battle cards + Manual/Blitz/Stop'
     points: 5
     priority: p1
-    status: backlog
+    status: in_progress
+    started: '2026-06-30'
     repos: g-1
     workflow: tdd
   - id: E5-2

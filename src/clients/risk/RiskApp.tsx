@@ -197,6 +197,9 @@ export function RiskApp() {
       {live && (
         <CombatReveal
           mode="live"
+          // The local human is the attacker here — drive the interactive
+          // per-round card stack + Roll/Blitz/Stop controls.
+          interactive
           from={live.from}
           to={live.to}
           force={live.force}

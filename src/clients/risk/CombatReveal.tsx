@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DiceTray, type DiceTrayHandle } from "../shared/DiceTray";
-import { driveCombat } from "./combat-rules";
+import { driveCombat, resolveRound, type CombatDecision } from "./combat-rules";
 
 type Rolls = (n: number) => Promise<number[]>;
 
@@ -16,6 +16,14 @@ type LiveProps = CommonProps & {
   defenders: number;
   rollAttacker?: Rolls;
   rollDefender?: Rolls;
+  /**
+   * When true, the local human is the attacker: accumulate a per-round card
+   * stack and prompt Roll-again / Blitz / Stop between rounds. When false or
+   * absent (e.g. the defender's client resolving a bot's attack via
+   * pendingCombat), combat auto-grinds with no controls — there is no human
+   * attacker present to ask "again or stop?".
+   */
+  interactive?: boolean;
   onResolved: (out: import("../shared/contracts/risk").ResolvedCombat) => void;
 };
 type ReplayProps = CommonProps & {
@@ -27,6 +35,16 @@ type Props = LiveProps | ReplayProps;
 
 const STEP_MS = 700;
 
+/** One resolved round, as rendered on a thin card in the interactive stack. */
+interface RoundCard {
+  aDice: number[];
+  dDice: number[];
+  aLoss: number;
+  dLoss: number;
+  af: number;
+  df: number;
+}
+
 export function CombatReveal(props: Props) {
   const atkRef = useRef<DiceTrayHandle>(null);
   const defRef = useRef<DiceTrayHandle>(null);
@@ -34,7 +52,15 @@ export function CombatReveal(props: Props) {
     null,
   );
   const [done, setDone] = useState<boolean | null>(null); // captured?
+  // Interactive (human-attacker) state: the accumulating battle log and the
+  // pending between-round decision. Both are component-local, so a new attack
+  // (a fresh mount) starts empty — the stack is this-battle-only.
+  const [cards, setCards] = useState<RoundCard[]>([]);
+  const [awaiting, setAwaiting] = useState(false);
+  const decideResolver = useRef<((d: CombatDecision) => void) | null>(null);
   const started = useRef(false);
+
+  const interactive = props.mode === "live" && props.interactive === true;
 
   useEffect(() => {
     if (started.current) return;
@@ -45,13 +71,33 @@ export function CombatReveal(props: Props) {
         props.rollAttacker ?? ((n) => atkRef.current!.roll(n));
       const rd: Rolls =
         props.rollDefender ?? ((n) => defRef.current!.roll(n));
+      const isInteractive = props.interactive === true;
       driveCombat({
         force: props.force,
         defenders: props.defenders,
         rollAttacker: ra,
         rollDefender: rd,
-        onRound: (r) => setRound({ aDice: r.aDice, dDice: r.dDice }),
+        onRound: (r) => {
+          setRound({ aDice: r.aDice, dDice: r.dDice });
+          if (isInteractive) {
+            const { aLoss, dLoss } = resolveRound(r.aDice, r.dDice);
+            setCards((cs) => [
+              ...cs,
+              { aDice: r.aDice, dDice: r.dDice, aLoss, dLoss, af: r.af, df: r.df },
+            ]);
+          }
+        },
+        // Human attacker only: pause between rounds and let the buttons resolve
+        // the decision. The bot/defender path passes no decide ⇒ auto-grind.
+        decide: isInteractive
+          ? () =>
+              new Promise<CombatDecision>((resolve) => {
+                decideResolver.current = resolve;
+                setAwaiting(true);
+              })
+          : undefined,
       }).then((out) => {
+        setAwaiting(false);
         setDone(out.captured);
         props.onResolved(out);
       });
@@ -80,6 +126,14 @@ export function CombatReveal(props: Props) {
     tick();
   }, [props]);
 
+  // Resolve the pending between-round decision with the attacker's choice.
+  const choose = (d: CombatDecision) => {
+    setAwaiting(false);
+    const resolve = decideResolver.current;
+    decideResolver.current = null;
+    resolve?.(d);
+  };
+
   // Pre-mount counts so the trays show the right number of pickup dice
   // before the first round tick lands. Falls back to live props when
   // available, or 3v2 (the standard Risk attack-vs-defend maxima) otherwise.
@@ -91,6 +145,9 @@ export function CombatReveal(props: Props) {
     props.mode === "live"
       ? Math.max(1, Math.min(2, props.defenders))
       : Math.max(1, props.rounds[0]?.dDice.length ?? 2);
+
+  // Latest resolved round drives control enablement (af/df after attrition).
+  const last = cards[cards.length - 1];
 
   return (
     <div className="combat-reveal">
@@ -116,6 +173,57 @@ export function CombatReveal(props: Props) {
           <span className="pips def">{(round?.dDice ?? []).join(" ")}</span>
         </div>
       </div>
+
+      {interactive && cards.length > 0 && (
+        <ol className="combat-reveal__log">
+          {cards.map((c, i) => (
+            // Append-only within a battle (never reordered/removed), so the
+            // round index is a stable key.
+            <li className="combat-card" key={i}>
+              <span className="combat-card__round">R{i + 1}</span>
+              <span className="combat-card__dice atk">{c.aDice.join(" ")}</span>
+              <span className="combat-card__vs">→</span>
+              <span className="combat-card__dice def">{c.dDice.join(" ")}</span>
+              <span className="combat-card__loss">
+                −{c.aLoss}/−{c.dLoss}
+              </span>
+              <span className="combat-card__survivors">
+                {c.af} v {c.df}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      {interactive && awaiting && last && (
+        <div className="combat-reveal__controls">
+          <button
+            type="button"
+            className="combat-btn roll"
+            disabled={last.af <= 1}
+            onClick={() => choose("roll")}
+          >
+            Roll again
+          </button>
+          <button
+            type="button"
+            className="combat-btn blitz"
+            onClick={() => choose("blitz")}
+          >
+            Blitz
+          </button>
+          {last.df > 0 && (
+            <button
+              type="button"
+              className="combat-btn stop"
+              onClick={() => choose("stop")}
+            >
+              Stop
+            </button>
+          )}
+        </div>
+      )}
+
       {done !== null && (
         <div className={`combat-reveal__result ${done ? "won" : "lost"}`}>
           {done ? "Captured" : "Repulsed"}
