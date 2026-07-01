@@ -99,6 +99,32 @@ describe("AiRoster", () => {
     );
   });
 
+  it("exposes a visible send button so the chat is discoverable", () => {
+    render(<AiRoster bots={bots} gameId={7} userId={1} sseUrl="/api/games/7/events" />);
+    expect(screen.getByRole("button", { name: /send/i })).toBeInTheDocument();
+  });
+
+  it("mirrors bot banter into a persistent log distinct from the auto-hiding bubble", async () => {
+    render(<AiRoster bots={bots} gameId={7} userId={1} sseUrl="/api/games/7/events" />);
+    emit("banter", { personaId: "the-shark", displayName: "Shark", text: "you're toast" });
+    await waitFor(() =>
+      expect(document.querySelector(".opp-card__log")?.textContent).toContain("you're toast"),
+    );
+    // The log line persists independently of the transient bubble (still exactly one bubble).
+    expect(document.querySelector(".opp-card__log-line")).not.toBeNull();
+    expect(document.querySelectorAll(".opp-card__bubble").length).toBe(1);
+  });
+
+  it("logs the player's own message when the server echoes it back", async () => {
+    render(<AiRoster bots={bots} gameId={7} userId={1} sseUrl="/api/games/7/events" />);
+    emit("user_chat", { userId: 1, text: "prepare to lose" });
+    await waitFor(() =>
+      expect(document.querySelector(".opp-card__log-line--me")?.textContent).toContain(
+        "prepare to lose",
+      ),
+    );
+  });
+
   it("abandons the game with no request body", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     const reload = vi.fn();

@@ -24,15 +24,32 @@ interface PersonaState {
 
 const EMPTY: PersonaState = { bubble: null, stall: null };
 
+interface LogEntry {
+  id: number;
+  author: string;
+  text: string;
+  kind: "bot" | "me";
+  color?: string | null;
+}
+const MAX_LOG = 8;
+
 export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
   const [state, setState] = useState<Record<string, PersonaState>>({});
   const [myFlash, setMyFlash] = useState<string | null>(null);
   const [chatSubmitting, setChatSubmitting] = useState(false);
+  const [log, setLog] = useState<LogEntry[]>([]);
   const hideTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const logRef = useRef<HTMLUListElement>(null);
+  const logSeq = useRef(0);
   const knownPersonas = useRef(new Set(bots.map((b) => b.personaId)));
   knownPersonas.current = new Set(bots.map((b) => b.personaId));
+  // persona → display name + colour, kept current each render for the log.
+  const botMeta = useRef<Record<string, { name: string; color?: string | null }>>({});
+  botMeta.current = Object.fromEntries(
+    bots.map((b) => [b.personaId, { name: b.friendlyName, color: b.color }]),
+  );
 
   function patch(personaId: string, fn: (s: PersonaState) => PersonaState) {
     if (!knownPersonas.current.has(personaId)) return;
@@ -46,6 +63,11 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
     }, 5000);
   }
 
+  // The bubbles auto-hide; the log is the persistent scrollback (last MAX_LOG).
+  function pushLog(entry: Omit<LogEntry, "id">) {
+    setLog((prev) => [...prev, { ...entry, id: logSeq.current++ }].slice(-MAX_LOG));
+  }
+
   useEffect(() => {
     const es = new EventSource(sseUrl);
 
@@ -54,6 +76,13 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
       if (!d.text || !d.personaId) return;
       patch(d.personaId, (s) => ({ ...s, bubble: { text: d.text, thinking: false } }));
       scheduleHide(d.personaId);
+      const meta = botMeta.current[d.personaId];
+      pushLog({
+        author: meta?.name ?? d.displayName ?? "AI",
+        text: d.text,
+        kind: "bot",
+        color: meta?.color ?? null,
+      });
     };
     const onThinking = (ev: Event) => {
       const d = JSON.parse((ev as MessageEvent).data ?? "{}");
@@ -83,9 +112,7 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
     const onUserChat = (ev: Event) => {
       const d = JSON.parse((ev as MessageEvent).data ?? "{}");
       if (d.userId !== userId || !d.text) return;
-      setMyFlash(d.text);
-      if (flashTimer.current) clearTimeout(flashTimer.current);
-      flashTimer.current = setTimeout(() => setMyFlash(null), 4000);
+      pushLog({ author: "You", text: d.text, kind: "me" });
     };
 
     es.addEventListener("banter", onBanter);
@@ -105,6 +132,12 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
       if (flashTimer.current) clearTimeout(flashTimer.current);
     };
   }, [sseUrl, userId]);
+
+  // Keep the scrollback pinned to the newest message.
+  useEffect(() => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log]);
 
   async function onRetry(botUserId: number, personaId: string) {
     try {
@@ -186,20 +219,39 @@ export function AiRoster({ bots, gameId, userId, sseUrl }: AiRosterProps) {
         );
       })}
 
-      <form className="opp-card__chat" onSubmit={onChatSubmit}>
-        <input
-          ref={inputRef}
-          type="text"
-          maxLength={200}
-          placeholder="Talk smack…"
-          autoComplete="off"
-          disabled={chatSubmitting}
-        />
-        <button type="submit" hidden>
-          Submit
-        </button>
-      </form>
-      {myFlash && <div className="opp-card__my-bubble">{myFlash}</div>}
+      <div className="opp-card__chatbox">
+        <div className="opp-card__chat-title">💬 Trash talk</div>
+        <ul className="opp-card__log" aria-label="Trash-talk log" ref={logRef}>
+          {log.length === 0 ? (
+            <li className="opp-card__log-empty">Say something to your opponents…</li>
+          ) : (
+            log.map((e) => (
+              <li
+                key={e.id}
+                className={`opp-card__log-line opp-card__log-line--${e.kind}`}
+                style={e.color ? { borderLeftColor: e.color } : undefined}
+              >
+                {e.author}: {e.text}
+              </li>
+            ))
+          )}
+        </ul>
+        <form className="opp-card__chat" onSubmit={onChatSubmit}>
+          <input
+            ref={inputRef}
+            type="text"
+            maxLength={200}
+            placeholder="Talk smack…"
+            autoComplete="off"
+            disabled={chatSubmitting}
+            aria-label="Talk smack to your opponents"
+          />
+          <button type="submit" className="opp-card__chat-send" disabled={chatSubmitting}>
+            Send
+          </button>
+        </form>
+        {myFlash && <div className="opp-card__chat-status">{myFlash}</div>}
+      </div>
 
       {anyStalled && (
         <button type="button" className="opp-card__abandon" onClick={onAbandon}>
