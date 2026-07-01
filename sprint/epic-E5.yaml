@@ -60,3 +60,10 @@ stories:
     status: backlog
     repos: g-1
     workflow: tdd
+  - id: E5-7
+    title: 'Pre-game lobby client: colour picker + roll-off result display'
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
