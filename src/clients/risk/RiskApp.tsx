@@ -98,7 +98,7 @@ export function RiskApp() {
   // predates the server change, fall back to the singular overlay.
   const bots: BotSeat[] = (ctx.players ?? [])
     .filter((p) => p.isBot && p.userId !== ctx.userId)
-    .map((p) => {
+    .map((p): BotSeat | null => {
       const personaId =
         p.personaId ?? (nPlayers === 2 ? ctx.opponentPersonaId ?? null : null);
       if (!personaId) return null;
@@ -109,7 +109,7 @@ export function RiskApp() {
         friendlyName: nPlayers === 2 ? ctx.opponentFriendlyName ?? p.friendlyName : p.friendlyName,
         color: nPlayers > 2 ? seatHex(p.seat, view.colors) : ctx.opponentColor ?? p.color,
         glyph: nPlayers === 2 ? ctx.opponentGlyph ?? p.glyph : p.glyph,
-      } satisfies BotSeat;
+      };
     })
     .filter((b): b is BotSeat => b !== null);
 
@@ -224,8 +224,6 @@ export function RiskApp() {
               force: live.force,
               captured: !!resolved.captured,
               rounds: resolved.rounds,
-              attackerSurvivors: resolved.attackerSurvivors,
-              defenderSurvivors: resolved.defenderSurvivors,
             });
             post({
               type: "attack",
@@ -256,8 +254,6 @@ export function RiskApp() {
               force: pc.force,
               captured: !!resolved.captured,
               rounds: resolved.rounds,
-              attackerSurvivors: resolved.attackerSurvivors,
-              defenderSurvivors: resolved.defenderSurvivors,
             });
             post({
               type: "attack",
