@@ -84,7 +84,9 @@ stories:
     title: Per-seat colour picker + duplicate-colour uniqueness (in-game setup phase)
     points: 8
     priority: p2
-    status: in_progress
+    status: done
     started: '2026-07-01'
     repos: g-1
     workflow: tdd
+    completed: '2026-07-01'
+    review_verdict: approved

@@ -66,3 +66,8 @@ completed_stories:
     title: Colour picker + duplicate-colour uniqueness + seat-strip/continent-pip colour threading (E5-7 follow-up)
     points: 5
     completed: '2026-07-01'
+  - id: E5-9
+    epic: E5
+    title: Per-seat colour picker + duplicate-colour uniqueness (in-game setup phase)
+    points: 8
+    completed: '2026-07-01'
