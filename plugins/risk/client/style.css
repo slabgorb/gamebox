@@ -848,6 +848,43 @@ body::before {
   }
 }
 
+/* N-player Risk (E4) renders one card per bot via <AiRoster>. Without a roster
+   rule each #risk-root .opp-card pins itself to the same fixed top-right coords
+   and the portraits overlap (E5-4). Make the roster the fixed top-right anchor
+   and let the cards flow inside it. These selectors carry #risk-root so they
+   outrank the #risk-root .opp-card rules above (which force top/right on the
+   card). The container is click-through; interactive descendants (chatbox,
+   stall, chat) already re-enable pointer events — the abandon button is
+   re-enabled here too. */
+#risk-root .ai-roster {
+  position: fixed;
+  top: 16px;
+  right: 12px;
+  z-index: 90;
+  align-items: flex-end;
+  pointer-events: none;
+}
+#risk-root .ai-roster .opp-card {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+}
+#risk-root .ai-roster .opp-card__abandon { pointer-events: auto; }
+
+/* Narrow viewports: match the single-card rule above — drop the roster into
+   block flow so the cards stack in-document instead of a fixed overlay. */
+@media (max-width: 959px) {
+  #risk-root .ai-roster {
+    position: static;
+    align-items: stretch;
+    pointer-events: auto;
+  }
+  #risk-root .ai-roster .opp-card {
+    position: static;
+  }
+}
+
 /* --- Card tray (E2-10): hand, opponent count, trade-in, must-trade modal --- */
 #risk-root .card-tray {
   margin: 0.5rem auto;

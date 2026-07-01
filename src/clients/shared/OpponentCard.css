@@ -246,27 +246,11 @@
   .opp-card__bubble { font-size: 12px; padding: 6px 8px; }
 }
 
-/* Risk renders multiple bots via <AiRoster>. The roster is the fixed anchor in
-   the bottom-right corner; its cards flow within it (relative) instead of each
-   pinning itself to the same fixed coords and stacking on top of one another.
-   Standalone .opp-card usage (e.g. Cribbage's single opponent) is unscoped and
-   keeps its own fixed positioning. */
+/* Layout only. Per-game positioning of the roster (fixed corner vs block flow)
+   lives in the game's own stylesheet, e.g. plugins/risk/client/style.css under
+   #risk-root, so it can match that game's chrome and win on specificity. */
 .ai-roster {
-  position: fixed;
-  bottom: 16px;
-  right: 12px;
-  z-index: 90;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
   gap: 8px;
-}
-.ai-roster .opp-card {
-  position: relative;
-  bottom: auto;
-  right: auto;
-  z-index: auto;
-}
-@media (max-width: 720px) {
-  .ai-roster { bottom: 12px; right: 8px; }
 }
