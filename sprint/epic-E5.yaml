@@ -70,3 +70,10 @@ stories:
     workflow: tdd
     completed: '2026-07-01'
     review_verdict: approved
+  - id: E5-8
+    title: Colour picker + duplicate-colour uniqueness + seat-strip/continent-pip colour threading (E5-7 follow-up)
+    points: 5
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
