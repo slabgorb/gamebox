@@ -61,3 +61,8 @@ completed_stories:
     title: 'Pre-game lobby client: colour picker + roll-off result display'
     points: 5
     completed: '2026-07-01'
+  - id: E5-8
+    epic: E5
+    title: Colour picker + duplicate-colour uniqueness + seat-strip/continent-pip colour threading (E5-7 follow-up)
+    points: 5
+    completed: '2026-07-01'

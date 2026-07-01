@@ -74,6 +74,9 @@ stories:
     title: Colour picker + duplicate-colour uniqueness + seat-strip/continent-pip colour threading (E5-7 follow-up)
     points: 5
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-01'
     repos: g-1
     workflow: tdd
+    completed: '2026-07-01'
+    review_verdict: approved
