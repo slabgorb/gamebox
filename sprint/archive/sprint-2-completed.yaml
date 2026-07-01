@@ -56,3 +56,8 @@ completed_stories:
     title: 'Pre-game lobby: pick colors + roll-off for turn order'
     points: 5
     completed: '2026-07-01'
+  - id: E5-7
+    epic: E5
+    title: 'Pre-game lobby client: colour picker + roll-off result display'
+    points: 5
+    completed: '2026-07-01'
