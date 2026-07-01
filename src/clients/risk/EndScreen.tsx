@@ -10,7 +10,7 @@ export function EndScreen({
 }) {
   const won = view.winner === view.youAre;
   const nameOf = (seat: number | null | undefined) =>
-    seat == null ? "Nobody" : seatNames?.[seat] ?? seatLabel(seat);
+    seat == null ? "Nobody" : seatNames?.[seat] ?? seatLabel(seat, view.colors);
   const n = view.seats?.length ?? 2;
   // Final standings: winner first, then eliminated seats in reverse order.
   const order =

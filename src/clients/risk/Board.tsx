@@ -134,16 +134,18 @@ function ArmyToken({
   owner,
   armies,
   selected,
+  colors,
 }: {
   x: number;
   y: number;
   owner: number | null;
   armies: number;
   selected: boolean;
+  colors?: number[];
 }) {
   if (owner == null) return null;
-  const fill = seatFill(owner);
-  const ink = seatInk(owner);
+  const fill = seatFill(owner, colors);
+  const ink = seatInk(owner, colors);
   const stack = armies >= 10 ? 3 : armies >= 5 ? 2 : 1;
   const r = selected ? 18 : 14;
   return (
@@ -468,7 +470,7 @@ export function Board({ view, onPick, selected, plan = {}, to = null }: BoardPro
                 const planned = plan?.[id];
                 return (
                   <g key={`tok-${id}`}>
-                    <ArmyToken x={g.label.x} y={g.label.y} owner={t.owner} armies={t.armies} selected={isSel} />
+                    <ArmyToken x={g.label.x} y={g.label.y} owner={t.owner} armies={t.armies} selected={isSel} colors={view.colors} />
                     {planned ? (
                       <text
                         x={g.label.x + 24}

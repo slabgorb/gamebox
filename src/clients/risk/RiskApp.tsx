@@ -11,6 +11,7 @@ import { CardTray } from "./CardTray";
 import { History } from "./History";
 import { EndScreen } from "./EndScreen";
 import { Header } from "./Header";
+import { RollOffPanel } from "./RollOffPanel";
 import { CombatReveal } from "./CombatReveal";
 import { AiRoster, type BotSeat } from "../shared/AiRoster";
 import { play, primeAudio } from "./sounds";
@@ -106,7 +107,7 @@ export function RiskApp() {
         userId: p.userId,
         personaId,
         friendlyName: nPlayers === 2 ? ctx.opponentFriendlyName ?? p.friendlyName : p.friendlyName,
-        color: nPlayers > 2 ? seatHex(p.seat) : ctx.opponentColor ?? p.color,
+        color: nPlayers > 2 ? seatHex(p.seat, view.colors) : ctx.opponentColor ?? p.color,
         glyph: nPlayers === 2 ? ctx.opponentGlyph ?? p.glyph : p.glyph,
       } satisfies BotSeat;
     })
@@ -115,13 +116,14 @@ export function RiskApp() {
   if (view.phase === "gameover") return <EndScreen view={view} seatNames={seatNames} />;
 
   const attackerColor =
-    nPlayers > 2 ? seatHex(view.youAre) : ctx.yourColor ?? "#c33";
+    nPlayers > 2 ? seatHex(view.youAre, view.colors) : ctx.yourColor ?? "#c33";
   const defenderColor =
     nPlayers > 2
       ? seatHex(
           view.pendingCombat
             ? view.pendingCombat.attackerIdx
             : (pending.to != null ? view.territories[pending.to]?.owner : null) ?? null,
+          view.colors,
         )
       : ctx.opponentColor ?? "#36c";
 
@@ -157,7 +159,7 @@ export function RiskApp() {
         view={view}
         seatNames={seatNames}
         factionName={ctx.yourFriendlyName ?? "You"}
-        factionColor={nPlayers > 2 ? seatHex(view.youAre) : ctx.yourColor}
+        factionColor={nPlayers > 2 ? seatHex(view.youAre, view.colors) : ctx.yourColor}
         onResign={() => {
           if (nPlayers > 2) {
             window.alert(
@@ -176,6 +178,8 @@ export function RiskApp() {
       />
 
       <ContinentRail view={view} />
+
+      {view.phase === "setup" && <RollOffPanel view={view} />}
 
       <CardTray view={view} post={post} />
 
