@@ -8,6 +8,10 @@ export const SETUP_ARMIES = SETUP_ARMIES_BY_COUNT[2]; // legacy export
 
 const CARD_TYPES = ['infantry', 'cavalry', 'artillery'];
 
+// Size of the seat palette (mirrors SEAT_LABEL/SEAT_HEX in client themes.ts).
+// A colour "pick" is an index into this palette; picks outside 0..3 are invalid.
+const PALETTE_SIZE = 4;
+
 // 44-card Risk deck: one territory card per map territory (troop type assigned
 // round-robin) plus two wilds, shuffled from the same rng stream.
 export function buildDeck(rng) {
@@ -40,9 +44,28 @@ export function buildInitialState({ participants, rng }) {
   // determinism is preserved (the rng stream order is unchanged up to here).
   const deck = buildDeck(rng);
 
+  // Per-seat colour (palette-slot index). Defaults to the identity seat→slot
+  // mapping so an unconfigured game renders exactly as before; a participant
+  // may pick a slot via `color`. Colour is user input, so an out-of-range or
+  // non-integer pick falls back to the seat's default slot.
+  const colorByUser = new Map(participants.map(p => [p.userId, p.color]));
+  const colors = seats.map((userId, seatIdx) => {
+    const pick = colorByUser.get(userId);
+    return Number.isInteger(pick) && pick >= 0 && pick < PALETTE_SIZE ? pick : seatIdx;
+  });
+
+  // Turn order is decided by a seeded d6 roll-off, not fixed to seat 0. Highest
+  // roll goes first; ties break to the lowest seat index (deterministic — a
+  // re-roll would hang on a constant-value rng). Rolls are drawn AFTER the deck
+  // build so the territory split above is byte-identical to the old engine.
+  const turnOrderRolls = seats.map(() => Math.floor(rng() * 6) + 1);
+  const currentPlayer = firstPlayer({ turnOrderRolls });
+
   return {
     phase: 'setup',
-    currentPlayer: 0,
+    currentPlayer,
+    turnOrderRolls,
+    colors,
     territories,
     reinforcePool: 0,
     setupPools: Array(n).fill(SETUP_ARMIES_BY_COUNT[n]),
@@ -52,7 +75,7 @@ export function buildInitialState({ participants, rng }) {
     seats,
     eliminated: Array(n).fill(false),
     eliminationOrder: [],
-    activeUserId: seats[0],
+    activeUserId: seats[currentPlayer],
     deck,
     discard: [],
     hands: Array.from({ length: n }, () => []),
@@ -72,6 +95,20 @@ function seatsOf(state) {
 
 export function playerCount(state) {
   return seatsOf(state).length;
+}
+
+// The roll-off winner: the seat holding the highest turn-order roll (ties break
+// to the lowest seat index — deterministic). This is the "first player" who
+// deploys first in setup and takes the first reinforce turn. Returns 0 for
+// legacy states with no recorded roll-off so old fixtures keep seat-0-first.
+export function firstPlayer(state) {
+  const rolls = state?.turnOrderRolls;
+  if (!Array.isArray(rolls) || rolls.length === 0) return 0;
+  let best = 0;
+  for (let i = 1; i < rolls.length; i++) {
+    if (rolls[i] > rolls[best]) best = i;
+  }
+  return best;
 }
 
 export function playerIndex(state, userId) {

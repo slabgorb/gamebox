@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyRiskAction } from '../plugins/risk/server/actions.js';
-import { buildInitialState } from '../plugins/risk/server/state.js';
+import { buildInitialState, firstPlayer } from '../plugins/risk/server/state.js';
 
 function rngFrom(seq) { let i = 0; return () => seq[i++ % seq.length]; }
 
@@ -14,40 +14,48 @@ function setupState() {
   return s;
 }
 
-test('setup-deploy: player 0 spends pool, control passes to player 1', () => {
+// E5-3: turn order (incl. setup deploy order) is decided by a seeded roll-off,
+// so the first player is derived from state, not assumed to be seat 0.
+test('setup-deploy: first player spends pool, control passes to the next seat', () => {
   const s = setupState();
-  const myTerr = Object.keys(s.territories).filter(id => s.territories[id].owner === 0);
+  const first = firstPlayer(s);           // roll-off winner deploys first
+  const next = first === 0 ? 1 : 0;       // 2P: the other seat
+  const myTerr = Object.keys(s.territories).filter(id => s.territories[id].owner === first);
   const r = applyRiskAction({
-    state: s, actorId: 7,
+    state: s, actorId: s.seats[first],
     action: { type: 'setup-deploy', payload: { placements: { [myTerr[0]]: 2 } } },
   });
   assert.equal(r.error, undefined);
   assert.equal(r.state.phase, 'setup');
-  assert.equal(r.state.currentPlayer, 1);
-  assert.equal(r.state.activeUserId, 8);
-  assert.equal(r.state.setupPools[0], 0);
+  assert.equal(r.state.currentPlayer, next);
+  assert.equal(r.state.activeUserId, s.seats[next]);
+  assert.equal(r.state.setupPools[first], 0);
   assert.equal(r.state.territories[myTerr[0]].armies, 3);
 });
 
-test('setup-deploy: after both pools spent, enter reinforce with computed pool', () => {
+test('setup-deploy: after both pools spent, enter reinforce with the winner first', () => {
   let s = setupState();
-  const t0 = Object.keys(s.territories).filter(id => s.territories[id].owner === 0);
-  const t1 = Object.keys(s.territories).filter(id => s.territories[id].owner === 1);
-  s = applyRiskAction({ state: s, actorId: 7,
-    action: { type: 'setup-deploy', payload: { placements: { [t0[0]]: 2 } } } }).state;
-  const r = applyRiskAction({ state: s, actorId: 8,
-    action: { type: 'setup-deploy', payload: { placements: { [t1[0]]: 2 } } } });
+  const first = firstPlayer(s);
+  const second = first === 0 ? 1 : 0;
+  const tFirst = Object.keys(s.territories).filter(id => s.territories[id].owner === first);
+  const tSecond = Object.keys(s.territories).filter(id => s.territories[id].owner === second);
+  s = applyRiskAction({ state: s, actorId: s.seats[first],
+    action: { type: 'setup-deploy', payload: { placements: { [tFirst[0]]: 2 } } } }).state;
+  const r = applyRiskAction({ state: s, actorId: s.seats[second],
+    action: { type: 'setup-deploy', payload: { placements: { [tSecond[0]]: 2 } } } });
   assert.equal(r.error, undefined);
   assert.equal(r.state.phase, 'reinforce');
-  assert.equal(r.state.currentPlayer, 0);
-  assert.equal(r.state.activeUserId, 7);
+  assert.equal(r.state.currentPlayer, first);        // winner takes the first turn
+  assert.equal(r.state.activeUserId, s.seats[first]);
   assert.ok(r.state.reinforcePool >= 3);
 });
 
 test('setup-deploy onto an unowned territory is rejected', () => {
   const s = setupState();
-  const enemy = Object.keys(s.territories).find(id => s.territories[id].owner === 1);
-  const r = applyRiskAction({ state: s, actorId: 7,
+  const first = firstPlayer(s);
+  // A territory the active (first) player does not own.
+  const enemy = Object.keys(s.territories).find(id => s.territories[id].owner !== first);
+  const r = applyRiskAction({ state: s, actorId: s.seats[first],
     action: { type: 'setup-deploy', payload: { placements: { [enemy]: 2 } } } });
   assert.match(r.error, /not owned/);
 });

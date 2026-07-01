@@ -1,7 +1,7 @@
 import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
 import { validateDeploy, validateAttack, validateFortify, validateTradeIn } from './validate.js';
 import { replayAttack } from './combat.js';
-import { playerIndex, userIdOf, playerCount, isEliminated, liveSeats } from './state.js';
+import { playerIndex, userIdOf, playerCount, isEliminated, liveSeats, firstPlayer } from './state.js';
 import { shuffle } from '../../../src/shared/cards/deck.js';
 
 export function reinforcementFor(state, playerIdx) {
@@ -212,9 +212,12 @@ function applySetupDeploy(s, playerIdx, payload) {
   if (next !== null) {
     s.currentPlayer = next;
   } else {
-    s.currentPlayer = 0;
+    // Setup done: the first real turn goes to the roll-off winner (E5-3), not
+    // seat 0 — otherwise a non-seat-0 winner loses the first move after setup.
+    const first = firstPlayer(s);
+    s.currentPlayer = first;
     s.phase = 'reinforce';
-    s.reinforcePool = reinforcementFor(s, 0);
+    s.reinforcePool = reinforcementFor(s, first);
   }
   return null;
 }

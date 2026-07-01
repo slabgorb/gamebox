@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildInitialState, SETUP_ARMIES_BY_COUNT, playerIndex, userIdOf, liveSeats } from '../plugins/risk/server/state.js';
+import { buildInitialState, SETUP_ARMIES_BY_COUNT, playerIndex, userIdOf, liveSeats, firstPlayer } from '../plugins/risk/server/state.js';
 import { applyRiskAction } from '../plugins/risk/server/actions.js';
 import { allTerritories } from '../plugins/risk/server/map.js';
 
@@ -76,7 +76,11 @@ test('5 participants are rejected', () => {
 
 test('setup deploys rotate through all four seats before reinforce', () => {
   let s = fourPlayerState();
-  for (let seat = 0; seat < 4; seat++) {
+  // E5-3: setup rotates in turn order starting from the roll-off winner, and
+  // the first reinforce turn returns to that winner (not hardcoded seat 0).
+  const first = firstPlayer(s);
+  for (let step = 0; step < 4; step++) {
+    const seat = (first + step) % 4;
     assert.equal(s.currentPlayer, seat);
     const owned = Object.keys(s.territories).find(id => s.territories[id].owner === seat);
     const r = applyRiskAction({
@@ -89,7 +93,7 @@ test('setup deploys rotate through all four seats before reinforce', () => {
     s = r.state;
   }
   assert.equal(s.phase, 'reinforce');
-  assert.equal(s.currentPlayer, 0);
+  assert.equal(s.currentPlayer, first);
   assert.ok(s.reinforcePool >= 3);
 });
 

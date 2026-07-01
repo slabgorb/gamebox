@@ -67,6 +67,12 @@ export interface PendingCombat {
 export interface RiskView {
   phase: RiskPhase;
   currentPlayer: PlayerIdx;
+  // Pre-game roll-off (E5-3): seeded d6 per seat (index = seat); the highest
+  // roll sets currentPlayer. Present once the game has been built.
+  turnOrderRolls?: number[];
+  // Per-seat colour as a palette-slot index (index = seat). Defaults to the
+  // identity seat→slot mapping; a seat may pick a different slot pre-game.
+  colors?: number[];
   territories: Record<string, Territory>;
   reinforcePool: number;
   setupPools: number[];

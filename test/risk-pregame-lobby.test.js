@@ -16,7 +16,9 @@ import assert from 'node:assert/strict';
 import {
   buildInitialState,
   SETUP_ARMIES_BY_COUNT,
+  firstPlayer,
 } from '../plugins/risk/server/state.js';
+import { applyRiskAction } from '../plugins/risk/server/actions.js';
 import { riskPublicView } from '../plugins/risk/server/view.js';
 
 // Deterministic cycling rng, matching the style of risk-state.test.js.
@@ -120,6 +122,29 @@ test('roll-off leaves territory dealing, setup pools and army counts unchanged (
     s.setupPools, Array(3).fill(SETUP_ARMIES_BY_COUNT[3]),
     'setup pools unchanged',
   );
+});
+
+test('the roll-off winner takes the first reinforce turn, not seat 0 (AC5 end-to-end)', () => {
+  // SEED_A gives a non-seat-0 winner (seat 2). Drive setup to completion and
+  // confirm the first real turn returns to the winner — the old engine reset
+  // currentPlayer to seat 0 here, silently nullifying the roll-off after setup.
+  let s = threeP(rngFrom(SEED_A));
+  const winner = firstPlayer(s);
+  assert.notEqual(winner, 0, 'this seed must exercise a non-seat-0 winner');
+  for (let step = 0; step < 3; step++) {
+    const seat = (winner + step) % 3;
+    assert.equal(s.currentPlayer, seat, 'setup rotates in turn order starting from the winner');
+    const owned = Object.keys(s.territories).find(id => s.territories[id].owner === seat);
+    const r = applyRiskAction({
+      state: s, actorId: s.seats[seat],
+      action: { type: 'setup-deploy', payload: { placements: { [owned]: s.setupPools[seat] } } },
+    });
+    assert.equal(r.error, undefined, r.error);
+    s = r.state;
+  }
+  assert.equal(s.phase, 'reinforce');
+  assert.equal(s.currentPlayer, winner, 'first reinforce turn belongs to the roll-off winner');
+  assert.equal(s.activeUserId, s.seats[winner], 'active user follows the winner into reinforce');
 });
 
 // ── B. Colours decoupled from seat ───────────────────────────────────────────
