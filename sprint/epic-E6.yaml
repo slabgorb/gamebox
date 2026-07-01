@@ -1,0 +1,67 @@
+id: E6
+type: epic
+title: Clue
+description: 'Full-board Clue deduction game plugin (personal fan project, canonical theme). Mixed 3-4 seats, human/bot. Design: docs/superpowers/specs/2026-07-01-clue-clone-design.md. Decomposed into 4 sub-plans: (1) headless deduction engine [plan written: docs/superpowers/plans/2026-07-01-clue-core-engine.md]; (2) board geometry + dice movement traced from docs/Cluedo_board_text.svg; (3) deterministic-knowledge + capped-shortlist + persona-pick bots (6 suspects = 6 game-scoped personas); (4) React client + plugin.js manifest + registration. Reuses Sorry! grid + Risk render-harness; cluePublicView is the hidden-information seam.'
+priority: p2
+status: backlog
+repos: g-1
+stories:
+  - id: E6-1
+    title: 'Clue core: card model, deal, buildInitialState, cluePublicView seam'
+    description: 'Plan: docs/superpowers/plans/2026-07-01-clue-core-engine.md (Tasks 1-3). Headless, node --test. Reuses shuffle from src/shared/cards/deck.js. Rooms are abstract (grid is E6-3). No plugin.js/registration yet.'
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - Canonical 21-card catalog (6 suspects / 6 weapons / 9 rooms); dealCards puts one card per category in the hidden envelope and deals the remaining 18 round-robin (disjoint, no duplicates, hand sizes differ by <=1).
+      - buildInitialState({participants,rng}) yields seat-indexed state (seats, seatSuspect, hands array, 6 weapons in distinct rooms, phase 'move', activeUserId=seats[0]); throws for player counts outside 3-4.
+      - cluePublicView({state,viewerId}) exposes public board + the viewer's OWN hand/ledger only; envelope, other hands, other ledgers structurally absent; suggestion.shownCard visible only to the suggester.
+  - id: E6-2
+    title: 'Clue action reducers: refuter walk + suggest/refute/accuse/pass'
+    description: 'Plan: docs/superpowers/plans/2026-07-01-clue-core-engine.md (Tasks 4-8). Depends on E6-1 (cards/state/view). Human-style refute action; bot auto-refute is E6-4.'
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - findRefuterWalk walks left from the suggester and returns the seats that could not disprove plus the first holder (or null); eliminated players still refute.
+      - suggest validates you are in the named room, drags the named pawn+weapon into it, logs the suggestion and couldn't-disprove passes, then pauses on the human refuter (activeUserId) or returns to the suggester if nobody can disprove.
+      - refute shows one valid held card recorded to the suggester's private ledger only, then phase -> accuse-or-pass.
+      - 'accuse: correct wins (winnerSeat, ended:true); wrong eliminates the accuser (who keeps refuting) and advances, with last-standing win; pass advances to the next living seat (skips eliminated) and resets to move phase.'
+  - id: E6-3
+    title: Clue board geometry + dice movement (grid/rooms/doors/secret passages, BFS, render harness)
+    description: "Plan 2 (PM writes before Dev picks up). Board geometry traced from docs/Cluedo_board_text.svg: corridor grid, 9 room polygons, door squares, corner secret passages (Kitchen<->Study, Conservatory<->Lounge). Reachable-squares BFS, roll/move actions routing into E6-2's enterRoom reducer, offline rsvg-convert render harness. Dice client-side. Depends on E6-1/E6-2."
+    points: 8
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - geometry.js (grid + 9 rooms + doors + 2 secret-passage edges) verified offline via the rsvg-convert render harness with non-overlapping room polygons.
+      - roll (client-supplied value) + move (grid square) actions enforce orthogonal, no-revisit, no-move-through-occupied movement and route room entry through the existing enterRoom reducer; entering a room ends the move.
+  - id: E6-4
+    title: 'Clue bots: knowledge tracker + capped shortlist + persona pick + 6 personas + auto-refute'
+    description: Plan 3 (PM writes before Dev picks up). Deterministic knowledge-matrix tracker (never misdeduces) -> bounded difficulty-capped shortlist (info-max/chase/bluff/safe/accuse-when-solved) -> chooseAction persona pick + banter (words/backgammon contract). Six suspect personas as games:[clue] catalog YAMLs. Bot auto-refute (least-leak card). Depends on E6-1/E6-2 (+E6-3 for movement shortlist).
+    points: 8
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - Knowledge tracker propagates own-hand + shown cards + public refute log to fixpoint and never marks a false certainty; reaches solved state on any fully-determined transcript.
+      - chooseAction returns {action,banter,sessionId} with action in the shortlist (InvalidLlmMove on bad id); accuse offered only when solved; bots auto-refute instantly with a least-information-leak card.
+      - Six games:[clue] suspect personas load in the catalog (id/displayName/color/glyph/systemPrompt), enabling AI opponents.
+  - id: E6-5
+    title: Clue client + plugin.js manifest + registration + end-to-end wiring
+    description: Plan 4 (PM writes before Dev picks up). React board client under src/clients/clue mirroring geometry; plugin.js manifest (players min:3 max:4); register in src/plugins/index.js; npm run build:client; async-refute pause UX. Depends on E6-1..E6-4.
+    points: 8
+    priority: p2
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - plugin.js registered in src/plugins/index.js; a 3-4 seat mixed human/bot game is creatable and playable end-to-end (move, suggest, refute, accuse) in the browser.
+      - Client renders the board from the geometry mirror (drift guard passes); the human-refute pause surfaces a card-choice prompt and resumes correctly.
