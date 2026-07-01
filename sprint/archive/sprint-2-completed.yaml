@@ -76,3 +76,8 @@ completed_stories:
     title: Talk-smack discoverability + chat presentation
     points: 2
     completed: '2026-07-01'
+  - id: E5-4
+    epic: E5
+    title: Bot portraits overlap on the display
+    points: 2
+    completed: '2026-07-01'

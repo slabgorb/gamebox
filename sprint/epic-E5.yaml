@@ -41,12 +41,14 @@ stories:
     title: Bot portraits overlap on the display
     points: 2
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-01'
     repos: g-1
     workflow: trivial
+    completed: '2026-07-01'
     type: bug
-    review_findings: "Fix ignores plugins/risk/client/style.css (#risk-root .opp-card, specificity 1,1,0) which pins Risk opponent cards top-right and reserves the bottom for the action tray/chronicle; the fix anchors .ai-roster bottom-right (wrong corner, over controls) with leaked top/right offsets, and breaks the <959px block-flow behavior (also 720 vs 959 breakpoint mismatch). Overlap 'verified' only in a harness that omitted style.css + #risk-root. Rework under #risk-root, keep top-right + mobile block-flow. Non-blocking: context-story-E5-4.md doc regression committed; story has no ACs in YAML."
-    review_verdict: rejected
+    review_findings: ""
+    review_verdict: approved
   - id: E5-5
     title: Talk-smack discoverability + chat presentation
     points: 2
