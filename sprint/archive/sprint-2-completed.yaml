@@ -71,3 +71,8 @@ completed_stories:
     title: Per-seat colour picker + duplicate-colour uniqueness (in-game setup phase)
     points: 8
     completed: '2026-07-01'
+  - id: E5-5
+    epic: E5
+    title: Talk-smack discoverability + chat presentation
+    points: 2
+    completed: '2026-07-01'

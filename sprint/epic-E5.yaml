@@ -49,9 +49,12 @@ stories:
     title: Talk-smack discoverability + chat presentation
     points: 2
     priority: p3
-    status: backlog
+    status: done
+    started: '2026-07-01'
     repos: g-1
     workflow: trivial
+    completed: '2026-07-01'
+    review_verdict: approved
   - id: E5-6
     title: 'Reinforcement provenance: itemize the muster (base + continent + trade-in)'
     description: "reinforcePool is a bare number; players can't tell where reinforcements came from. Itemize the muster by source: base (max(3, floor(territories/3))), per-continent bonuses (e.g. +3 South America), trade-in set bonus (escalating TRADE_BONUSES), and the territory-match +2 placement (recorded by E5-2). Presentation layer over data E5-2 records; depends on E5-2's log/view enrichment for the territory-bonus line."
