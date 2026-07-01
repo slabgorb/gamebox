@@ -10,7 +10,12 @@ test('builds setup state with even-ish split and 1 army each', () => {
     rng: rngFrom([0.1, 0.4, 0.7, 0.2, 0.9, 0.5, 0.3, 0.6, 0.8, 0.0, 0.15, 0.45]),
   });
   assert.equal(s.phase, 'setup');
-  assert.equal(s.currentPlayer, 0);
+  // Turn order is decided by a seeded roll-off (E5-3), not fixed to seat 0;
+  // assert the seat-agnostic invariant instead of a hardcoded winner.
+  assert.ok(
+    Number.isInteger(s.currentPlayer) && s.currentPlayer >= 0 && s.currentPlayer < 2,
+    `currentPlayer must be a valid seat; got ${s.currentPlayer}`,
+  );
   assert.equal(Object.keys(s.territories).length, 42);
   const owned0 = Object.values(s.territories).filter(t => t.owner === 0).length;
   const owned1 = Object.values(s.territories).filter(t => t.owner === 1).length;
@@ -18,7 +23,8 @@ test('builds setup state with even-ish split and 1 army each', () => {
   assert.ok(Math.abs(owned0 - owned1) <= 1, `uneven split ${owned0}/${owned1}`);
   assert.ok(Object.values(s.territories).every(t => t.armies === 1));
   assert.deepEqual(s.setupPools, [SETUP_ARMIES, SETUP_ARMIES]);
-  assert.equal(s.activeUserId, 11);
+  // activeUserId tracks whichever seat won the roll-off, not always seat 0.
+  assert.equal(s.activeUserId, s.seats[s.currentPlayer]);
   assert.equal(s.winner, null);
 });
 
