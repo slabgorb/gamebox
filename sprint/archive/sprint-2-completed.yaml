@@ -81,3 +81,8 @@ completed_stories:
     title: Bot portraits overlap on the display
     points: 2
     completed: '2026-07-01'
+  - id: E6-1
+    epic: E6
+    title: 'Clue core: card model, deal, buildInitialState, cluePublicView seam'
+    points: 5
+    completed: '2026-07-01'
