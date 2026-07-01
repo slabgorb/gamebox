@@ -26,7 +26,8 @@ stories:
     description: 'Plan: docs/superpowers/plans/2026-07-01-clue-core-engine.md (Tasks 4-8). Depends on E6-1 (cards/state/view). Human-style refute action; bot auto-refute is E6-4.'
     points: 5
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-07-01'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
@@ -34,6 +35,8 @@ stories:
       - suggest validates you are in the named room, drags the named pawn+weapon into it, logs the suggestion and couldn't-disprove passes, then pauses on the human refuter (activeUserId) or returns to the suggester if nobody can disprove.
       - refute shows one valid held card recorded to the suggester's private ledger only, then phase -> accuse-or-pass.
       - 'accuse: correct wins (winnerSeat, ended:true); wrong eliminates the accuser (who keeps refuting) and advances, with last-standing win; pass advances to the next living seat (skips eliminated) and resets to move phase.'
+    completed: '2026-07-01'
+    review_verdict: approved
   - id: E6-3
     title: Clue board geometry + dice movement (grid/rooms/doors/secret passages, BFS, render harness)
     description: "Plan 2 (PM writes before Dev picks up). Board geometry traced from docs/Cluedo_board_text.svg: corridor grid, 9 room polygons, door squares, corner secret passages (Kitchen<->Study, Conservatory<->Lounge). Reachable-squares BFS, roll/move actions routing into E6-2's enterRoom reducer, offline rsvg-convert render harness. Dice client-side. Depends on E6-1/E6-2."

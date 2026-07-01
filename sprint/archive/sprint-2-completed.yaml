@@ -86,3 +86,8 @@ completed_stories:
     title: 'Clue core: card model, deal, buildInitialState, cluePublicView seam'
     points: 5
     completed: '2026-07-01'
+  - id: E6-2
+    epic: E6
+    title: 'Clue action reducers: refuter walk + suggest/refute/accuse/pass'
+    points: 5
+    completed: '2026-07-01'
