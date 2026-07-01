@@ -12,6 +12,7 @@ import { History } from "./History";
 import { EndScreen } from "./EndScreen";
 import { Header } from "./Header";
 import { RollOffPanel } from "./RollOffPanel";
+import { ColorPicker } from "./ColorPicker";
 import { CombatReveal } from "./CombatReveal";
 import { AiRoster, type BotSeat } from "../shared/AiRoster";
 import { play, primeAudio } from "./sounds";
@@ -180,6 +181,7 @@ export function RiskApp() {
       <ContinentRail view={view} />
 
       {view.phase === "setup" && <RollOffPanel view={view} />}
+      {view.phase === "setup" && <ColorPicker view={view} post={post} />}
 
       <CardTray view={view} post={post} />
 

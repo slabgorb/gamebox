@@ -131,4 +131,7 @@ export type RiskAction =
   // Trade three held cards (referenced by index into the viewer's own hand)
   // for bonus armies during the reinforce phase.
   | { type: "trade-in"; payload: { cardIndices: number[] } }
-  | { type: "resign" };
+  | { type: "resign" }
+  // Setup-phase per-seat colour pick: choose a palette slot (0..3). Picking a
+  // slot another seat holds swaps them, so colours stay unique.
+  | { type: "pick-color"; payload: { color: number } };

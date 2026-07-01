@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent } from "@testing-library/react";
-import { colorSlots } from "../../src/clients/risk/colorPicker";
+import { colorSlots } from "../../src/clients/risk/colorSlots";
 import { ColorPicker } from "../../src/clients/risk/ColorPicker";
 import { SEAT_LABEL, SEAT_HEX } from "../../src/clients/risk/themes";
 

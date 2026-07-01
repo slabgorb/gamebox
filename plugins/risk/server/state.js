@@ -10,7 +10,7 @@ const CARD_TYPES = ['infantry', 'cavalry', 'artillery'];
 
 // Size of the seat palette (mirrors SEAT_LABEL/SEAT_HEX in client themes.ts).
 // A colour "pick" is an index into this palette; picks outside 0..3 are invalid.
-const PALETTE_SIZE = 4;
+export const PALETTE_SIZE = 4;
 
 // 44-card Risk deck: one territory card per map territory (troop type assigned
 // round-robin) plus two wilds, shuffled from the same rng stream.

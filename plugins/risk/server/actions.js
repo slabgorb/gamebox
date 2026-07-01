@@ -1,7 +1,7 @@
 import { CONTINENTS, continentBonus, areAdjacent } from './map.js';
 import { validateDeploy, validateAttack, validateFortify, validateTradeIn } from './validate.js';
 import { replayAttack } from './combat.js';
-import { playerIndex, userIdOf, playerCount, isEliminated, liveSeats, firstPlayer } from './state.js';
+import { playerIndex, userIdOf, playerCount, isEliminated, liveSeats, firstPlayer, PALETTE_SIZE } from './state.js';
 import { shuffle } from '../../../src/shared/cards/deck.js';
 
 export function reinforcementFor(state, playerIdx) {
@@ -55,6 +55,27 @@ export function applyRiskAction({ state, action, actorId, rng }) {
     return finishGame(r, 'resign');
   }
   if (isEliminated(state, actorIdx)) return { error: 'you have been eliminated' };
+
+  // Colour pick: a player chooses their own palette slot during setup. Like
+  // resign, it is self-scoped (writes only the actor's seat), so it is allowed
+  // off-turn — handled before the currentPlayer gate below. Picking a slot held
+  // by another seat SWAPS the two seats' slots, keeping `colors` an injection
+  // so no two seats ever share a colour (regardless of player count).
+  if (action.type === 'pick-color') {
+    if (state.phase !== 'setup') return { error: 'colours can only be changed during setup' };
+    const color = action.payload?.color;
+    if (!Number.isInteger(color) || color < 0 || color >= PALETTE_SIZE) {
+      return { error: `colour must be an integer in 0..${PALETTE_SIZE - 1}` };
+    }
+    const c = clone(state);
+    const cur = c.colors[actorIdx];
+    if (color !== cur) {
+      const other = c.colors.indexOf(color);
+      c.colors[actorIdx] = color;
+      if (other !== -1) c.colors[other] = cur;
+    }
+    return { state: c };
+  }
 
   // Defender-as-proxy: when a bot's attack is awaiting client-side
   // resolution (state.pendingCombat set), the defender is allowed to act —

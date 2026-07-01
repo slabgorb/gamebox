@@ -26,6 +26,7 @@ function setupState(overrides = {}) {
   return {
     phase: 'setup',
     currentPlayer: 0,
+    seats,
     territories,
     colors: seats.map((_, i) => i), // identity
     setupPools: seats.map(() => 5),
