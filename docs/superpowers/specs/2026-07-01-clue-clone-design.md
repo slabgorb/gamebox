@@ -3,6 +3,7 @@
 **Date:** 2026-07-01
 **Status:** Approved for planning
 **Canonical rules source:** `docs/ClueClassicRules_2020.pdf` (Clue: The Classic Edition, 2020, 3–6 players)
+**Board reference art:** `docs/Cluedo_board_text.svg` (labelled board — trace room/door/corridor/secret-passage layout from this)
 **Analog plugins:** `plugins/sorry` (grid board + 4P), `plugins/words` (AI shortlist pattern), `plugins/backgammon` (AI shortlist + pause-for-human-input)
 
 ---
@@ -58,6 +59,8 @@ The mansion decomposes into primitives the box already builds:
 | 9 room polygons | Risk polygon approach (`src/clients/risk/map-geometry.js`) | Iterated offline with the `rsvg-convert` SVG→PNG **render harness**; only overlaps matter, so rooms need clean non-overlap. |
 | Door squares | New data | The corridor cells adjacent to each room that gate entry; doors are not counted as a square. |
 | Secret passages | New data (adjacency list) | 2 edges (Kitchen↔Study, Conservatory↔Lounge). |
+
+**Layout source:** `docs/Cluedo_board_text.svg` is the labelled reference — room shapes, doorway positions, corridor grid, and corner secret passages are traced from it into `geometry.js` (rather than inventing a layout).
 
 **Pipeline:** server geometry module → client mirror → drift guard → fixtures, exactly the design-handoff pattern used for the Risk map. Board geometry is authored/verified offline via the render harness before any gameplay wiring.
 
