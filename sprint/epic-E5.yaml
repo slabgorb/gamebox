@@ -31,9 +31,12 @@ stories:
     title: 'Pre-game lobby: pick colors + roll-off for turn order'
     points: 5
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-01'
     repos: g-1
     workflow: tdd
+    completed: '2026-07-01'
+    review_verdict: approved
   - id: E5-4
     title: Bot portraits overlap on the display
     points: 2

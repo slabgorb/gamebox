@@ -51,3 +51,8 @@ completed_stories:
     title: 'Territory trade-in bonus: verify it forces placement + record in log'
     points: 2
     completed: '2026-06-30'
+  - id: E5-3
+    epic: E5
+    title: 'Pre-game lobby: pick colors + roll-off for turn order'
+    points: 5
+    completed: '2026-07-01'
