@@ -4,6 +4,7 @@
 import type { RiskView } from "../shared/contracts/risk";
 import { ExitControls } from "./ExitControls";
 import { MuteToggle } from "./MuteToggle";
+import { seatClass, seatFill } from "./themes";
 
 interface Props {
   view: RiskView;
@@ -61,7 +62,7 @@ function SeatStrip({ view, seatNames }: { view: RiskView; seatNames?: (string | 
         const cards = view.cardCounts?.[seat] ?? 0;
         return (
           <span key={seat} className={`seat-chip${current ? " current" : ""}${dead ? " dead" : ""}`}>
-            <span className="dot" style={{ background: `var(--p${seat}-1)` }} />
+            <span className="dot" style={{ background: seatFill(seat, view.colors) }} />
             <span>{name}{seat === view.youAre ? " (you)" : ""}</span>
             {!dead && (
               <span className="tally">{`${tallies[seat].terr}t · ${tallies[seat].armies}a · ${cards}c`}</span>
@@ -76,8 +77,8 @@ function SeatStrip({ view, seatNames }: { view: RiskView; seatNames?: (string | 
 export function Header({ view, factionName, factionColor, seatNames, onResign }: Props) {
   const yourMove = view.youAre === view.currentPlayer;
   const phaseLabel = PHASE_LABEL[view.phase] ?? view.phase;
-  const pipClass = `p${view.currentPlayer}`;
-  const crestColor = factionColor || `var(--p${view.youAre ?? 0}-1)`;
+  const pipClass = seatClass(view.currentPlayer, view.colors);
+  const crestColor = factionColor || seatFill(view.youAre ?? 0, view.colors);
   // Test contract: a "Phase: <phase>" substring must remain in the DOM.
   // We keep the lowercase phase id alongside the display label so the
   // existing /phase: attack/i assertions stay green.

@@ -5,6 +5,7 @@
 // edge when you hold the continent; muted navy when the opponent does.
 import type { RiskView } from "../shared/contracts/risk";
 import { CONTINENTS_META, TERRITORIES } from "./map-geometry.js";
+import { seatClass } from "./themes";
 
 type TerritoryGeom = { continent: string };
 type ContinentMeta = { name: string; bonus: number; color: string };
@@ -31,8 +32,8 @@ export function ContinentRail({ view }: { view: RiskView }) {
             <div className="roster" aria-hidden="true">
               {ids.map((id) => {
                 const o = view.territories[id]?.owner ?? null;
-                const cls = o == null ? "" : ` p${o}`;
-                return <span key={id} className={`pip${cls}`} title={id} />;
+                const cls = seatClass(o, view.colors);
+                return <span key={id} className={cls ? `pip ${cls}` : "pip"} title={id} />;
               })}
             </div>
           </div>
