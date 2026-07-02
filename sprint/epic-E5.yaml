@@ -97,3 +97,21 @@ stories:
     workflow: tdd
     completed: '2026-07-01'
     review_verdict: approved
+  - id: E5-10
+    title: 'Conquest advance: attacker chooses armies to move (min=dice rolled, max=armies-1), not all-in'
+    description: |-
+      Playtest rules bug: on conquering a territory the game moves ALL attacking armies into the captured territory. Correct Risk rule: the attacker CHOOSES how many armies to advance — minimum = the number of dice rolled in the winning (final) attack, maximum = the attacking (origin) territory's armies minus 1 (must leave >=1 behind). Restores the strategic choice of how much to commit vs. hold the origin.
+
+      Scope: (1) Server conquest apply accepts an advanceCount and validates it into [dice_of_winning_roll, origin_armies - 1], moving that many instead of all; carry the winning roll's dice count through to the conquest step. (2) Client: after a conquest, present an advance chooser (slider/stepper over the valid range) and send the chosen count — slot into the E5-1 interactive attack overlay. (3) Bots must choose an advance count so bot conquests still resolve in one turn (default: advance max = origin-1, i.e. current all-in behavior, or a simple heuristic). Edge case: when origin_armies-1 == dice (e.g. 2 armies, 1 die) the range collapses to a single forced value — no chooser needed. TDD: assert min/max boundaries and rejection of out-of-range counts before wiring UI.
+    points: 5
+    priority: p1
+    status: backlog
+    repos: g-1
+    workflow: tdd
+    acceptance_criteria:
+      - On conquest, min advanceable = number of dice rolled in the winning attack; max = origin armies - 1; origin always keeps >=1 army
+      - Server rejects an advanceCount outside [min, max]
+      - When min == max the advance is forced to that value with no chooser shown
+      - Client shows an advance chooser over the valid range after a conquest (in the E5-1 overlay) and sends the chosen count
+      - Bots choose a valid advanceCount and their conquest resolves within a single turn (no hang)
+    type: bug
