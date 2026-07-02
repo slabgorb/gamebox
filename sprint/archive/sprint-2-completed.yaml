@@ -96,3 +96,8 @@ completed_stories:
     title: Clue board geometry + dice movement (grid/rooms/doors/secret passages, BFS, render harness)
     points: 8
     completed: '2026-07-01'
+  - id: E6-4
+    epic: E6
+    title: 'Clue bots: knowledge tracker + capped shortlist + persona pick + 6 personas + auto-refute'
+    points: 8
+    completed: '2026-07-02'

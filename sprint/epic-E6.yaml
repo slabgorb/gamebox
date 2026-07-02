@@ -56,13 +56,16 @@ stories:
     description: Plan 3 (PM writes before Dev picks up). Deterministic knowledge-matrix tracker (never misdeduces) -> bounded difficulty-capped shortlist (info-max/chase/bluff/safe/accuse-when-solved) -> chooseAction persona pick + banter (words/backgammon contract). Six suspect personas as games:[clue] catalog YAMLs. Bot auto-refute (least-leak card). Depends on E6-1/E6-2 (+E6-3 for movement shortlist).
     points: 8
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-02'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
       - Knowledge tracker propagates own-hand + shown cards + public refute log to fixpoint and never marks a false certainty; reaches solved state on any fully-determined transcript.
       - chooseAction returns {action,banter,sessionId} with action in the shortlist (InvalidLlmMove on bad id); accuse offered only when solved; bots auto-refute instantly with a least-information-leak card.
       - Six games:[clue] suspect personas load in the catalog (id/displayName/color/glyph/systemPrompt), enabling AI opponents.
+    completed: '2026-07-02'
+    review_verdict: approved
   - id: E6-5
     title: Clue client + plugin.js manifest + registration + end-to-end wiring
     description: Plan 4 (PM writes before Dev picks up). React board client under src/clients/clue mirroring geometry; plugin.js manifest (players min:3 max:4); register in src/plugins/index.js; npm run build:client; async-refute pause UX. Depends on E6-1..E6-4.
