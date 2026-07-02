@@ -9,10 +9,20 @@ import type { ClueView, RoomId, SuspectId, WeaponId } from "../shared/contracts/
 const pts = (poly: number[][]) =>
   poly.map(([c, r]) => `${c * CELL},${r * CELL}`).join(" ");
 
-const WEAPON_GLYPHS: Record<WeaponId, string> = {
-  candlestick: "🕯", knife: "🗡", leadpipe: "〣",
-  revolver: "🔫", rope: "➰", wrench: "🔧",
-};
+// Axis-aligned bounding box of a room polygon, in board pixels — used to size
+// the per-room portrait pattern (E7-1 spike: photoreal room backgrounds).
+function bbox(poly: number[][]) {
+  const cs = poly.map((p) => p[0]);
+  const rs = poly.map((p) => p[1]);
+  const minC = Math.min(...cs);
+  const minR = Math.min(...rs);
+  return {
+    x: minC * CELL,
+    y: minR * CELL,
+    w: (Math.max(...cs) - minC) * CELL,
+    h: (Math.max(...rs) - minR) * CELL,
+  };
+}
 
 // Centroid of a room polygon (for clustering room occupants).
 function roomCenter(room: RoomId): [number, number] {
@@ -37,13 +47,31 @@ export function Board({
   const reachRooms = new Set<RoomId>(canMove ? view.movement!.rooms : []);
   const reachSquares: [number, number][] = canMove ? view.movement!.squares : [];
 
-  // Cluster pawns/weapons that share a room so tokens never overlap.
+  // Cluster pawns that share a room so tokens never overlap.
   const roomSlot = new Map<RoomId, number>();
   const nextSlot = (room: RoomId) => {
     const n = roomSlot.get(room) ?? 0;
     roomSlot.set(room, n + 1);
     return n;
   };
+
+  // Weapon tokens are framed portrait tiles laid along each room's lower-left
+  // corner (own slot counter so they don't shift the pawn cluster above).
+  const WEAPON_SIZE = CELL * 1.5;
+  const weaponSlot = new Map<RoomId, number>();
+  const weaponTiles = (Object.entries(view.weapons) as [WeaponId, RoomId][]).map(
+    ([w, room]) => {
+      const b = bbox(ROOMS_GEO[room].poly);
+      const n = weaponSlot.get(room) ?? 0;
+      weaponSlot.set(room, n + 1);
+      return {
+        w,
+        x: b.x + 2 + n * (WEAPON_SIZE * 0.62),
+        y: b.y + b.h - WEAPON_SIZE - 2,
+        size: WEAPON_SIZE,
+      };
+    },
+  );
 
   return (
     <svg
@@ -52,6 +80,24 @@ export function Board({
       role="img"
       aria-label="Clue board"
     >
+      {/* E7-1 spike: one clip path per room polygon; portrait <image> below is
+          clipped to it. clipPath (not <pattern>) keeps each image in absolute
+          user space, so every room aligns regardless of board position. */}
+      <defs>
+        {(Object.entries(ROOMS_GEO) as [RoomId, { poly: number[][] }][]).map(
+          ([id, g]) => (
+            <clipPath key={id} id={`room-clip-${id}`}>
+              <polygon points={pts(g.poly)} />
+            </clipPath>
+          ),
+        )}
+        {weaponTiles.map(({ w, x, y, size }) => (
+          <clipPath key={`wc-${w}`} id={`weapon-clip-${w}`}>
+            <rect x={x} y={y} width={size} height={size} rx={5} />
+          </clipPath>
+        ))}
+      </defs>
+
       {/* corridor grid */}
       {Array.from({ length: GRID.cols + 1 }, (_, c) => (
         <line key={`gc${c}`} className="clue-grid" x1={c * CELL} y1={0} x2={c * CELL} y2={H} />
@@ -74,6 +120,19 @@ export function Board({
       {(Object.entries(ROOMS_GEO) as [RoomId, { poly: number[][]; label: number[] }][]).map(
         ([id, g]) => (
           <g key={id}>
+            {/* portrait background (behind the scrim + label/token layers) */}
+            <image
+              className="clue-room-img"
+              href={`/shared/portraits/${id}.png`}
+              x={bbox(g.poly).x}
+              y={bbox(g.poly).y}
+              width={bbox(g.poly).w}
+              height={bbox(g.poly).h}
+              preserveAspectRatio="xMidYMid slice"
+              clipPath={`url(#room-clip-${id})`}
+            />
+            {/* scrim + stroke + click target: dims the portrait so labels and
+                tokens stay legible (fill lives in style.css) */}
             <polygon
               data-room={id}
               className={`clue-room${reachRooms.has(id) ? " is-reachable" : ""}`}
@@ -115,22 +174,29 @@ export function Board({
         />
       ))}
 
-      {/* weapon tokens (public state: weapon -> room) */}
-      {(Object.entries(view.weapons) as [WeaponId, RoomId][]).map(([w, room]) => {
-        const [cx, cy] = roomCenter(room);
-        const slot = nextSlot(room);
-        return (
-          <text
-            key={w}
-            className="clue-weapon"
-            data-weapon={w}
-            x={cx - CELL + slot * (CELL * 0.9)}
-            y={cy + CELL * 0.9}
-          >
-            {WEAPON_GLYPHS[w]}
-          </text>
-        );
-      })}
+      {/* weapon tokens: framed portrait tiles in each room's lower-left corner */}
+      {weaponTiles.map(({ w, x, y, size }) => (
+        <g key={w} data-weapon={w}>
+          <image
+            className="clue-weapon-img"
+            href={`/shared/portraits/${w}.png`}
+            x={x}
+            y={y}
+            width={size}
+            height={size}
+            preserveAspectRatio="xMidYMid slice"
+            clipPath={`url(#weapon-clip-${w})`}
+          />
+          <rect
+            className="clue-weapon-frame"
+            x={x}
+            y={y}
+            width={size}
+            height={size}
+            rx={5}
+          />
+        </g>
+      ))}
 
       {/* pawns: on a corridor square, or clustered inside their room */}
       {(Object.entries(view.pawns) as [SuspectId, { room?: RoomId; square?: [number, number] }][]).map(
