@@ -26,7 +26,8 @@ stories:
     description: "First Clue playtest friction: the human must click 'Roll for {bot}' to resolve a bot's movement roll. Today bots emit a values-less clue_roll_request SSE that any human resolves on their behalf (backgammon proxy pattern; src/clients/clue/ClueApp.tsx rollReq/liveRollReq ~lines 85-146 and the 'Roll for {seat}' button ~lines 197-206). Make bots roll their own die automatically so no human action is needed. CRUX to settle in design: resolve the bot roll server-side inside the orchestrator turn (invisible, no animation — matches the existing collapsed-mechanic doctrine that invisible dice inline server-side), or auto-trigger the DiceTray on a spectator client without the manual button if a visible bot die is wanted. Server-side auto-resolve is simplest and removes the click. Touches the orchestrator bot-turn flow (must still drive the whole turn in one wake-up, gated on activeUserId===bot per the turn-continuation contract) and removes the proxy-roll UI. Leave the human's own visible roll unchanged."
     points: 3
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-02'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
@@ -34,6 +35,8 @@ stories:
       - The bot completes its full turn in one wake-up after rolling (no stall waiting on a human proxy).
       - The human player's own visible die roll is unchanged.
       - No stale or orphaned clue_roll_request prompt can appear after the change.
+    completed: '2026-07-02'
+    review_verdict: approved
   - id: E7-3
     title: 'Pawn move reverts after page refresh (move not persisted like the suggestion log)'
     description: "Playtest bug: mid-game the human (playing Scarlett) moved to the conservatory, then refreshed the page — the pawn was back at its pre-move position, i.e. the move reverted. The suggestion history was intact, so this is NOT total state loss: the pawn-location update from a move is not persisted the same way the suggestion log is. Likely a Clue state-serialization / rehydration gap — either the persisted game-state row is not written after a 'move' action, or cluePublicView rebuilds pawn location from stale persisted data on reload. Investigate: how POST /api/games/:id/action persists state after a 'move' vs a 'suggest' (src/server/routes.js action route, src/server/games.js + db.js state write), the clue move apply (plugins/clue/server), and the persisted-state -> cluePublicView rehydration. Use systematic-debugging: reproduce (move, refresh, observe revert), locate the divergence between persisted and in-memory pawn state, then fix so a move survives reload."

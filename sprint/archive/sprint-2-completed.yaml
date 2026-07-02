@@ -112,3 +112,8 @@ completed_stories:
     title: 'Board room-image backgrounds (spike: photoreal images vs top-down view)'
     points: 3
     completed: '2026-07-02'
+  - id: E7-2
+    epic: E7
+    title: 'Bots roll their own dice (drop the human proxy-roll)'
+    points: 3
+    completed: '2026-07-02'
