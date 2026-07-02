@@ -1,8 +1,10 @@
 // Top-level Clue client. Renders the server's truth (view) over the geometry
 // mirror; every decision is a POSTed engine action. Dice are client-side:
-// the human rolls a visible d6 for themselves AND resolves a bot's
-// clue_roll_request on its behalf (backgammon proxy pattern). The client
-// never emits enterRoom (F7): room entry is a move onto a reachable room.
+// the human rolls a visible d6 for themselves, and a bot's clue_roll_request
+// auto-resolves on the viewing client — the die still animates but no human
+// click is needed (E7-2; the values stay client-side per the no-server-dice
+// invariant). The client never emits enterRoom (F7): room entry is a move
+// onto a reachable room.
 import { useEffect, useRef, useState } from "react";
 import { useGameState } from "../shared/useGameState";
 import { AiRoster, type BotSeat } from "../shared/AiRoster";
@@ -102,6 +104,28 @@ export function ClueApp() {
     return () => es.close();
   }, [ctx.sseUrl]);
 
+  // A stale roll request self-invalidates once the view shows the die landed
+  // (or the bot's turn ended some other way, e.g. it accused instead).
+  const liveRollReq =
+    rollReq != null &&
+    view != null &&
+    view.phase === "move" &&
+    view.pendingRoll == null &&
+    view.currentSeat === rollReq.seat &&
+    view.seatSuspect[rollReq.seat] != null &&
+    view.activeUserId !== ctx.userId
+      ? rollReq
+      : null;
+
+  // E7-2: a bot's roll auto-resolves on the viewing client — throw the visible
+  // die and POST on the bot's behalf, no human click. rollAndPost is idempotent
+  // (the `rolling` guard) and clears rollReq on completion, so liveRollReq falls
+  // back to null and this fires exactly once per request. The human's own roll
+  // (needsRoll) is untouched — it stays a manual throw.
+  useEffect(() => {
+    if (liveRollReq != null) rollAndPost();
+  }, [liveRollReq]);
+
   if (!view) return <div className="banner">Loading…</div>;
 
   const players = ctx.players ?? [];
@@ -121,17 +145,6 @@ export function ClueApp() {
   const myTurn = view.youAreSeat != null && view.activeUserId === ctx.userId;
   const needsRoll = myTurn && view.phase === "move" && view.movement?.needsRoll === true;
   const passage = view.movement?.needsRoll === true ? view.movement.secretPassage : null;
-  // A stale roll request self-invalidates once the view shows the die landed
-  // (or the bot's turn ended some other way, e.g. it accused instead).
-  const liveRollReq =
-    rollReq != null &&
-    view.phase === "move" &&
-    view.pendingRoll == null &&
-    view.currentSeat === rollReq.seat &&
-    view.seatSuspect[rollReq.seat] != null &&
-    view.activeUserId !== ctx.userId
-      ? rollReq
-      : null;
   const showTray = needsRoll || liveRollReq != null;
 
   async function rollAndPost() {
@@ -198,11 +211,17 @@ export function ClueApp() {
       {showTray && (
         <section className="clue-dice" data-testid="dice-tray">
           <DiceTray ref={diceRef} count={1} tuning={{ camera: "low" }} />
-          <button type="button" className="clue-roll" disabled={rolling} onClick={rollAndPost}>
-            {needsRoll
-              ? "Roll the die"
-              : `Roll for ${name(liveRollReq!.seat)} 🎲`}
-          </button>
+          {needsRoll ? (
+            <button type="button" className="clue-roll" disabled={rolling} onClick={rollAndPost}>
+              Roll the die
+            </button>
+          ) : (
+            liveRollReq != null && (
+              <span className="clue-roll-status" role="status">
+                {name(liveRollReq.seat)} is rolling… 🎲
+              </span>
+            )
+          )}
           {needsRoll && passage && (
             <button
               type="button"
