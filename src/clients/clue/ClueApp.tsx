@@ -12,6 +12,7 @@ import type {
 } from "../shared/contracts/clue";
 import { Board } from "./Board";
 import { RefutePrompt } from "./RefutePrompt";
+import { ClueCard } from "./ClueCard";
 import { isMyRefute } from "./refute-prompt.js";
 import { PAWN_COLORS } from "./board-geometry.js";
 import "../shared/OpponentCard.css";
@@ -277,15 +278,13 @@ export function ClueApp() {
       <section className="clue-tray">
         <div className="clue-hand" data-testid="hand">
           <h4>Your hand</h4>
-          {view.hand.map((c) => <span key={c} className="clue-card">{c}</span>)}
+          {view.hand.map((c) => <ClueCard key={c} id={c} />)}
         </div>
         {view.ledger.length > 0 && (
           <div className="clue-ledger" data-testid="ledger">
             <h4>Shown to you</h4>
             {view.ledger.map((e, i) => (
-              <span key={i} className="clue-card is-shown">
-                {e.card} <em>({name(e.fromSeat)})</em>
-              </span>
+              <ClueCard key={i} id={e.card} caption={`(${name(e.fromSeat)})`} />
             ))}
           </div>
         )}
