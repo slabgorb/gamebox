@@ -1,5 +1,6 @@
 import { shuffle } from '../../../src/shared/cards/deck.js';
 import { SUSPECTS, WEAPONS, ROOMS, dealCards } from './cards.js';
+import { START_SQUARES } from './geometry.js';
 
 // Order participants into a seat-indexed userId roster. `seat` is canonical;
 // fall back to array position if a participant omits it.
@@ -22,10 +23,10 @@ export function buildInitialState({ participants, rng }) {
   const weapons = {};
   WEAPONS.forEach((w, i) => { weapons[w] = shuffledRooms[i]; });
 
-  // All six suspect pawns are on the board regardless of player count; here
-  // they start off-board (room: null) — Plan 2 assigns start squares.
+  // All six suspect pawns are on the board at all times (canonical). Each
+  // starts on its corridor start square (see geometry.js START_SQUARES).
   const pawns = {};
-  SUSPECTS.forEach((s) => { pawns[s] = { room: null }; });
+  SUSPECTS.forEach((s) => { pawns[s] = { square: [...START_SQUARES[s]] }; });
 
   return {
     seats,
@@ -40,6 +41,7 @@ export function buildInitialState({ participants, rng }) {
     eliminated: seats.map(() => false),
     ledgers: seats.map(() => []),
     suggestion: null,
+    pendingRoll: null,
     log: [],
   };
 }

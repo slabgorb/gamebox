@@ -1,5 +1,7 @@
 import { SUSPECTS, WEAPONS, ROOMS } from './cards.js';
 import { findRefuterWalk } from './refute.js';
+import { BOARD } from './geometry.js';
+import { legalMoves, secretPassageDest } from './rules/movement.js';
 
 const clone = (s) => structuredClone(s);
 
@@ -8,11 +10,14 @@ function actorSeat(state, actorId) {
   return i === -1 ? null : i;
 }
 
-export function applyClueAction({ state, action, actorId }) {
+export function applyClueAction({ state, action, actorId, geo = BOARD }) {
   const seat = actorSeat(state, actorId);
   if (seat === null) return { error: 'not a participant' };
   switch (action.type) {
-    case 'enterRoom': return doEnterRoom(state, seat, action.payload);
+    case 'roll': return doRoll(state, seat, action.payload);
+    case 'move': return doMove(state, seat, action.payload, geo);
+    case 'secretPassage': return doSecretPassage(state, seat, geo);
+    case 'enterRoom': return doEnterRoom(state, seat, action.payload, geo);
     case 'suggest': return doSuggest(state, seat, action.payload);
     case 'refute': return doRefute(state, seat, action.payload);
     case 'accuse': return doAccuse(state, seat, action.payload);
@@ -21,14 +26,72 @@ export function applyClueAction({ state, action, actorId }) {
   }
 }
 
-function doEnterRoom(state, seat, payload) {
+function doRoll(state, seat, payload) {
+  if (seat !== state.currentSeat) return { error: 'not your turn' };
+  if (state.phase !== 'move') return { error: `cannot roll in phase '${state.phase}'` };
+  if (state.pendingRoll != null) return { error: 'already rolled this turn' };
+  const value = payload?.value;
+  if (!Number.isInteger(value) || value < 1 || value > 6) {
+    return { error: 'die value must be an integer 1-6' };
+  }
+  const next = clone(state);
+  next.pendingRoll = value;
+  return { state: next };
+}
+
+function doMove(state, seat, payload, geo) {
+  if (seat !== state.currentSeat) return { error: 'not your turn' };
+  if (state.phase !== 'move') return { error: `cannot move in phase '${state.phase}'` };
+  if (state.pendingRoll == null) return { error: 'roll before moving' };
+
+  const { squares, rooms } = legalMoves(state, geo, seat);
+
+  if (payload?.room != null) {
+    if (!rooms.includes(payload.room)) return { error: 'that room is not reachable this turn' };
+    // Entering a room ends the move; route through the existing reducer.
+    return doEnterRoom(state, seat, { room: payload.room }, geo);
+  }
+
+  const sq = payload?.square;
+  const reachable = Array.isArray(sq)
+    && squares.some(([c, r]) => c === sq[0] && r === sq[1]);
+  if (!reachable) return { error: 'that square is not reachable this turn' };
+
+  const next = clone(state);
+  next.pawns[next.seatSuspect[seat]] = { square: [sq[0], sq[1]] };
+  next.pendingRoll = null;
+  // Spec §5: a move that reaches no room ends at accuse-or-pass.
+  next.phase = 'accuse-or-pass';
+  next.activeUserId = next.seats[seat];
+  return { state: next };
+}
+
+function doSecretPassage(state, seat, geo) {
+  if (seat !== state.currentSeat) return { error: 'not your turn' };
+  if (state.phase !== 'move') return { error: `cannot use a secret passage in phase '${state.phase}'` };
+  if (state.pendingRoll != null) return { error: 'cannot use a secret passage after rolling' };
+  const loc = state.pawns[state.seatSuspect[seat]];
+  const from = loc && loc.room ? loc.room : null;
+  const dest = from ? secretPassageDest(geo, from) : null;
+  if (!dest) return { error: 'no secret passage from your location' };
+  // The leap lands in the opposite corner room and ends the move (-> suggest).
+  return doEnterRoom(state, seat, { room: dest }, geo);
+}
+
+function doEnterRoom(state, seat, payload, geo) {
   if (seat !== state.currentSeat) return { error: 'not your turn' };
   if (state.phase !== 'move') return { error: `cannot enter a room in phase '${state.phase}'` };
   const room = payload?.room;
-  if (!ROOMS.includes(room)) return { error: `invalid room '${room}'` };
+  // Validate against the injected geometry (default BOARD carries exactly the
+  // catalog rooms) so synthetic test boards work; own-property check keeps
+  // prototype keys out.
+  if (typeof room !== 'string' || !Object.hasOwn(geo.rooms, room)) {
+    return { error: `invalid room '${room}'` };
+  }
 
   const next = clone(state);
   next.pawns[next.seatSuspect[seat]] = { room };
+  next.pendingRoll = null;
   next.phase = 'suggest';
   next.activeUserId = next.seats[seat];
   return { state: next };
@@ -133,6 +196,7 @@ function doAccuse(state, seat, payload) {
   next.phase = 'move';
   next.activeUserId = next.seats[nseat];
   next.suggestion = null;
+  next.pendingRoll = null;
   return { state: next };
 }
 
@@ -147,5 +211,6 @@ function doPass(state, seat) {
   next.phase = 'move';
   next.activeUserId = next.seats[nseat];
   next.suggestion = null;
+  next.pendingRoll = null;
   return { state: next };
 }
