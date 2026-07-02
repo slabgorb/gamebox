@@ -3,7 +3,7 @@ type: epic
 title: Clue
 description: 'Full-board Clue deduction game plugin (personal fan project, canonical theme). Mixed 3-4 seats, human/bot. Design: docs/superpowers/specs/2026-07-01-clue-clone-design.md. Decomposed into 4 sub-plans: (1) headless deduction engine [plan written: docs/superpowers/plans/2026-07-01-clue-core-engine.md]; (2) board geometry + dice movement traced from docs/Cluedo_board_text.svg; (3) deterministic-knowledge + capped-shortlist + persona-pick bots (6 suspects = 6 game-scoped personas); (4) React client + plugin.js manifest + registration. Reuses Sorry! grid + Risk render-harness; cluePublicView is the hidden-information seam.'
 priority: p2
-status: backlog
+status: done
 repos: g-1
 stories:
   - id: E6-1
@@ -71,9 +71,13 @@ stories:
     description: Plan 4 (PM writes before Dev picks up). React board client under src/clients/clue mirroring geometry; plugin.js manifest (players min:3 max:4); register in src/plugins/index.js; npm run build:client; async-refute pause UX. Depends on E6-1..E6-4.
     points: 8
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-02'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
       - plugin.js registered in src/plugins/index.js; a 3-4 seat mixed human/bot game is creatable and playable end-to-end (move, suggest, refute, accuse) in the browser.
       - Client renders the board from the geometry mirror (drift guard passes); the human-refute pause surfaces a card-choice prompt and resumes correctly.
+    completed: '2026-07-02'
+    review_verdict: approved
+completed: '2026-07-02'

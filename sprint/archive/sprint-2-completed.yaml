@@ -10,6 +10,7 @@ sprint:
 
 completed_epics:
   - E3
+  - E6
 completed_stories:
   - id: E3-1
     epic: E3
@@ -99,5 +100,10 @@ completed_stories:
   - id: E6-4
     epic: E6
     title: 'Clue bots: knowledge tracker + capped shortlist + persona pick + 6 personas + auto-refute'
+    points: 8
+    completed: '2026-07-02'
+  - id: E6-5
+    epic: E6
+    title: Clue client + plugin.js manifest + registration + end-to-end wiring
     points: 8
     completed: '2026-07-02'
