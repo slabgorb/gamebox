@@ -22,20 +22,6 @@ description: |
 priority: p1
 status: in_progress
 repos: g-1
-decision:
-  story: E2-2
-  date: '2026-07-02'
-  call: NO-GO
-  source: docs/risk-llm/pilot-report.md
-  rationale: |
-    150-game pilot (6 pairings x 25, Sonnet 4.6, carded engine): both style
-    metrics (attack-when-available and postCardSecuredAggression) saturate at
-    ~97% across all three personas (1pp spread); only 1 of 3 pairwise
-    chi-square tests met p<0.01. Root cause is architectural, not metric
-    choice: the shortlist-based chooser pre-filters to mostly-aggressive
-    options, so persona preference has nothing to choose against. Path: E2-3-alt
-    (failure analysis) -> E2-4-alt (prompt revision + pilot rerun) -> loop back
-    to a new branch decision. GO-path stories E2-3..E2-7 canceled.
 stories:
   - id: E2-1
     title: Run pilot 150-game corpus + emit GO/NO-GO diagnostic
@@ -65,6 +51,8 @@ stories:
     workflow: trivial
     depends_on: E2-1
     type: chore
+    review_findings: "HIGH: setup gate-recovery 'pf context create epic E2' destructively replaced curated epic context (chooser architecture map, cards-first history) with a generated template; restore from 99fc8e6 and merge in the NO-GO decision. YAML decision field + 7 status flips themselves verified correct against pilot report."
+    review_verdict: rejected
   - id: E2-3
     title: Define full-corpus scope (sample N, persona count, models, budget)
     description: |
@@ -232,3 +220,17 @@ stories:
       - Game types with no override fall back to DEFAULT_MODEL
       - Existing AI tests pass; a test asserts Risk resolves to the Sonnet model and a non-Risk game resolves to Haiku
     completed: '2026-05-21'
+decision:
+  story: E2-2
+  date: '2026-07-02'
+  call: NO-GO
+  source: docs/risk-llm/pilot-report.md
+  rationale: |
+    150-game pilot (6 pairings x 25, Sonnet 4.6, carded engine): both style
+    metrics (attack-when-available and postCardSecuredAggression) saturate at
+    ~97% across all three personas (1pp spread); only 1 of 3 pairwise
+    chi-square tests met p<0.01. Root cause is architectural, not metric
+    choice: the shortlist-based chooser pre-filters to mostly-aggressive
+    options, so persona preference has nothing to choose against. Path: E2-3-alt
+    (failure analysis) -> E2-4-alt (prompt revision + pilot rerun) -> loop back
+    to a new branch decision. GO-path stories E2-3..E2-7 canceled.
