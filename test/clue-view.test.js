@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cluePublicView } from '../plugins/clue/server/view.js';
+import { buildGeometry } from '../plugins/clue/server/geometry.js';
 
 // Hand-built 3-seat state with an in-flight, already-refuted suggestion.
 function fixture() {
@@ -79,4 +80,86 @@ test('a null suggestion passes through as null for every viewer', () => {
   for (const viewerId of [7, 8, 9, 999]) {
     assert.equal(cluePublicView({ state: s, viewerId }).suggestion, null);
   }
+});
+
+// --- E6-3: movement surfacing (active seat only) -----------------------------
+
+function moveGeo() {
+  return buildGeometry({
+    cols: 6, rows: 6,
+    rooms: {
+      ra: { poly: [[0, 0], [2, 0], [2, 2], [0, 2]] },
+      rb: { poly: [[4, 4], [6, 4], [6, 6], [4, 6]] },
+    },
+    doors: [{ room: 'ra', square: [2, 1] }, { room: 'rb', square: [3, 4] }],
+    secretPassages: { ra: 'rb', rb: 'ra' },
+    cellar: null,
+  });
+}
+
+// Seat 0 (userId 7) on turn in phase 'move'.
+function moveState(overrides = {}) {
+  return {
+    seats: [7, 8],
+    phase: 'move',
+    currentSeat: 0,
+    activeUserId: 7,
+    envelope: { suspect: 'plum', weapon: 'rope', room: 'study' },
+    hands: [['mustard'], ['green']],
+    pawns: { scarlett: { square: [2, 2] }, mustard: { room: 'rb' },
+             white: { square: [0, 5] }, green: { square: [5, 0] },
+             peacock: { square: [0, 3] }, plum: { square: [5, 5] } },
+    weapons: {}, seatSuspect: ['scarlett', 'mustard'],
+    eliminated: [false, false], ledgers: [[], []],
+    suggestion: null, pendingRoll: null, log: [],
+    ...overrides,
+  };
+}
+
+test('active seat awaiting a roll sees a needsRoll affordance', () => {
+  const s = moveState();
+  s.pawns.scarlett = { room: 'ra' }; // in a corner room
+  const v = cluePublicView({ state: s, viewerId: 7, geo: moveGeo() });
+  assert.equal(v.pendingRoll, null);
+  assert.deepEqual(v.movement, { needsRoll: true, secretPassage: 'rb' });
+});
+
+test('awaiting-roll affordance has no secret passage from a corridor square', () => {
+  const v = cluePublicView({ state: moveState(), viewerId: 7, geo: moveGeo() });
+  assert.deepEqual(v.movement, { needsRoll: true, secretPassage: null });
+});
+
+test('active seat after rolling sees reachable squares and rooms', () => {
+  const v = cluePublicView({ state: moveState({ pendingRoll: 1 }), viewerId: 7, geo: moveGeo() });
+  assert.equal(v.movement.needsRoll, false);
+  assert.equal(v.movement.pendingRoll, 1);
+  assert.equal(new Set(v.movement.squares.map((s) => s.join(','))).has('2,3'), true);
+});
+
+test('LEAK GUARD: reachable moves are hidden from the non-active seat', () => {
+  const v = cluePublicView({ state: moveState({ pendingRoll: 1 }), viewerId: 8, geo: moveGeo() });
+  assert.equal(v.movement, null);
+});
+
+test('LEAK GUARD: reachable moves are hidden from spectators', () => {
+  const v = cluePublicView({ state: moveState({ pendingRoll: 1 }), viewerId: 999, geo: moveGeo() });
+  assert.equal(v.movement, null);
+});
+
+// The die value itself is public table knowledge — everyone sees it.
+test('pendingRoll is visible to every viewer', () => {
+  for (const viewerId of [7, 8, 999]) {
+    const v = cluePublicView({ state: moveState({ pendingRoll: 4 }), viewerId, geo: moveGeo() });
+    assert.equal(v.pendingRoll, 4, `viewer ${viewerId} sees the public die value`);
+  }
+});
+
+test('movement is null outside the move phase', () => {
+  const v = cluePublicView({ state: moveState({ phase: 'suggest', pendingRoll: null }), viewerId: 7, geo: moveGeo() });
+  assert.equal(v.movement, null);
+});
+
+test('movement is null for an eliminated seat even if marked active', () => {
+  const v = cluePublicView({ state: moveState({ eliminated: [true, false] }), viewerId: 7, geo: moveGeo() });
+  assert.equal(v.movement, null);
 });

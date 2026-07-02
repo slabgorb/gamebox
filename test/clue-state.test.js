@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildInitialState } from '../plugins/clue/server/state.js';
 import { SUSPECTS, WEAPONS, ROOMS } from '../plugins/clue/server/cards.js';
+import { START_SQUARES } from '../plugins/clue/server/geometry.js';
 
 function seededRng(seed = 1) {
   let s = seed >>> 0;
@@ -27,13 +28,22 @@ test('seats are ordered by the seat field, not array order', () => {
   assert.deepEqual(s.seats, [7, 8, 9]);
 });
 
-test('each seat controls a distinct suspect; all 6 pawns exist off-board', () => {
+// Plan 1 asserted "pawns off-board" and flagged that Plan 2 assigns start
+// squares — this is that pre-approved flip.
+test('each seat controls a distinct suspect; all 6 pawns start on their start square', () => {
   const s = buildInitialState({ participants: parts(4), rng: seededRng(3) });
   assert.equal(s.seatSuspect.length, 4);
   assert.equal(new Set(s.seatSuspect).size, 4);
   for (const sus of s.seatSuspect) assert.ok(SUSPECTS.includes(sus));
   assert.equal(Object.keys(s.pawns).length, 6);
-  for (const sus of SUSPECTS) assert.deepEqual(s.pawns[sus], { room: null });
+  for (const sus of SUSPECTS) {
+    assert.deepEqual(s.pawns[sus], { square: [...START_SQUARES[sus]] });
+  }
+});
+
+test('initial state awaits a roll (pendingRoll null)', () => {
+  const s = buildInitialState({ participants: parts(3), rng: seededRng(7) });
+  assert.equal(s.pendingRoll, null);
 });
 
 test('all 6 weapons placed, each in a valid room', () => {
