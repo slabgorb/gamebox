@@ -46,10 +46,12 @@ stories:
       the epic file's decision field.
     points: 1
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-07-02'
     repos: g-1
     workflow: trivial
     depends_on: E2-1
+    completed: '2026-07-02'
     type: chore
     review_findings: "HIGH: setup gate-recovery 'pf context create epic E2' destructively replaced curated epic context (chooser architecture map, cards-first history) with a generated template; restore from 99fc8e6 and merge in the NO-GO decision. YAML decision field + 7 status flips themselves verified correct against pilot report."
     review_verdict: approved

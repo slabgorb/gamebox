@@ -122,3 +122,8 @@ completed_stories:
     title: 'Conquest advance: attacker chooses armies to move (min=dice rolled, max=armies-1), not all-in'
     points: 5
     completed: '2026-07-02'
+  - id: E2-2
+    epic: E2
+    title: Branch decision (review pilot report, declare path)
+    points: 1
+    completed: '2026-07-02'
