@@ -113,3 +113,31 @@ test('secretPassageDest is not fooled by prototype-chain keys', () => {
   assert.equal(secretPassageDest(miniGeo(), '__proto__'), null);
   assert.equal(secretPassageDest(miniGeo(), 'constructor'), null);
 });
+
+// E6-4 Task 7 (E6-3 Reviewer finding): legalMoves trusted pendingRoll
+// unconditionally. shortlist.js is the first NON-REDUCER caller (doRoll's
+// 1-6 validation no longer guards it), so the die is clamped at the walk
+// boundary. Note: the plan suggested pendingRoll:100, but an unclamped
+// self-avoiding walk of depth 100 explodes combinatorially and would HANG
+// the red suite — 7 proves the same clamp and fails fast instead.
+test('die clamp: an over-range roll behaves exactly like 6', () => {
+  const at = (roll) => legalMoves(st({ scarlett: { square: [2, 2] }, mustard: { room: 'rb' } }, roll), miniGeo(), 0);
+  const seven = at(7);
+  const six = at(6);
+  assert.deepEqual(asSet(seven.squares), asSet(six.squares));
+  assert.deepEqual([...seven.rooms].sort(), [...six.rooms].sort());
+});
+
+test('die clamp: a fractional roll floors to the integer walk depth', () => {
+  const at = (roll) => legalMoves(st({ scarlett: { square: [2, 2] }, mustard: { room: 'rb' } }, roll), miniGeo(), 0);
+  const frac = at(3.9);
+  const three = at(3);
+  assert.deepEqual(asSet(frac.squares), asSet(three.squares));
+  assert.deepEqual([...frac.rooms].sort(), [...three.rooms].sort());
+});
+
+test('die clamp: sub-1 and negative rolls yield no moves', () => {
+  const at = (roll) => legalMoves(st({ scarlett: { square: [2, 2] }, mustard: { room: 'rb' } }, roll), miniGeo(), 0);
+  assert.deepEqual(at(-5), { squares: [], rooms: [] });
+  assert.deepEqual(at(0.5), { squares: [], rooms: [] });
+});

@@ -56,3 +56,23 @@ test('AC7: plugins/backgammon/server/ai/backgammon-player.js does not materializ
     'backgammon player must not derive dice values via Math.floor(rng()*6) — chooseAction returns a values-less roll intent',
   );
 });
+
+// E6-4 Task 7: the clue bot path inherits the same doctrine. The bot's roll
+// is a values-less intent; the client materialises the die and POSTs the
+// shipped roll{value} action. These files must exist AND stay RNG-free.
+test('AC7: clue bot path materialises no dice values from rng', () => {
+  for (const rel of [
+    'plugins/clue/server/ai/clue-player.js',
+    'plugins/clue/server/ai/shortlist.js',
+  ]) {
+    const src = read(rel);
+    assert.ok(
+      !/Math\.floor\s*\(\s*(?:rng|Math\.random)\s*\(\s*\)\s*\*\s*6\s*\)/.test(src),
+      `${rel} must not derive a die value — clue bots roll a values-less intent, the client rolls`,
+    );
+    assert.ok(
+      !/\*\s*6\s*\)\s*\+\s*1/.test(src),
+      `${rel} must not carry the (…*6)+1 die formula in any disguise`,
+    );
+  }
+});
