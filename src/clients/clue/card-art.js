@@ -1,8 +1,8 @@
 // Presentation source-of-truth: every engine card id → its portrait art.
 // Pure data (no JSX) so test/clue-card-art-drift.test.js can import it under
 // node --test — the board-geometry.js mirror pattern. This is the ONLY place
-// the suspect card-id → persona-portrait-filename mismatch is resolved, and
-// the only place a not-yet-authored portrait (leadpipe) declares its glyph.
+// the suspect card-id → persona-portrait-filename mismatch is resolved. All 21
+// portraits are authored; each `glyph` is a defensive load-failure fallback.
 
 /**
  * @typedef {Object} CardArt
