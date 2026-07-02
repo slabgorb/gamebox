@@ -2,6 +2,7 @@
 // refuter; picking a card POSTs refute{card} and the engine returns the turn
 // to the suggester.
 import { refuteChoices } from "./refute-prompt.js";
+import { ClueCard } from "./ClueCard";
 import type { ClueView, CardId } from "../shared/contracts/clue";
 
 export function RefutePrompt({
@@ -21,9 +22,7 @@ export function RefutePrompt({
       </p>
       <div className="clue-refute-cards">
         {choices.map((card) => (
-          <button key={card} type="button" data-card={card} onClick={() => onShow(card)}>
-            {card}
-          </button>
+          <ClueCard key={card} id={card} onClick={onShow} />
         ))}
       </div>
     </div>
