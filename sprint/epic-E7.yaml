@@ -11,13 +11,16 @@ stories:
     description: "First Clue playtest: the SVG board reads very plain. Experiment with filling each room polygon with its room portrait (public/shared/portraits/<roomId>.png — all 9 exist: kitchen, ballroom, conservatory, diningroom, billiardroom, library, lounge, hall, study) as a clipped background, behind the room label and pawn/weapon tokens. Board renders room polygons in src/clients/clue/Board.tsx (ROOMS_GEO); room fill is #clue-root .clue-room in plugins/clue/client/style.css. Likely approach: SVG <pattern>/<image> clipped to each polygon, dimmed with a scrim so labels/tokens stay legible. OPEN QUESTION this spike answers: do photoreal room backgrounds work at board scale, or does the board want a purpose-drawn illustrated top-down view instead? Build the image version, screenshot it, and decide keep / revert / go-top-down. Mind the two-stylesheet trap: #clue-root style.css is checked-in high-specificity, the built app.css loses the cascade."
     points: 3
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-02'
     repos: g-1
     workflow: trivial
     acceptance_criteria:
       - All 9 rooms show their portrait as a polygon-clipped background behind the existing room labels and pawn/weapon tokens, which stay legible (scrim/dim as needed).
       - The reachable-room highlight (is-reachable) still reads clearly over the image.
       - Screenshots of image-backgrounds vs the current plain board are captured, and a keep / revert / go-top-down decision is recorded.
+    completed: '2026-07-02'
+    review_verdict: approved
   - id: E7-2
     title: 'Bots roll their own dice (drop the human proxy-roll)'
     description: "First Clue playtest friction: the human must click 'Roll for {bot}' to resolve a bot's movement roll. Today bots emit a values-less clue_roll_request SSE that any human resolves on their behalf (backgammon proxy pattern; src/clients/clue/ClueApp.tsx rollReq/liveRollReq ~lines 85-146 and the 'Roll for {seat}' button ~lines 197-206). Make bots roll their own die automatically so no human action is needed. CRUX to settle in design: resolve the bot roll server-side inside the orchestrator turn (invisible, no animation — matches the existing collapsed-mechanic doctrine that invisible dice inline server-side), or auto-trigger the DiceTray on a spectator client without the manual button if a visible bot die is wanted. Server-side auto-resolve is simplest and removes the click. Touches the orchestrator bot-turn flow (must still drive the whole turn in one wake-up, gated on activeUserId===bot per the turn-continuation contract) and removes the proxy-roll UI. Leave the human's own visible roll unchanged."
@@ -39,11 +42,11 @@ stories:
     status: backlog
     repos: g-1
     workflow: tdd
-    type: bug
     acceptance_criteria:
       - A pawn move survives a page refresh — after reload the pawn is at its moved-to room/square, not the pre-move position.
       - Root cause is identified (persisted vs rehydrated pawn state) and locked with a regression test that persists state after a move and re-reads it.
       - Suggestion history and other already-correct state stay correct (no regression).
+    type: bug
   - id: E7-4
     title: "'The Tortoise' AI portrait falls back to emoji (persona id != portrait filename)"
     description: "Playtest bug: the 'The Tortoise' AI opponent shows the fallback turtle emoji instead of its portrait. Root cause CONFIRMED: portraits auto-load by persona id (OpponentCard src=/shared/portraits/<personaId>.png); the persona id is 'the-tortoise' (data/ai-personas/the-tortoise.yaml, filename==id, loader-enforced) but the portrait file is public/shared/portraits/the-turtle.png — so /shared/portraits/the-tortoise.png 404s and the glyph shows. Same class as the earlier lady-peacock/professor-plum rename. FIX: git mv public/shared/portraits/the-turtle.png -> the-tortoise.png to match the persona id. Trivial; no code change, no rebuild (static asset). Grep for other 'the-turtle' references first. Not Clue-specific — surfaced during the Clue playtest but affects the-tortoise wherever it appears."
@@ -52,10 +55,10 @@ stories:
     status: backlog
     repos: g-1
     workflow: trivial
-    type: bug
     acceptance_criteria:
       - The the-tortoise persona shows its portrait (not the emoji fallback) wherever it appears.
       - Portrait filename matches the persona id (the-tortoise.png); no dangling the-turtle references remain.
+    type: bug
   - id: E7-5
     title: 'Investigate mid-play hangs (bot AI / haiku agent may be timing out)'
     description: "Playtest observation: play sometimes hangs mid-game; suspected a bot AI move stalling — 'perhaps a haiku agent is timing out.' Clue bots shell out to the claude CLI for moves (~/.local/bin/claude on the launchd PATH); a slow/hung/timed-out LLM call would stall the turn. Existing handling: agent-session surfaces stall/invalid-response, and the orchestrator must drive a bot's whole turn in one wake-up gated on activeUserId===bot (turn-continuation contract) — if a roll or sub-action hangs, the turn never completes and the human is stuck (more relevant once E7-2 makes bots self-roll). Investigate with systematic-debugging: reproduce, capture WHERE it stalls (which action/phase), check the claude-CLI spawn timeout + error handling in src/server/ai/agent-session.js and the clue AI adapter (plugins/clue/server/ai/), and confirm a timed-out/failed bot call fails soft (stall UI / retry) instead of hanging the game. Add a timeout + graceful-degradation path if missing. PLAYTEST THEORY (narrows the search): the hang appears to be in the POST-SUGGESTION phase — after a suggestion is made, during 'refute' (a bot refuter being asked to show a card) or the refute -> accuse-or-pass continuation. A bot's refute-choice LLM call hanging would stall the game in the 'refute' phase; check that path first (plugins/clue/server/ai refute/knowledge + the orchestrator continuation after a refute resolves). Note which model the clue personas use and whether latency is the bottleneck."
@@ -64,8 +67,8 @@ stories:
     status: backlog
     repos: g-1
     workflow: tdd
-    type: bug
     acceptance_criteria:
       - The stall is reproduced and root-caused (which action/phase hangs; whether it is a claude-CLI timeout, a missing turn-continuation, or something else).
       - A hung / slow / failed bot AI call fails soft — surfaces a stall/retry affordance and never leaves the game unable to progress.
       - Regression coverage for the timeout / graceful-degradation path.
+    type: bug

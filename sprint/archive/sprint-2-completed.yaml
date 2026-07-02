@@ -107,3 +107,8 @@ completed_stories:
     title: Clue client + plugin.js manifest + registration + end-to-end wiring
     points: 8
     completed: '2026-07-02'
+  - id: E7-1
+    epic: E7
+    title: 'Board room-image backgrounds (spike: photoreal images vs top-down view)'
+    points: 3
+    completed: '2026-07-02'
