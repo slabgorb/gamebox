@@ -22,8 +22,12 @@ export function secretPassageDest(geo, roomId) {
 }
 
 export function legalMoves(state, geo, seat) {
-  const die = state.pendingRoll;
-  if (!die) return { squares: [], rooms: [] };
+  // Clamp at the walk boundary: doRoll validates 1-6 on the reducer path,
+  // but the bot shortlist calls legalMoves directly, and an unclamped
+  // pendingRoll (e.g. 100) explodes the self-avoiding walk (E6-3 finding).
+  const raw = state.pendingRoll;
+  if (!raw || raw < 1) return { squares: [], rooms: [] };
+  const die = Math.min(6, Math.max(1, Math.floor(raw)));
 
   const suspect = state.seatSuspect[seat];
   const loc = state.pawns[suspect];
