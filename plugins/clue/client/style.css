@@ -87,13 +87,42 @@ body {
 
 #clue-root .clue-tray { display: flex; gap: 24px; flex-wrap: wrap; margin: 10px 0; }
 #clue-root .clue-tray h4 { margin: 0 0 6px; font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; }
+/* --- Cards: framed portrait tiles (replaces the old text pills) --- */
 #clue-root .clue-card {
-  display: inline-block; margin: 0 6px 6px 0; padding: 4px 10px;
-  background: #efe6d8; color: #2a1a22; border-radius: 4px; font-size: 0.85rem;
-  text-transform: capitalize;
+  display: inline-flex; flex-direction: column; align-items: stretch;
+  width: 88px; margin: 0 6px 6px 0; padding: 0;
+  background: #efe6d8; color: #2a1a22;
+  border: 2px solid #8a6d5a; border-radius: 8px; overflow: hidden;
+  font: inherit; font-size: 0.8rem; text-align: center;
+  appearance: none; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
-#clue-root .clue-card.is-shown { background: #cdb98a; }
-#clue-root .clue-card em { font-size: 0.7rem; }
+#clue-root .clue-card__portrait {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 88px; background: #1f2937; overflow: hidden;
+}
+#clue-root .clue-card__glyph { font-size: 40px; line-height: 1; }
+#clue-root .clue-card__img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+#clue-root .clue-card__label {
+  padding: 4px 6px; font-weight: 600; text-transform: capitalize; line-height: 1.2;
+}
+#clue-root .clue-card__caption {
+  display: block; padding: 0 6px 4px; font-size: 0.7rem; font-style: italic; opacity: 0.7;
+}
+#clue-root .clue-card--suspect { border-color: #c0392b; }
+#clue-root .clue-card--weapon  { border-color: #8a6d5a; }
+#clue-root .clue-card--room    { border-color: #2980b9; }
+#clue-root .clue-card--pickable {
+  cursor: pointer; transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+#clue-root .clue-card--pickable:hover {
+  transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+}
+#clue-root .clue-card--pickable:focus-visible,
+#clue-root .clue-card.is-selected {
+  outline: 2px solid #e0b23c; outline-offset: 2px;
+}
 
 #clue-root .clue-log { font-size: 0.85rem; opacity: 0.85; border-top: 1px solid rgba(224, 178, 60, 0.3); padding-top: 8px; }
 #clue-root .clue-log p { margin: 2px 0; }
