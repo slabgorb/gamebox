@@ -22,6 +22,20 @@ description: |
 priority: p1
 status: in_progress
 repos: g-1
+decision:
+  story: E2-2
+  date: '2026-07-02'
+  call: NO-GO
+  source: docs/risk-llm/pilot-report.md
+  rationale: |
+    150-game pilot (6 pairings x 25, Sonnet 4.6, carded engine): both style
+    metrics (attack-when-available and postCardSecuredAggression) saturate at
+    ~97% across all three personas (1pp spread); only 1 of 3 pairwise
+    chi-square tests met p<0.01. Root cause is architectural, not metric
+    choice: the shortlist-based chooser pre-filters to mostly-aggressive
+    options, so persona preference has nothing to choose against. Path: E2-3-alt
+    (failure analysis) -> E2-4-alt (prompt revision + pilot rerun) -> loop back
+    to a new branch decision. GO-path stories E2-3..E2-7 canceled.
 stories:
   - id: E2-1
     title: Run pilot 150-game corpus + emit GO/NO-GO diagnostic
@@ -60,7 +74,7 @@ stories:
       Output: docs/risk-llm/corpus-spec.md ready for architect sign-off.
     points: 3
     priority: p1
-    status: backlog
+    status: canceled
     repos: g-1
     workflow: trivial
     depends_on: E2-2
@@ -72,7 +86,7 @@ stories:
       the harness's resume + retry survives rate-limit interruption.
     points: 5
     priority: p2
-    status: backlog
+    status: canceled
     repos: g-1
     workflow: trivial
     depends_on: E2-3
@@ -86,7 +100,7 @@ stories:
       manifest describing the dataset version.
     points: 5
     priority: p2
-    status: backlog
+    status: canceled
     repos: g-1
     workflow: tdd
     depends_on: E2-4
@@ -100,7 +114,7 @@ stories:
       report whether style fidelity improved over the base model.
     points: 8
     priority: p2
-    status: backlog
+    status: canceled
     repos: g-1
     workflow: trivial
     depends_on: E2-5
@@ -113,7 +127,7 @@ stories:
       games and capture style preference signal (subjective for now).
     points: 5
     priority: p3
-    status: backlog
+    status: canceled
     repos: g-1
     workflow: tdd
     depends_on: E2-6
@@ -127,7 +141,7 @@ stories:
       persona voice? Identify the root cause before iterating prompts.
     points: 3
     priority: p1
-    status: backlog
+    status: ready
     repos: g-1
     workflow: trivial
     depends_on: E2-2
@@ -140,7 +154,7 @@ stories:
       back to E2-2 with the new result.
     points: 5
     priority: p1
-    status: backlog
+    status: ready
     repos: g-1
     workflow: trivial
     depends_on: E2-3-alt
