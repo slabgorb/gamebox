@@ -264,17 +264,27 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
     // Turn ownership check (only if state declares activeUserId).
     // `resign` is exempt: leaving a game must work even when it is not
     // your turn (e.g. while the opponent/bot is the active player).
+    // A `roll` while a BOT is the active player is a client-dice proxy:
+    // dice are client-side, so a human participant resolves the bot's die
+    // and the roll is applied AS the bot (clue_roll_request flow; the
+    // N-player analogue of backgammon's engine-level roll proxy). The
+    // engine still validates seat/phase/value, and the is_bot gate means
+    // a human can never roll for another human.
     const activeUserId = req.game.state.activeUserId;
+    let actorId = req.user.id;
     if (action.type !== 'resign'
         && typeof activeUserId === 'number' && activeUserId !== req.user.id) {
-      return res.status(422).json({ error: 'not your turn' });
+      const activeIsBot = action.type === 'roll'
+        && db.prepare("SELECT is_bot FROM users WHERE id = ?").get(activeUserId)?.is_bot === 1;
+      if (!activeIsBot) return res.status(422).json({ error: 'not your turn' });
+      actorId = activeUserId;
     }
 
     const txn = db.transaction(() => {
       const result = plugin.applyAction({
         state: req.game.state,
         action,
-        actorId: req.user.id,
+        actorId,
         rng: makeRng(Date.now()),
       });
       if (result.error) return { http: 422, body: { error: result.error } };
@@ -282,9 +292,10 @@ export function mountRoutes(app, { db, registry, sse, ai = null }) {
       const newState = result.state;
       writeGameState(db, req.game.id, newState);
 
-      const actorSeat = seatOfState(newState, req.user.id)
-        ?? seatOfState(req.game.state, req.user.id)
-        ?? seatForUser(req.game, req.user.id);
+      // Attribute to the effective actor (the bot, when a human proxied its roll).
+      const actorSeat = seatOfState(newState, actorId)
+        ?? seatOfState(req.game.state, actorId)
+        ?? seatForUser(req.game, actorId);
 
       const turnRows = [];
       if (result.summary) {

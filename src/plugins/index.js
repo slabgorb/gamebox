@@ -8,6 +8,7 @@ import cribbagePlugin from '../../plugins/cribbage/plugin.js';
 import buracoPlugin from '../../plugins/buraco/plugin.js';
 import riskPlugin from '../../plugins/risk/plugin.js';
 import sorryPlugin from '../../plugins/sorry/plugin.js';
+import cluePlugin from '../../plugins/clue/plugin.js';
 
 export const plugins = {
   words: wordsPlugin,
@@ -17,4 +18,5 @@ export const plugins = {
   buraco: buracoPlugin,
   risk: riskPlugin,
   sorry: sorryPlugin,
+  clue: cluePlugin,
 };

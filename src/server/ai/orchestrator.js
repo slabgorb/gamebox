@@ -105,13 +105,25 @@ function botMustActConcurrently(state, botUserId) {
   );
 }
 
+// Games whose pending state means "awaiting a client-supplied value — pause
+// the bot" (backgammon's pendingRoll object; Risk's pendingCombat). Clue is
+// NOT here: its pendingRoll is the RESOLVED die value ("drive the move"), so
+// the clue bot is gated purely on activeUserId (Delivery Finding F8b — the
+// semantics are inverted between the two games).
+const CLIENT_RESOLUTION_GAMES = new Set(['backgammon', 'risk']);
+function awaitingClientResolution(gameType, state) {
+  if (!CLIENT_RESOLUTION_GAMES.has(gameType)) return false;
+  return Boolean(state.pendingCombat || state.pendingRoll);
+}
+
 // Mirror of _runBot's act-or-skip gate, used by the scan loop to pick the next
 // bot to drive. Shares the concurrent-phase block with _runBot via
 // botMustActConcurrently, so the two cannot drift.
-function botEligible(state, botUserId) {
+function botEligible(state, botUserId, gameType) {
   // CROSS-BUG-3 continuation gate: bot is paused while an action awaits
-  // client-side dice resolution.
-  if (state.pendingCombat || state.pendingRoll) return false;
+  // client-side dice resolution (F8b: never for clue, whose numeric
+  // pendingRoll means "move now").
+  if (awaitingClientResolution(gameType, state)) return false;
   if (state.activeUserId === botUserId) return true;
   if (state.activeUserId != null) return false;
   return botMustActConcurrently(state, botUserId);
@@ -146,7 +158,9 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
     // client-side dice resolution (pendingCombat in Risk; pendingRoll in
     // backgammon), the bot is paused. The human's resolved POST will
     // clear the pending state and the next wake-up runs the next bot action.
-    if (state.pendingCombat || state.pendingRoll) return;
+    // Clue is exempt (F8b): its numeric pendingRoll is the resolved die and
+    // must DRIVE the bot's move, not pause it.
+    if (awaitingClientResolution(gameRow.game_type, state)) return;
     // Allow bot to act when activeUserId is explicitly theirs, OR when
     // activeUserId is null (concurrent phases: discard, show) and the bot
     // hasn't yet submitted its half.
@@ -345,6 +359,22 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
           session.resumeCount = 0;
         }
 
+        // Clue: a values-less roll intent is a client-dice request, not an
+        // engine action (doRoll demands an integer 1-6). Broadcast it and
+        // yield; a human client rolls the die and POSTs roll{value} on the
+        // bot's behalf (the backgammon "human resolves the bot's roll"
+        // pattern). The next wake-up drives the move because
+        // awaitingClientResolution('clue', …) is false. Dice stay client-side.
+        if (gameRow.game_type === 'clue'
+            && r.action?.type === 'roll'
+            && r.action?.payload?.value == null) {
+          sse.broadcast(gameId, {
+            type: 'clue_roll_request',
+            payload: { seat: botPlayerIdx, personaId: persona.id },
+          });
+          return;
+        }
+
         // Re-read fresh state inside the write transaction and re-apply.
         // Race-prone case: cribbage 'discard' (and other concurrent phases)
         // — the human may have submitted while the LLM was in flight, and
@@ -518,7 +548,7 @@ export function createOrchestrator({ db, llm, llmByGameType, sse, personas, adap
         continue;
       }
       const eligible = sessions.find(
-        s => !attempted.has(s.botUserId) && botEligible(state, s.botUserId),
+        s => !attempted.has(s.botUserId) && botEligible(state, s.botUserId, gameRow.game_type),
       );
       if (!eligible) return;
       attempted.add(eligible.botUserId);

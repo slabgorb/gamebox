@@ -15,6 +15,8 @@ import riskPlugin from '../../../plugins/risk/plugin.js';
 import { chooseAction as riskChoose, resolvePendingCombat as riskResolvePending } from '../../../plugins/risk/server/ai/risk-player.js';
 import sorryPlugin from '../../../plugins/sorry/plugin.js';
 import { chooseAction as sorryChoose } from '../../../plugins/sorry/server/ai/sorry-player.js';
+import cluePlugin from '../../../plugins/clue/plugin.js';
+import { chooseAction as clueChoose } from '../../../plugins/clue/server/ai/clue-player.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, '..', '..', '..');
@@ -54,6 +56,7 @@ export function bootAiSubsystem({ db, sse, llm, personaDir = DEFAULT_PERSONA_DIR
     words:      { plugin: wordsPlugin,      chooseAction: wordsChoose },
     risk:       { plugin: riskPlugin,       chooseAction: riskChoose, resolvePending: riskResolvePending },
     sorry:      { plugin: sorryPlugin,      chooseAction: sorryChoose },
+    clue:       { plugin: cluePlugin,       chooseAction: clueChoose },
   };
   // Per-game-type client map: each adapter gets a client at its resolved
   // model (Risk → Sonnet, others → Haiku). An injected `llm` (tests) is

@@ -47,6 +47,9 @@ plugins/cribbage/client/app.css
 plugins/sorry/client/app.js
 plugins/sorry/client/app.js.map
 plugins/sorry/client/app.css
+plugins/clue/client/app.js
+plugins/clue/client/app.js.map
+plugins/clue/client/app.css
 
 # Playwright artifacts and ad-hoc screenshots
 .playwright-mcp/
