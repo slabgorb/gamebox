@@ -117,3 +117,8 @@ completed_stories:
     title: 'Bots roll their own dice (drop the human proxy-roll)'
     points: 3
     completed: '2026-07-02'
+  - id: E5-10
+    epic: E5
+    title: 'Conquest advance: attacker chooses armies to move (min=dice rolled, max=armies-1), not all-in'
+    points: 5
+    completed: '2026-07-02'

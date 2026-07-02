@@ -105,7 +105,8 @@ stories:
       Scope: (1) Server conquest apply accepts an advanceCount and validates it into [dice_of_winning_roll, origin_armies - 1], moving that many instead of all; carry the winning roll's dice count through to the conquest step. (2) Client: after a conquest, present an advance chooser (slider/stepper over the valid range) and send the chosen count — slot into the E5-1 interactive attack overlay. (3) Bots must choose an advance count so bot conquests still resolve in one turn (default: advance max = origin-1, i.e. current all-in behavior, or a simple heuristic). Edge case: when origin_armies-1 == dice (e.g. 2 armies, 1 die) the range collapses to a single forced value — no chooser needed. TDD: assert min/max boundaries and rejection of out-of-range counts before wiring UI.
     points: 5
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-07-02'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
@@ -114,4 +115,6 @@ stories:
       - When min == max the advance is forced to that value with no chooser shown
       - Client shows an advance chooser over the valid range after a conquest (in the E5-1 overlay) and sends the chosen count
       - Bots choose a valid advanceCount and their conquest resolves within a single turn (no hang)
+    completed: '2026-07-02'
     type: bug
+    review_verdict: approved
