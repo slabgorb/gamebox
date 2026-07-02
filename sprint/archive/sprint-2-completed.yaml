@@ -91,3 +91,8 @@ completed_stories:
     title: 'Clue action reducers: refuter walk + suggest/refute/accuse/pass'
     points: 5
     completed: '2026-07-01'
+  - id: E6-3
+    epic: E6
+    title: Clue board geometry + dice movement (grid/rooms/doors/secret passages, BFS, render harness)
+    points: 8
+    completed: '2026-07-01'

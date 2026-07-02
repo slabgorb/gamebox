@@ -42,12 +42,15 @@ stories:
     description: "Plan 2 (PM writes before Dev picks up). Board geometry traced from docs/Cluedo_board_text.svg: corridor grid, 9 room polygons, door squares, corner secret passages (Kitchen<->Study, Conservatory<->Lounge). Reachable-squares BFS, roll/move actions routing into E6-2's enterRoom reducer, offline rsvg-convert render harness. Dice client-side. Depends on E6-1/E6-2."
     points: 8
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-01'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
       - geometry.js (grid + 9 rooms + doors + 2 secret-passage edges) verified offline via the rsvg-convert render harness with non-overlapping room polygons.
       - roll (client-supplied value) + move (grid square) actions enforce orthogonal, no-revisit, no-move-through-occupied movement and route room entry through the existing enterRoom reducer; entering a room ends the move.
+    completed: '2026-07-01'
+    review_verdict: approved
   - id: E6-4
     title: 'Clue bots: knowledge tracker + capped shortlist + persona pick + 6 personas + auto-refute'
     description: Plan 3 (PM writes before Dev picks up). Deterministic knowledge-matrix tracker (never misdeduces) -> bounded difficulty-capped shortlist (info-max/chase/bluff/safe/accuse-when-solved) -> chooseAction persona pick + banter (words/backgammon contract). Six suspect personas as games:[clue] catalog YAMLs. Bot auto-refute (least-leak card). Depends on E6-1/E6-2 (+E6-3 for movement shortlist).
