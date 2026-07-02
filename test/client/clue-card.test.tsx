@@ -37,6 +37,15 @@ describe("ClueCard", () => {
     expect(container.querySelector("span.clue-card")).not.toBeNull();
   });
 
+  it("removes the img and reveals the glyph fallback when the portrait fails to load", () => {
+    const { container } = render(<ClueCard id="scarlett" />);
+    const img = container.querySelector("img.clue-card__img") as HTMLImageElement;
+    expect(img).not.toBeNull();
+    fireEvent.error(img);
+    expect(container.querySelector("img.clue-card__img")).toBeNull();
+    expect(container.querySelector(".clue-card__glyph")).not.toBeNull();
+  });
+
   it("is a button that fires onClick with its id when pickable", () => {
     const onClick = vi.fn();
     const { container } = render(<ClueCard id="rope" onClick={onClick} selected />);

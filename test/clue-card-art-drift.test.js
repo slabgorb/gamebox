@@ -4,8 +4,12 @@
 // label + glyph, and there are no orphan ids. Mirrors clue-board-drift.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { CARD_ART } from '../src/clients/clue/card-art.js';
 import { WEAPONS, ROOMS, ALL_CARDS, categoryOf } from '../plugins/clue/server/cards.js';
+
+const REPO_ROOT = resolve(import.meta.dirname, '..');
 
 test('every engine card id has exactly one CARD_ART entry', () => {
   assert.deepEqual(Object.keys(CARD_ART).sort(), [...ALL_CARDS].sort());
@@ -39,5 +43,14 @@ test('every weapon and room filename equals its id', () => {
   }
   for (const id of ROOMS) {
     assert.equal(CARD_ART[id].file, id, `room ${id} filename equals id`);
+  }
+});
+
+test('every referenced portrait PNG exists on disk', () => {
+  for (const id of ALL_CARDS) {
+    const { file } = CARD_ART[id];
+    if (file === null) continue;
+    const portraitPath = resolve(REPO_ROOT, 'public/shared/portraits', `${file}.png`);
+    assert.ok(existsSync(portraitPath), `missing portrait for ${id}: expected file at ${portraitPath}`);
   }
 });
