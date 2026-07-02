@@ -18,6 +18,7 @@ const PLUGIN_META = {
   buraco:     { tagline: 'Brazilian rummy — sequences, jokers, mortos' },
   risk:       { tagline: 'Conquer the map, one die at a time' },
   sorry:      { tagline: 'The slidy diagonal chasing game' },
+  clue:       { tagline: 'Whodunit? Deduce the culprit, weapon, and room' },
 };
 const PLUGIN_VARIANTS = {
   words: [

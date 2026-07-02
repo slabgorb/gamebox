@@ -315,6 +315,56 @@ export function boxArtSorry() {
     </svg>`;
 }
 
+export function boxArtClue() {
+  // Mansion mystery: a parchment floor-plan fragment (inked rooms with door
+  // gaps) and a faint footprint trail leading to a brass-rimmed magnifying
+  // glass that enlarges a room outline and a serif "?". Echoes the clue
+  // mansion-parlour board theme (plum ink, brass, parchment).
+  const room = (x, y, w, h) => `
+    <rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#c9b587" stroke="#40242e" stroke-width="2"/>`;
+  const foot = (x, y, r) => `<ellipse cx="${x}" cy="${y}" rx="3.2" ry="4.6" transform="rotate(${r} ${x} ${y})" fill="#40242e" opacity="0.42"/>`;
+  return `
+    <svg viewBox="0 0 420 120" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <radialGradient id="cl-parch" cx="45%" cy="40%" r="85%">
+          <stop offset="0%" stop-color="#e6d4a4"/>
+          <stop offset="100%" stop-color="#c2a870"/>
+        </radialGradient>
+      </defs>
+      <rect width="420" height="120" fill="url(#cl-parch)"/>
+
+      <!-- floor-plan fragment: inked rooms with door gaps -->
+      <g opacity="0.9">
+        ${room(28, 24, 84, 48)}
+        ${room(120, 20, 66, 40)}
+        ${room(40, 80, 72, 28)}
+        ${room(150, 66, 66, 44)}
+        <line x1="112" y1="40" x2="112" y2="52" stroke="#e6d4a4" stroke-width="3"/>
+        <line x1="150" y1="40" x2="162" y2="40" stroke="#e6d4a4" stroke-width="3"/>
+        <line x1="76"  y1="80" x2="76"  y2="92" stroke="#e6d4a4" stroke-width="3"/>
+      </g>
+
+      <!-- footprint trail toward the lens -->
+      <g>
+        ${foot(122, 102, 18)}${foot(146, 98, 26)}${foot(170, 92, 20)}
+        ${foot(196, 86, 30)}${foot(222, 80, 24)}
+      </g>
+
+      <!-- magnifying glass -->
+      <g transform="translate(302, 54)">
+        <line x1="26" y1="26" x2="62" y2="62" stroke="#7a5a2a" stroke-width="11" stroke-linecap="round"/>
+        <line x1="26" y1="26" x2="62" y2="62" stroke="#c2a14e" stroke-width="5" stroke-linecap="round"/>
+        <circle r="34" fill="#f4ecd8" opacity="0.55"/>
+        <circle r="34" fill="#bcd0d8" opacity="0.22"/>
+        <rect x="-22" y="-16" width="26" height="21" fill="none" stroke="#40242e" stroke-width="2"/>
+        <text x="12" y="13" text-anchor="middle" font-family="Georgia, serif" font-weight="700" font-size="34" fill="#7a1f2e">?</text>
+        <circle r="34" fill="none" stroke="#7a5a2a" stroke-width="9"/>
+        <circle r="34" fill="none" stroke="#c2a14e" stroke-width="5"/>
+        <path d="M -22 -14 A 30 30 0 0 1 6 -30" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.55" stroke-linecap="round"/>
+      </g>
+    </svg>`;
+}
+
 export function boxArt(gameType, variant) {
   if (gameType === 'words')      return boxArtWords(variant);
   if (gameType === 'rummikub')   return boxArtRummikub();
@@ -323,5 +373,6 @@ export function boxArt(gameType, variant) {
   if (gameType === 'risk')       return boxArtRisk();
   if (gameType === 'cribbage')   return boxArtCribbage();
   if (gameType === 'sorry')      return boxArtSorry();
+  if (gameType === 'clue')       return boxArtClue();
   return `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="#e9d9a8"/></svg>`;
 }
