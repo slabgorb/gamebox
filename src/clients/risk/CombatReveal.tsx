@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { DiceTray, type DiceTrayHandle } from "../shared/DiceTray";
-import { driveCombat, resolveRound, type CombatDecision } from "./combat-rules";
+import {
+  advanceRange,
+  driveCombat,
+  resolveRound,
+  type CombatDecision,
+} from "./combat-rules";
+import { AdvanceChooser } from "./AdvanceChooser";
+import type { ResolvedCombat } from "../shared/contracts/risk";
 
 type Rolls = (n: number) => Promise<number[]>;
 
@@ -57,6 +64,13 @@ export function CombatReveal(props: Props) {
   // (a fresh mount) starts empty — the stack is this-battle-only.
   const [cards, setCards] = useState<RoundCard[]>([]);
   const [awaiting, setAwaiting] = useState(false);
+  // E5-10: an interactive capture holds the resolved outcome here until the
+  // attacker picks an advance count; onResolved fires with advanceCount set.
+  const [pendingAdvance, setPendingAdvance] = useState<{
+    out: ResolvedCombat;
+    min: number;
+    max: number;
+  } | null>(null);
   const decideResolver = useRef<((d: CombatDecision) => void) | null>(null);
   const started = useRef(false);
 
@@ -99,7 +113,18 @@ export function CombatReveal(props: Props) {
       }).then((out) => {
         setAwaiting(false);
         setDone(out.captured);
-        props.onResolved(out);
+        // E5-10: a human attacker chooses the advance after a capture — gate
+        // the resolved POST behind the chooser. Every other path (repulse,
+        // defender proxying a bot's attack) resolves immediately with no
+        // advanceCount; the server applies its default (all survivors).
+        const range = isInteractive && out.captured
+          ? advanceRange(out, props.force)
+          : null;
+        if (range) {
+          setPendingAdvance({ out, min: range.min, max: range.max });
+        } else {
+          props.onResolved(out);
+        }
       });
       return;
     }
@@ -228,6 +253,17 @@ export function CombatReveal(props: Props) {
         <div className={`combat-reveal__result ${done ? "won" : "lost"}`}>
           {done ? "Captured" : "Repulsed"}
         </div>
+      )}
+
+      {props.mode === "live" && pendingAdvance && (
+        <AdvanceChooser
+          min={pendingAdvance.min}
+          max={pendingAdvance.max}
+          onChoose={(n) => {
+            setPendingAdvance(null);
+            props.onResolved({ ...pendingAdvance.out, advanceCount: n });
+          }}
+        />
       )}
     </div>
   );

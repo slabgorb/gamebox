@@ -25,6 +25,25 @@ export function resolveRound(
   return { aLoss, dLoss };
 }
 
+/**
+ * E5-10: the advance range after a conquest. The attacker must advance at
+ * least as many armies as dice rolled in the winning (final) round and may
+ * advance every survivor (the origin keeps the 1 left behind, so max is
+ * "origin armies - 1" at conquest time). `forced` flags a collapsed range —
+ * a single legal value, for which no chooser is shown (AC-3).
+ * Returns null when the combat did not capture.
+ */
+export function advanceRange(
+  out: ResolvedCombat,
+  force: number,
+): { min: number; max: number; forced: boolean } | null {
+  if (!out.captured) return null;
+  const survivors = force - out.attackerLosses;
+  const winningDice = out.rounds[out.rounds.length - 1]?.aDice.length ?? survivors;
+  const min = Math.min(winningDice, survivors);
+  return { min, max: survivors, forced: min === survivors };
+}
+
 /** A human attacker's between-round choice. */
 export type CombatDecision = "roll" | "blitz" | "stop";
 

@@ -812,6 +812,31 @@ body::before {
 #risk-root .combat-btn.roll { border-color: var(--brass); color: var(--brass); }
 #risk-root .combat-btn.stop { border-color: #8a7c5c; }
 
+/* E5-10: post-conquest advance chooser — how many armies march in. */
+#risk-root .advance-chooser {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .6rem;
+  margin-top: .5rem;
+  flex-wrap: wrap;
+}
+#risk-root .advance-chooser__label {
+  font-size: .85rem;
+  color: #d8c9a3;
+}
+#risk-root .advance-chooser input[type="range"] {
+  width: 9rem;
+  accent-color: var(--brass);
+}
+#risk-root .advance-chooser__count {
+  min-width: 1.5rem;
+  text-align: center;
+  font-weight: 700;
+  color: var(--brass);
+}
+#risk-root .combat-btn.advance { border-color: var(--brass); color: var(--brass); }
+
 /* End-screen */
 #risk-root .end { text-align: center; padding: 2rem; }
 #risk-root .end h1 { color: var(--brass); letter-spacing: 0.08em; }

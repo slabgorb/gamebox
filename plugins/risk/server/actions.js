@@ -282,14 +282,36 @@ function applyAttack(s, playerIdx, payload /* rng intentionally unused */) {
       rounds: resolved.rounds,
     });
     if (eff.error) return eff.error;
+    // E5-10: on a capture the attacker chooses how many survivors advance.
+    // min = dice rolled in the winning (final) round, max = all survivors —
+    // the origin keeps the 1 left behind, so max ≡ "origin armies - 1" at
+    // conquest time. An omitted advanceCount (repulses, the defender-proxy
+    // path, pre-E5-10 clients) defaults to max. When pendingCombat is set the
+    // resolver is the defender acting as the bot's physics proxy — the
+    // advance choice belongs to the attacker, so a proxy-posted advanceCount
+    // is ignored and the bot's policy (max) applies. Validated before any
+    // bookkeeping mutates the clone.
+    let advance = eff.attackerSurvivors;
+    if (eff.captured && !pc && resolved.advanceCount !== undefined) {
+      const minAdvance = Math.min(
+        eff.rounds[eff.rounds.length - 1]?.aDice.length ?? eff.attackerSurvivors,
+        eff.attackerSurvivors,
+      );
+      const posted = resolved.advanceCount;
+      if (!Number.isInteger(posted) || posted < minAdvance || posted > eff.attackerSurvivors) {
+        return `advance must be an integer in ${minAdvance}..${eff.attackerSurvivors}`;
+      }
+      advance = posted;
+    }
     // Mirror the rolled path's bookkeeping exactly: the committed force
-    // marches out of src; on capture survivors occupy tgt (src stays at
-    // armies-force = 1), on repulse survivors retreat home (src ends at
-    // 1 + attackerSurvivors).
+    // marches out of src; on capture `advance` survivors occupy tgt and the
+    // rest return home (src ends at 1 + survivors - advance), on repulse
+    // survivors retreat home (src ends at 1 + attackerSurvivors).
     src.armies -= forceCommitted;
     if (eff.captured) {
       tgt.owner = attackerIdx;
-      tgt.armies = eff.attackerSurvivors;
+      tgt.armies = advance;
+      src.armies += eff.attackerSurvivors - advance;
       s.capturedThisTurn = true;
     } else {
       tgt.armies = eff.defenderSurvivors;

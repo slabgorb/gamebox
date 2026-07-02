@@ -107,6 +107,11 @@ export interface ResolvedCombat {
   attackerLosses: number;
   defenderLosses: number;
   captured: boolean;
+  // E5-10: on a capture, how many survivors the attacker chose to advance
+  // into the conquered territory (min = winning-round dice, max = all
+  // survivors). Absent — repulses, pre-E5-10 clients, and the defender-proxy
+  // path — the server defaults to max (all survivors advance).
+  advanceCount?: number;
 }
 
 export type RiskAction =
