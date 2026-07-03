@@ -11,6 +11,7 @@ sprint:
 completed_epics:
   - E3
   - E6
+  - E5
 completed_stories:
   - id: E3-1
     epic: E3
@@ -127,3 +128,8 @@ completed_stories:
     title: Branch decision (review pilot report, declare path)
     points: 1
     completed: '2026-07-02'
+  - id: E5-6
+    epic: E5
+    title: 'Reinforcement provenance: itemize the muster (base + continent + trade-in)'
+    points: 3
+    completed: '2026-07-03'

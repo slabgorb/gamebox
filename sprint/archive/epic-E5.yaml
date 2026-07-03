@@ -3,7 +3,7 @@ type: epic
 title: Risk Playtest Follow-up
 description: 'Follow-ups from the first full multiplayer Risk playtest (great game, near-zero bugs) — legibility, transparency, and pre-game UX, no net-new rules engine. E5-1 reworks the attack overlay into an interactive per-round battle (dice/loss cards + Manual/Blitz/Stop) instead of auto-grinding. E5-2 verifies + records the ALREADY-implemented territory trade-in bonus; E5-6 surfaces the whole muster as an itemized breakdown (base/continent/trade-in/territory). E5-3 is a pre-game lobby (pick colors + roll-off for turn order). E5-4 fixes bot-portrait overlap. E5-5 improves smack-talk discoverability + chat presentation.'
 priority: p2
-status: backlog
+status: done
 repos: g-1
 stories:
   - id: E5-1
@@ -64,9 +64,11 @@ stories:
     description: "reinforcePool is a bare number; players can't tell where reinforcements came from. Itemize the muster by source: base (max(3, floor(territories/3))), per-continent bonuses (e.g. +3 South America), trade-in set bonus (escalating TRADE_BONUSES), and the territory-match +2 placement (recorded by E5-2). Presentation layer over data E5-2 records; depends on E5-2's log/view enrichment for the territory-bonus line."
     points: 3
     priority: p2
-    status: backlog
+    status: done
+    started: '2026-07-03'
     repos: g-1
     workflow: tdd
+    completed: '2026-07-03'
     review_verdict: approved
   - id: E5-7
     title: 'Pre-game lobby client: colour picker + roll-off result display'
@@ -119,3 +121,4 @@ stories:
     completed: '2026-07-02'
     type: bug
     review_verdict: approved
+completed: '2026-07-03'
