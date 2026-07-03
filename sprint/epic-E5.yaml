@@ -67,6 +67,7 @@ stories:
     status: backlog
     repos: g-1
     workflow: tdd
+    review_verdict: approved
   - id: E5-7
     title: 'Pre-game lobby client: colour picker + roll-off result display'
     points: 5
