@@ -68,6 +68,23 @@ export function ActionBar({ view, pending, post, setPending, onAttack }: Props) 
           ) : (
             <em>{`Place ${pool} regiments — tap a held territory`}</em>
           )}
+          {view.phase === "reinforce" && view.reinforceBreakdown && (
+            <ul className="muster" data-testid="muster-breakdown">
+              <li>{`${view.reinforceBreakdown.base} base`}</li>
+              {view.reinforceBreakdown.continents.map((c) => (
+                <li key={c.name}>{`+${c.armies} ${c.name}`}</li>
+              ))}
+              {view.reinforceBreakdown.tradeIn != null && (
+                <li>{`+${view.reinforceBreakdown.tradeIn} trade-in set`}</li>
+              )}
+              {view.reinforceBreakdown.territoryBonus && (
+                <li>{`+${view.reinforceBreakdown.territoryBonus.armies} on ${
+                  nameOf(view.reinforceBreakdown.territoryBonus.territory) ??
+                  view.reinforceBreakdown.territoryBonus.territory
+                }`}</li>
+              )}
+            </ul>
+          )}
           {Object.entries(plan).map(([id, n]) => (
             <span className="deploy-row" key={id}>
               {`${nameOf(id) ?? id} +${n}`}

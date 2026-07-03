@@ -64,6 +64,18 @@ export interface PendingCombat {
   defenderIdx: PlayerIdx;
 }
 
+// Itemized muster (E5-6): where the reinforce pool came from. `base` and the
+// per-continent `armies` sum to the pool together with `tradeIn` (a traded-set
+// bonus, present only when a set was traded this muster). `territoryBonus` is
+// the +2 placed directly on a matched owned territory — shown separately, NOT
+// part of the pool sum.
+export interface ReinforceBreakdown {
+  base: number;
+  continents: { name: string; armies: number }[];
+  tradeIn?: number;
+  territoryBonus?: { territory: string; armies: number };
+}
+
 export interface RiskView {
   phase: RiskPhase;
   currentPlayer: PlayerIdx;
@@ -95,6 +107,10 @@ export interface RiskView {
   // Bonus armies the viewer's next trade-in would grant (escalating). Derived
   // server-side from the private trade counter; present when cards are in play.
   nextTradeBonus?: number;
+  // Itemized muster (E5-6): the reinforce pool broken into base, per-continent
+  // bonuses, an optional traded-set bonus, and the optional +2 territory
+  // placement. Present only during the reinforce phase, for the current player.
+  reinforceBreakdown?: ReinforceBreakdown;
   // Set when a bot's attack is awaiting client-side dice resolution. The
   // defender's client mounts a live CombatReveal and POSTs the resolved
   // payload back so the server can apply the outcome.
