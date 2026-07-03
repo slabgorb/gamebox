@@ -42,14 +42,17 @@ stories:
     description: "Playtest bug: mid-game the human (playing Scarlett) moved to the conservatory, then refreshed the page — the pawn was back at its pre-move position, i.e. the move reverted. The suggestion history was intact, so this is NOT total state loss: the pawn-location update from a move is not persisted the same way the suggestion log is. Likely a Clue state-serialization / rehydration gap — either the persisted game-state row is not written after a 'move' action, or cluePublicView rebuilds pawn location from stale persisted data on reload. Investigate: how POST /api/games/:id/action persists state after a 'move' vs a 'suggest' (src/server/routes.js action route, src/server/games.js + db.js state write), the clue move apply (plugins/clue/server), and the persisted-state -> cluePublicView rehydration. Use systematic-debugging: reproduce (move, refresh, observe revert), locate the divergence between persisted and in-memory pawn state, then fix so a move survives reload."
     points: 3
     priority: p1
-    status: backlog
+    status: done
+    started: '2026-07-03'
     repos: g-1
     workflow: tdd
     acceptance_criteria:
       - A pawn move survives a page refresh — after reload the pawn is at its moved-to room/square, not the pre-move position.
       - Root cause is identified (persisted vs rehydrated pawn state) and locked with a regression test that persists state after a move and re-reads it.
       - Suggestion history and other already-correct state stay correct (no regression).
+    completed: '2026-07-03'
     type: bug
+    review_verdict: approved
   - id: E7-4
     title: "'The Tortoise' AI portrait falls back to emoji (persona id != portrait filename)"
     description: "Playtest bug: the 'The Tortoise' AI opponent shows the fallback turtle emoji instead of its portrait. Root cause CONFIRMED: portraits auto-load by persona id (OpponentCard src=/shared/portraits/<personaId>.png); the persona id is 'the-tortoise' (data/ai-personas/the-tortoise.yaml, filename==id, loader-enforced) but the portrait file is public/shared/portraits/the-turtle.png — so /shared/portraits/the-tortoise.png 404s and the glyph shows. Same class as the earlier lady-peacock/professor-plum rename. FIX: git mv public/shared/portraits/the-turtle.png -> the-tortoise.png to match the persona id. Trivial; no code change, no rebuild (static asset). Grep for other 'the-turtle' references first. Not Clue-specific — surfaced during the Clue playtest but affects the-tortoise wherever it appears."

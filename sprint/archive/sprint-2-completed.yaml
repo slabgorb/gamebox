@@ -133,3 +133,8 @@ completed_stories:
     title: 'Reinforcement provenance: itemize the muster (base + continent + trade-in)'
     points: 3
     completed: '2026-07-03'
+  - id: E7-3
+    epic: E7
+    title: 'Pawn move reverts after page refresh (move not persisted like the suggestion log)'
+    points: 3
+    completed: '2026-07-03'
