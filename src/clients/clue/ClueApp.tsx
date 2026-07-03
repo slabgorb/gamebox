@@ -172,19 +172,26 @@ export function ClueApp() {
   return (
     <div className="clue-root-inner">
       <header className="clue-header">
-        <div>
+        <div className="clue-header-brand">
           <span className="clue-title">CLUE</span>
-          <span className="clue-sub">the classic mystery · game {ctx.gameId}</span>
+          <span className="clue-sub">a Gamebox parlour mystery · game {ctx.gameId}</span>
         </div>
         <div className="clue-header-meta">
-          <a href="/">↩ Lobby</a>
-          <em data-testid="turn-status">
+          <em className="clue-turnpill" data-testid="turn-status">
             {view.phase === "ended"
               ? "case closed"
               : myTurn
                 ? "your move"
                 : `waiting for ${name(view.currentSeat)}`}
           </em>
+          {view.youAreSeat != null ? (
+            <span className="clue-nameplate">
+              <span className="clue-nameplate-name">{view.seatSuspect[view.youAreSeat]}</span>
+              <a className="clue-nameplate-leave" href="/">leave the table ›</a>
+            </span>
+          ) : (
+            <a className="clue-lobby-link" href="/">↩ Lobby</a>
+          )}
         </div>
       </header>
 
@@ -234,11 +241,13 @@ export function ClueApp() {
         </section>
       )}
 
-      <Board
-        view={view}
-        onPickSquare={(sq) => post({ type: "move", payload: { square: sq } }).catch(() => {})}
-        onPickRoom={(room) => post({ type: "move", payload: { room } }).catch(() => {})}
-      />
+      <div className="clue-board-frame">
+        <Board
+          view={view}
+          onPickSquare={(sq) => post({ type: "move", payload: { square: sq } }).catch(() => {})}
+          onPickRoom={(room) => post({ type: "move", payload: { room } }).catch(() => {})}
+        />
+      </div>
 
       {myTurn && view.phase === "suggest" && myRoom && (
         <section className="clue-panel" data-testid="suggest-panel">

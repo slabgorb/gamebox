@@ -1,104 +1,190 @@
-/* plugins/clue/client/style.css — mansion-parlour chrome, scoped under
-   #clue-root. The board itself is SVG from Board.tsx; this file is frame,
-   panels, and typography only. */
+/* plugins/clue/client/style.css — "parlour mystery" chrome (Claude Design
+   handoff 2026-07-03), scoped under #clue-root. The board SVG is drawn by
+   Board.tsx (felt + rooms + tokens live there); this file is page frame,
+   header, roster, panels, tray, and typography. Portrait cards (.clue-card*)
+   and the refute block are intentionally UNCHANGED. */
 * { box-sizing: border-box; }
+
 body {
   margin: 0;
   min-height: 100dvh;
-  background:
-    radial-gradient(ellipse at top, rgba(64, 36, 46, 0.55) 0%, rgba(24, 14, 20, 0.9) 70%),
-    #14090f;
-  color: #efe6d8;
-  font-family: Georgia, "Times New Roman", serif;
+  background: radial-gradient(ellipse at 50% 0%, #2c7a4e 0%, #1b4d33 48%, #0f3322 100%) fixed;
+  color: #f0e8d4;
+  font-family: "Source Serif 4", Georgia, "Times New Roman", serif;
 }
 
-#clue-root { max-width: 780px; margin: 0 auto; padding: 12px 12px 48px; }
+@keyframes reachPulse { 0%, 100% { opacity: .85; } 50% { opacity: .45; } }
+@keyframes turnGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(230, 182, 82, .5), 0 0 10px rgba(200, 147, 46, .55); }
+  50%      { box-shadow: 0 0 0 1px rgba(230, 182, 82, .85), 0 0 16px rgba(200, 147, 46, .85); }
+}
 
+#clue-root { max-width: 820px; margin: 0 auto; padding: 0 14px 44px; }
+
+/* ---- header: wood plank + brass nameplate ---- */
 #clue-root .clue-header {
-  display: flex; justify-content: space-between; align-items: baseline;
-  border-bottom: 2px solid #8a6a3b; padding: 10px 4px; margin-bottom: 10px;
+  position: relative;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 15px 26px; margin: 0 -14px 6px;
+  border-bottom: 3px solid #2a1608;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 -3px 8px rgba(0, 0, 0, .35), 0 12px 26px rgba(0, 0, 0, .42);
+  background-image:
+    radial-gradient(circle at 35% 30%, #d9c088, #6a4a14 70%, #2a1608),
+    radial-gradient(circle at 35% 30%, #d9c088, #6a4a14 70%, #2a1608),
+    radial-gradient(circle at 35% 30%, #d9c088, #6a4a14 70%, #2a1608),
+    radial-gradient(circle at 35% 30%, #d9c088, #6a4a14 70%, #2a1608),
+    linear-gradient(180deg, #6b3e22, #4a2810 60%, #3c2109);
+  background-repeat: no-repeat;
+  background-size: 9px 9px, 9px 9px, 9px 9px, 9px 9px, auto;
+  background-position: 11px 9px, right 11px top 9px, 11px bottom 9px, right 11px bottom 9px, center;
 }
+#clue-root .clue-header-brand { display: flex; align-items: center; gap: 16px; min-width: 0; }
 #clue-root .clue-title {
-  font-size: 1.7rem; font-weight: 800; letter-spacing: 0.35em; color: #e0b23c;
+  font-family: "Playfair Display", Georgia, serif; font-weight: 800; font-size: 25px;
+  letter-spacing: .3em; color: #2a1808;
+  background: linear-gradient(180deg, #fbe79a, #c9a14e 55%, #8a6a24);
+  padding: 8px 20px 8px 24px; border-radius: 5px; border: 1px solid #2a1608;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, .6), inset 0 -1.5px 0 rgba(58, 33, 4, .55), 0 3px 9px rgba(0, 0, 0, .4);
+  text-shadow: 0 1px 0 rgba(255, 238, 180, .5), 0 -1px 0 rgba(40, 20, 4, .35);
 }
-#clue-root .clue-sub { margin-left: 10px; font-style: italic; opacity: 0.7; font-size: 0.85rem; }
-#clue-root .clue-header-meta { display: flex; gap: 12px; align-items: baseline; }
-#clue-root .clue-header-meta a { color: #e0b23c; text-decoration: none; }
+#clue-root .clue-sub { font-style: italic; font-size: 13px; color: #e7d3ad; opacity: .9; font-family: Georgia, serif; }
+#clue-root .clue-header-meta { display: flex; align-items: center; gap: 14px; }
+#clue-root .clue-turnpill {
+  font-family: "Playfair Display", serif; font-weight: 700; font-size: 12px; font-style: normal;
+  letter-spacing: .14em; text-transform: uppercase; color: #2a1808;
+  background: linear-gradient(180deg, #fbe79a, #c9a14e 60%, #8a6a24);
+  padding: 6px 13px; border-radius: 4px; border: 1px solid #2a1608; transform: rotate(-2deg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 2px 6px rgba(0, 0, 0, .4);
+}
+#clue-root .clue-nameplate {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  background: linear-gradient(180deg, #d4986a, #a9713f); border: 1px solid #2a1608; border-radius: 6px; padding: 5px 13px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .12), inset 0 1px 0 rgba(255, 255, 255, .25), 0 2px 6px rgba(0, 0, 0, .4);
+}
+#clue-root .clue-nameplate-name {
+  font-family: "Playfair Display", serif; font-weight: 700; font-size: 13px; color: #2a1206; text-transform: capitalize;
+}
+#clue-root .clue-nameplate-leave {
+  font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: #5a2f12; text-decoration: none;
+  border-top: 1px dashed rgba(42, 18, 6, .5); padding-top: 1px; text-align: right;
+}
+#clue-root .clue-lobby-link { color: #e7d3ad; text-decoration: none; font-size: 13px; }
 
-#clue-root .clue-roster { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+/* ---- roster chips ---- */
+#clue-root .clue-roster { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 18px 0 6px; }
 #clue-root .clue-seat {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(224, 178, 60, 0.35);
-  border-radius: 999px; padding: 4px 12px; font-size: 0.85rem;
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 13px 5px 12px;
+  border-radius: 999px; border: 1.5px solid rgba(224, 200, 140, .28);
+  background: rgba(255, 255, 255, .05); box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+  font-size: .82rem; color: #f4ead2;
 }
-#clue-root .clue-seat.is-turn { border-color: #e0b23c; box-shadow: 0 0 8px rgba(224, 178, 60, 0.5); }
-#clue-root .clue-seat.is-out { opacity: 0.45; text-decoration: line-through; }
-#clue-root .clue-seat.is-you { background: rgba(224, 178, 60, 0.12); }
+#clue-root .clue-seat.is-turn { border-color: #e6b652; background: rgba(200, 147, 46, .16); animation: turnGlow 2.2s ease-in-out infinite; }
+#clue-root .clue-seat.is-you { background: rgba(200, 147, 46, .12); }
+#clue-root .clue-seat.is-out { opacity: .45; text-decoration: line-through; }
 #clue-root .clue-seat-pip {
-  width: 12px; height: 12px; border-radius: 50%; display: inline-block;
-  border: 1px solid rgba(0, 0, 0, 0.5);
+  width: 15px; height: 15px; border-radius: 50%; display: inline-block; border: 1px solid rgba(0, 0, 0, .45);
+  box-shadow: inset 0 1.5px 1px rgba(255, 255, 255, .45), inset 0 -1px 1px rgba(0, 0, 0, .35);
 }
-#clue-root .clue-seat em { font-size: 0.75rem; opacity: 0.75; }
+#clue-root .clue-seat em { font-size: .72rem; opacity: .75; font-style: italic; }
 
+/* ---- board frame (walnut) ---- */
+#clue-root .clue-board-frame {
+  margin: 12px auto 0; padding: 13px;
+  background: linear-gradient(160deg, #6b4423, #3d2410 55%, #2e1a0c);
+  border-radius: 12px; border: 1px solid #1c1206;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .13), inset 0 -3px 9px rgba(0, 0, 0, .5), 0 20px 44px rgba(0, 0, 0, .5);
+}
 #clue-root .clue-board {
-  width: 100%; height: auto; display: block; margin: 8px 0;
-  background: #d9c9a3; border: 6px solid #4a2f1d; border-radius: 6px;
+  width: 100%; height: auto; display: block; border-radius: 5px;
+  box-shadow: inset 0 0 60px rgba(0, 0, 0, .55), inset 0 0 0 2px rgba(20, 40, 28, .6);
 }
-#clue-root .clue-grid { stroke: rgba(74, 47, 29, 0.25); stroke-width: 0.5; }
-/* E7-1 spike: portrait background layer (fill set inline via SVG pattern) */
-#clue-root .clue-room-img { pointer-events: none; }
-/* scrim over the portrait — translucent so the image reads through but labels
-   and pawn/weapon tokens stay legible */
-#clue-root .clue-room { fill: rgba(24, 14, 9, 0.36); stroke: #4a2f1d; stroke-width: 2; }
-#clue-root .clue-room.is-reachable { fill: rgba(223, 200, 106, 0.5); cursor: pointer; }
 #clue-root .clue-room-label {
-  font-size: 11px; fill: #2a1a10; text-transform: capitalize; font-weight: 700;
-  font-family: Georgia, serif; pointer-events: none;
-  paint-order: stroke; stroke: rgba(240, 230, 216, 0.9); stroke-width: 3px;
-  stroke-linejoin: round;
+  font-family: "Playfair Display", Georgia, serif; font-weight: 700; font-size: 13px;
+  fill: #3a2510; letter-spacing: .02em; text-transform: capitalize; pointer-events: none;
 }
-#clue-root .clue-cellar { fill: #6d5738; stroke: #4a2f1d; stroke-width: 2; }
-#clue-root .clue-cellar-label {
-  fill: #d9c9a3; font-size: 16px; letter-spacing: 0.4em; text-anchor: middle;
-  pointer-events: none;
-}
-#clue-root .clue-door { fill: rgba(150, 84, 38, 0.85); }
-#clue-root .clue-reach {
-  fill: rgba(224, 178, 60, 0.55); stroke: #8a6a3b; cursor: pointer;
-}
-#clue-root .clue-reach:hover { fill: rgba(224, 178, 60, 0.85); }
-#clue-root .clue-pawn { stroke: #241309; stroke-width: 1.5; }
-/* E7-1: weapon tokens are framed portrait tiles (was an emoji glyph) */
-#clue-root .clue-weapon-img { pointer-events: none; }
-#clue-root .clue-weapon-frame {
-  fill: none; stroke: #efe6d8; stroke-width: 1.5;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.6));
-}
+#clue-root .clue-room.is-reachable { cursor: pointer; }
+#clue-root .clue-room.is-reachable:hover { fill: rgba(200, 147, 46, .5); }
+#clue-root .clue-secret { fill: #8a6234; font-size: 12px; pointer-events: none; }
+#clue-root .clue-reach { cursor: pointer; animation: reachPulse 1.6s ease-in-out infinite; }
+#clue-root .clue-reach:hover { fill: rgba(200, 147, 46, .85); }
+#clue-root .clue-envelope-title { font-family: "Playfair Display", serif; font-weight: 800; font-size: 23px; fill: #d9b25a; letter-spacing: 6px; }
+#clue-root .clue-envelope-sub { font-family: "JetBrains Mono", monospace; font-size: 8.5px; fill: rgba(217, 178, 90, .72); letter-spacing: 2.5px; }
+#clue-root .clue-envelope-q { font-family: "Playfair Display", serif; font-weight: 800; font-size: 15px; fill: #e8c9a0; }
 
-#clue-root .clue-dice { margin: 8px 0; text-align: center; }
-#clue-root .clue-panel { margin: 10px 0; padding: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(224, 178, 60, 0.3); border-radius: 8px; }
-#clue-root .clue-panel h3 { margin: 0 0 8px; font-size: 1rem; }
+/* ---- dice tray ---- */
+#clue-root .clue-dice {
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  margin: 16px 0 4px; padding: 14px 16px;
+  background: linear-gradient(180deg, #173d29, #0f2c1e);
+  border: 1px solid #0a2016; border-radius: 9px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 3px 10px rgba(0, 0, 0, .35);
+}
+#clue-root .clue-roll, #clue-root .clue-passage {
+  font: inherit; font-weight: 700; padding: 7px 16px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #2a1608; color: #2a1808;
+  background: linear-gradient(180deg, #fbe79a, #c9a14e 60%, #8a6a24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 2px 6px rgba(0, 0, 0, .3);
+}
+#clue-root .clue-roll[disabled] { opacity: .55; cursor: not-allowed; }
+#clue-root .clue-roll-status { font-style: italic; color: #d9cba8; }
+
+/* ---- action panels (parchment) ---- */
+#clue-root .clue-panel {
+  margin: 12px 0; padding: 14px 16px; color: #2a1810;
+  background: linear-gradient(180deg, #fffbe9, #f4ead0);
+  border: 1px solid rgba(80, 50, 20, .3); border-radius: 9px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), 0 3px 12px rgba(0, 0, 0, .28);
+}
+#clue-root .clue-panel h3 { margin: 0 0 8px; font-family: "Playfair Display", serif; font-weight: 700; font-size: 16px; color: #2a1810; }
 #clue-root .clue-picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-#clue-root .clue-picker select,
-#clue-root button {
-  font: inherit; padding: 6px 14px; border-radius: 6px;
-  border: 1px solid #8a6a3b; background: #2a1a22; color: #efe6d8; cursor: pointer;
+#clue-root .clue-picker-room { text-transform: capitalize; }
+#clue-root .clue-panel select {
+  font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #8a6a3b; background: #fffbe9; color: #2a1810; text-transform: capitalize;
 }
-#clue-root button:hover { border-color: #e0b23c; }
-#clue-root .clue-roll { font-size: 1.05rem; background: #5a1f24; margin-top: 6px; }
-#clue-root .clue-accuse button:first-of-type { border-color: #a33; }
-#clue-root .clue-error { background: #5a1f24; padding: 6px 10px; border-radius: 6px; margin: 6px 0; }
-#clue-root .clue-banner { font-style: italic; opacity: 0.85; margin: 8px 0; }
+#clue-root .clue-panel button {
+  font: inherit; font-weight: 700; font-size: 13px; padding: 7px 16px; border-radius: 6px; cursor: pointer;
+  border: 1px solid #2a1608; color: #2a1808;
+  background: linear-gradient(180deg, #fbe79a, #c9a14e 60%, #8a6a24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .55), 0 2px 6px rgba(0, 0, 0, .3);
+}
+#clue-root .clue-panel button:hover { filter: brightness(1.05); }
+#clue-root .clue-accuse button:first-of-type,
+#clue-root .clue-pass {
+  background: #fbeee7; color: #8a2a1c; border-color: #a13b2a; box-shadow: 0 0 0 2px rgba(161, 59, 42, .16);
+}
 
+/* ---- error / banner ---- */
+#clue-root .clue-error { background: #5a1f24; color: #f4ead2; padding: 6px 10px; border-radius: 6px; margin: 6px 0; }
+#clue-root .clue-banner { font-style: italic; color: #d9cba8; margin: 8px 0; }
+
+/* ---- hand + ledger: section headers restyled; portrait cards below UNCHANGED ---- */
+#clue-root .clue-tray { display: flex; gap: 24px; flex-wrap: wrap; margin: 14px 0; }
+#clue-root .clue-tray h4 {
+  margin: 0 0 8px; font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase; color: #bcd8c5;
+}
+
+/* ---- log: parlour ledger ---- */
+#clue-root .clue-log {
+  margin-top: 16px; padding-top: 12px; font-size: 13px; color: #d9cba8;
+  border-top: 1px dashed rgba(224, 200, 140, .35);
+}
+#clue-root .clue-log p { margin: 3px 0; font-style: italic; line-height: 1.4; }
+
+/* ---- endbanner (behavior unchanged) ---- */
+#clue-root .clue-endbanner { position: sticky; bottom: 12px; margin-top: 14px; padding: 14px; text-align: center; font-size: 1.2rem; border-radius: 8px; }
+#clue-root .clue-endbanner.win { background: #2e5a24; }
+#clue-root .clue-endbanner.lose { background: #5a1f24; }
+
+/* ================= UNCHANGED: refute prompt ================= */
 #clue-root .clue-refute {
   margin: 10px 0; padding: 12px; border: 2px solid #e0b23c; border-radius: 8px;
   background: rgba(224, 178, 60, 0.1);
 }
 #clue-root .clue-refute-cards { display: flex; gap: 8px; flex-wrap: wrap; }
 
-#clue-root .clue-tray { display: flex; gap: 24px; flex-wrap: wrap; margin: 10px 0; }
-#clue-root .clue-tray h4 { margin: 0 0 6px; font-size: 0.8rem; letter-spacing: 0.1em; text-transform: uppercase; opacity: 0.7; }
-/* --- Cards: framed portrait tiles (replaces the old text pills) --- */
+/* ================= UNCHANGED: portrait cards (E7-1) ================= */
 #clue-root .clue-card {
   display: inline-flex; flex-direction: column; align-items: stretch;
   width: 88px; margin: 0 6px 6px 0; padding: 0;
@@ -134,13 +220,3 @@ body {
 #clue-root .clue-card.is-selected {
   outline: 2px solid #e0b23c; outline-offset: 2px;
 }
-
-#clue-root .clue-log { font-size: 0.85rem; opacity: 0.85; border-top: 1px solid rgba(224, 178, 60, 0.3); padding-top: 8px; }
-#clue-root .clue-log p { margin: 2px 0; }
-
-#clue-root .clue-endbanner {
-  position: sticky; bottom: 12px; margin-top: 14px; padding: 14px;
-  text-align: center; font-size: 1.2rem; border-radius: 8px;
-}
-#clue-root .clue-endbanner.win { background: #2e5a24; }
-#clue-root .clue-endbanner.lose { background: #5a1f24; }
