@@ -779,10 +779,14 @@ body {
 #clue-root .clue-card.is-selected { outline: 2px solid #e0b23c; outline-offset: 2px; }
 ```
 
-- [ ] **Step 4: Verify behavioral tests + typecheck still pass**
+- [ ] **Step 4: Verify behavioral tests + no new type errors**
 
-Run: `npx vitest run test/client/clue-app-bot-roll.test.tsx test/client/clue-card.test.tsx test/client/clue-refute-prompt.test.tsx && npx tsc -p tsconfig.json --noEmit`
-Expected: all PASS, no type errors (header markup change adds a nameplate but keeps `data-testid="turn-status"` and touches no dice/roll logic).
+Run: `npx vitest run test/client/clue-app-bot-roll.test.tsx test/client/clue-card.test.tsx test/client/clue-refute-prompt.test.tsx`
+Expected: all PASS (the header markup adds a nameplate but keeps `data-testid="turn-status"` and touches no dice/roll logic).
+
+Then check the ClueApp markup change adds no NEW type error (this repo has NO clean-tsc gate — many pre-existing errors exist across the codebase; the real gate is the test suites):
+Run: `npx tsc -p tsconfig.client.json --noEmit 2>&1 | grep -E 'clue/ClueApp'`
+Expected: no output (ClueApp.tsx introduces no type error). Note: `style.css` and `index.html` are not typechecked.
 
 - [ ] **Step 5: Commit**
 
