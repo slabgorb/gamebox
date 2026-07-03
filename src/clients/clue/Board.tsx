@@ -1,16 +1,16 @@
-// SVG board rendered ENTIRELY from the geometry mirror + the server view.
-// No rule logic lives here: reachability comes from view.movement (disclosed
-// only to the active viewer), pawn/weapon positions from the view.
+// SVG board rendered from the geometry mirror + the server view, re-themed to the
+// Claude Design "parlour mystery" handoff (2026-07-03): green felt in a walnut
+// frame, parchment rooms, brass weapon medallions, checker-token pawns. No rule
+// logic here — reachability (active viewer only) and token positions come from
+// `view`; the server stays authoritative.
 import {
-  ROOMS_GEO, DOORS, CELLAR_POLY, GRID, CELL, PAWN_COLORS, SECRET_PASSAGES,
+  ROOMS_GEO, DOORS, CELLAR_POLY, GRID, CELL, SECRET_PASSAGES,
 } from "./board-geometry.js";
+import { SUSPECT_CHECKER, WEAPON_ICONS } from "./board-art.js";
 import type { ClueView, RoomId, SuspectId, WeaponId } from "../shared/contracts/clue";
 
-const pts = (poly: number[][]) =>
-  poly.map(([c, r]) => `${c * CELL},${r * CELL}`).join(" ");
-
-// Axis-aligned bounding box of a room polygon, in board pixels — used to size
-// the per-room portrait pattern (E7-1 spike: photoreal room backgrounds).
+// Axis-aligned bounding box of a room polygon, in board pixels. Every Clue room
+// is a rectangle, so the bbox rect IS the room shape.
 function bbox(poly: number[][]) {
   const cs = poly.map((p) => p[0]);
   const rs = poly.map((p) => p[1]);
@@ -22,14 +22,6 @@ function bbox(poly: number[][]) {
     w: (Math.max(...cs) - minC) * CELL,
     h: (Math.max(...rs) - minR) * CELL,
   };
-}
-
-// Centroid of a room polygon (for clustering room occupants).
-function roomCenter(room: RoomId): [number, number] {
-  const poly = ROOMS_GEO[room].poly;
-  const cx = poly.reduce((a, [c]) => a + c, 0) / poly.length;
-  const cy = poly.reduce((a, [, r]) => a + r, 0) / poly.length;
-  return [cx * CELL, cy * CELL];
 }
 
 export function Board({
@@ -46,184 +38,195 @@ export function Board({
   const canMove = view.movement != null && view.movement.needsRoll === false;
   const reachRooms = new Set<RoomId>(canMove ? view.movement!.rooms : []);
   const reachSquares: [number, number][] = canMove ? view.movement!.squares : [];
+  const youSuspect: SuspectId | null =
+    view.youAreSeat != null ? view.seatSuspect[view.youAreSeat] : null;
 
-  // Cluster pawns that share a room so tokens never overlap.
-  const roomSlot = new Map<RoomId, number>();
-  const nextSlot = (room: RoomId) => {
-    const n = roomSlot.get(room) ?? 0;
-    roomSlot.set(room, n + 1);
-    return n;
-  };
-
-  // Weapon tokens are framed portrait tiles laid along each room's lower-left
-  // corner (own slot counter so they don't shift the pawn cluster above).
-  const WEAPON_SIZE = CELL * 1.5;
+  // Weapon medallions: per-room slot offset so two weapons in one room don't
+  // overlap (the design mock assumed one weapon per room).
   const weaponSlot = new Map<RoomId, number>();
-  const weaponTiles = (Object.entries(view.weapons) as [WeaponId, RoomId][]).map(
+  const weaponTokens = (Object.entries(view.weapons) as [WeaponId, RoomId][]).map(
     ([w, room]) => {
       const b = bbox(ROOMS_GEO[room].poly);
       const n = weaponSlot.get(room) ?? 0;
       weaponSlot.set(room, n + 1);
-      return {
-        w,
-        x: b.x + 2 + n * (WEAPON_SIZE * 0.62),
-        y: b.y + b.h - WEAPON_SIZE - 2,
-        size: WEAPON_SIZE,
-      };
+      return { w, x: b.x + 22 + n * 22, y: b.y + b.h * 0.3 };
     },
   );
 
+  // Pawns clustered in a room get a centered horizontal spread.
+  const roomPawns: Partial<Record<RoomId, SuspectId[]>> = {};
+  for (const [id, loc] of Object.entries(view.pawns) as [SuspectId, { room?: RoomId }][]) {
+    if (loc.room) (roomPawns[loc.room] ||= []).push(id);
+  }
+  const roomIndex = new Map<RoomId, number>();
+
   return (
-    <svg
-      className="clue-board"
-      viewBox={`0 0 ${W} ${H}`}
-      role="img"
-      aria-label="Clue board"
-    >
-      {/* E7-1 spike: one clip path per room polygon; portrait <image> below is
-          clipped to it. clipPath (not <pattern>) keeps each image in absolute
-          user space, so every room aligns regardless of board position. */}
+    <svg className="clue-board" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Clue mansion board">
       <defs>
-        {(Object.entries(ROOMS_GEO) as [RoomId, { poly: number[][] }][]).map(
-          ([id, g]) => (
-            <clipPath key={id} id={`room-clip-${id}`}>
-              <polygon points={pts(g.poly)} />
-            </clipPath>
-          ),
-        )}
-        {weaponTiles.map(({ w, x, y, size }) => (
-          <clipPath key={`wc-${w}`} id={`weapon-clip-${w}`}>
-            <rect x={x} y={y} width={size} height={size} rx={5} />
-          </clipPath>
-        ))}
+        <radialGradient id="clue-feltGrad" cx="50%" cy="34%" r="75%">
+          <stop offset="0%" stopColor="#2f7d50" />
+          <stop offset="60%" stopColor="#1b4d33" />
+          <stop offset="100%" stopColor="#0c2a1c" />
+        </radialGradient>
+        <linearGradient id="clue-parchGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#efe4c2" />
+          <stop offset="100%" stopColor="#ddcb9c" />
+        </linearGradient>
+        <linearGradient id="clue-brassStrip" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#fbe79a" />
+          <stop offset="55%" stopColor="#c9a14e" />
+          <stop offset="100%" stopColor="#8a6a24" />
+        </linearGradient>
+        <radialGradient id="clue-brassMed" cx="38%" cy="32%" r="72%">
+          <stop offset="0%" stopColor="#fbe79a" />
+          <stop offset="55%" stopColor="#c9a14e" />
+          <stop offset="100%" stopColor="#6a4a14" />
+        </radialGradient>
+        <filter id="clue-tokShadow" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2.5" stdDeviation="2.2" floodColor="#000" floodOpacity="0.5" />
+        </filter>
+        <filter id="clue-feltN">
+          <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch" />
+          <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .05 0" />
+        </filter>
       </defs>
+
+      {/* felt */}
+      <rect x={0} y={0} width={W} height={H} fill="url(#clue-feltGrad)" />
+      <rect x={0} y={0} width={W} height={H} fill="#000" filter="url(#clue-feltN)" />
 
       {/* corridor grid */}
       {Array.from({ length: GRID.cols + 1 }, (_, c) => (
-        <line key={`gc${c}`} className="clue-grid" x1={c * CELL} y1={0} x2={c * CELL} y2={H} />
+        <line key={`gc${c}`} x1={c * CELL} y1={0} x2={c * CELL} y2={H} stroke="rgba(240,235,215,0.07)" strokeWidth={1} />
       ))}
       {Array.from({ length: GRID.rows + 1 }, (_, r) => (
-        <line key={`gr${r}`} className="clue-grid" x1={0} y1={r * CELL} x2={W} y2={r * CELL} />
+        <line key={`gr${r}`} x1={0} y1={r * CELL} x2={W} y2={r * CELL} stroke="rgba(240,235,215,0.07)" strokeWidth={1} />
       ))}
 
-      {/* cellar */}
-      <polygon className="clue-cellar" points={pts(CELLAR_POLY)} />
-      <text
-        className="clue-cellar-label"
-        x={((CELLAR_POLY[0][0] + CELLAR_POLY[1][0]) / 2) * CELL}
-        y={((CELLAR_POLY[0][1] + CELLAR_POLY[2][1]) / 2) * CELL}
-      >
-        CLUE
-      </text>
-
-      {/* rooms */}
+      {/* rooms (parchment) */}
       {(Object.entries(ROOMS_GEO) as [RoomId, { poly: number[][]; label: number[] }][]).map(
-        ([id, g]) => (
-          <g key={id}>
-            {/* portrait background (behind the scrim + label/token layers) */}
-            <image
-              className="clue-room-img"
-              href={`/shared/portraits/${id}.png`}
-              x={bbox(g.poly).x}
-              y={bbox(g.poly).y}
-              width={bbox(g.poly).w}
-              height={bbox(g.poly).h}
-              preserveAspectRatio="xMidYMid slice"
-              clipPath={`url(#room-clip-${id})`}
-            />
-            {/* scrim + stroke + click target: dims the portrait so labels and
-                tokens stay legible (fill lives in style.css) */}
-            <polygon
-              data-room={id}
-              className={`clue-room${reachRooms.has(id) ? " is-reachable" : ""}`}
-              points={pts(g.poly)}
-              onClick={reachRooms.has(id) ? () => onPickRoom(id) : undefined}
-            />
-            <text className="clue-room-label" x={g.label[0] * CELL} y={g.label[1] * CELL}>
-              {id}
-              {SECRET_PASSAGES[id as keyof typeof SECRET_PASSAGES] ? " ⤢" : ""}
-            </text>
-          </g>
-        ),
+        ([id, g]) => {
+          const b = bbox(g.poly);
+          const reachable = reachRooms.has(id);
+          return (
+            <g key={id}>
+              <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={5} fill="url(#clue-parchGrad)" stroke="#8a6234" strokeWidth={2} />
+              <rect
+                data-room={id}
+                className={`clue-room${reachable ? " is-reachable" : ""}`}
+                x={b.x} y={b.y} width={b.w} height={b.h} rx={5}
+                fill={reachable ? "rgba(200,147,46,.3)" : "transparent"}
+                stroke={reachable ? "#e6b652" : "transparent"}
+                strokeWidth={2.5}
+                onClick={reachable ? () => onPickRoom(id) : undefined}
+              />
+              <text className="clue-room-label" x={g.label[0] * CELL} y={g.label[1] * CELL} textAnchor="middle">
+                {id}
+              </text>
+              {SECRET_PASSAGES[id as keyof typeof SECRET_PASSAGES] && (
+                <text className="clue-secret" x={b.x + b.w - 15} y={b.y + 16}>⤢</text>
+              )}
+            </g>
+          );
+        },
       )}
 
-      {/* door thresholds */}
-      {DOORS.map((d, i) => (
-        <rect
-          key={i}
-          data-door={d.room}
-          className="clue-door"
-          x={d.square[0] * CELL + 3}
-          y={d.square[1] * CELL + 3}
-          width={CELL - 6}
-          height={CELL - 6}
-        />
-      ))}
+      {/* cellar / accusation envelope */}
+      {(() => {
+        const b = bbox(CELLAR_POLY);
+        const cx = b.x + b.w / 2;
+        return (
+          <g style={{ pointerEvents: "none" }}>
+            <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={7} fill="#16281d" stroke="#3a2606" strokeWidth={2} />
+            <rect x={b.x + 7} y={b.y + 7} width={b.w - 14} height={b.h - 14} rx={4} fill="none" stroke="rgba(217,178,90,.32)" strokeWidth={1} />
+            <text className="clue-envelope-title" x={cx} y={b.y + 66} textAnchor="middle">CLUE</text>
+            <text className="clue-envelope-sub" x={cx} y={b.y + 85} textAnchor="middle">THE ACCUSATION</text>
+            <circle cx={cx} cy={b.y + 132} r={16} fill="#6e1f18" stroke="#37100b" strokeWidth={1.5} />
+            <circle cx={cx} cy={b.y + 132} r={16} fill="none" stroke="rgba(255,220,180,.25)" strokeWidth={1} />
+            <text className="clue-envelope-q" x={cx} y={b.y + 138} textAnchor="middle">?</text>
+          </g>
+        );
+      })()}
+
+      {/* door thresholds (brass bars) */}
+      {DOORS.map((d, i) => {
+        const b = bbox(ROOMS_GEO[d.room as RoomId].poly);
+        const [c, r] = d.square;
+        const bx = c * CELL;
+        const by = r * CELL;
+        const onVertEdge = (c + 1) * CELL <= b.x || c * CELL >= b.x + b.w;
+        const transform = onVertEdge ? `rotate(90 ${bx + CELL / 2} ${by + CELL / 2})` : undefined;
+        return (
+          <rect
+            key={i}
+            data-door={d.room}
+            x={bx + 4} y={by + CELL / 2 - 3} width={18} height={6} rx={2}
+            fill="url(#clue-brassStrip)" stroke="#2a1608" strokeWidth={0.6}
+            transform={transform}
+          />
+        );
+      })}
 
       {/* reachable corridor squares (active viewer only) */}
       {reachSquares.map(([c, r]) => (
         <rect
           key={`sq-${c}-${r}`}
-          className="clue-reach"
           data-square={`${c},${r}`}
-          x={c * CELL}
-          y={r * CELL}
-          width={CELL}
-          height={CELL}
+          className="clue-reach"
+          x={c * CELL + 2} y={r * CELL + 2} width={22} height={22} rx={3}
+          fill="rgba(200,147,46,.55)" stroke="#e6b652" strokeWidth={1.5}
           onClick={() => onPickSquare([c, r])}
         />
       ))}
 
-      {/* weapon tokens: framed portrait tiles in each room's lower-left corner */}
-      {weaponTiles.map(({ w, x, y, size }) => (
-        <g key={w} data-weapon={w}>
-          <image
-            className="clue-weapon-img"
-            href={`/shared/portraits/${w}.png`}
-            x={x}
-            y={y}
-            width={size}
-            height={size}
-            preserveAspectRatio="xMidYMid slice"
-            clipPath={`url(#weapon-clip-${w})`}
-          />
-          <rect
-            className="clue-weapon-frame"
-            x={x}
-            y={y}
-            width={size}
-            height={size}
-            rx={5}
-          />
+      {/* weapons: brass medallions */}
+      {weaponTokens.map(({ w, x, y }) => (
+        <g key={w} data-weapon={w} transform={`translate(${x},${y})`}>
+          <circle r={12} fill="url(#clue-brassMed)" stroke="#2a1608" strokeWidth={1.4} filter="url(#clue-tokShadow)" />
+          <circle r={9} fill="none" stroke="rgba(58,33,4,.5)" strokeWidth={1} />
+          <path d={WEAPON_ICONS[w].icon} fill="none" stroke="#3a2606" strokeWidth={WEAPON_ICONS[w].sw} strokeLinecap="round" strokeLinejoin="round" />
+          <title>{w}</title>
         </g>
       ))}
 
-      {/* pawns: on a corridor square, or clustered inside their room */}
+      {/* pawns: checker tokens (gold ring on your own) */}
       {(Object.entries(view.pawns) as [SuspectId, { room?: RoomId; square?: [number, number] }][]).map(
         ([suspect, loc]) => {
           let cx: number;
           let cy: number;
+          let sz: number;
           if (loc.square) {
             cx = loc.square[0] * CELL + CELL / 2;
             cy = loc.square[1] * CELL + CELL / 2;
+            sz = 24;
           } else if (loc.room) {
-            const [rx, ry] = roomCenter(loc.room);
-            const slot = nextSlot(loc.room);
-            cx = rx - CELL + slot * (CELL * 0.9);
-            cy = ry - CELL * 0.35;
+            const b = bbox(ROOMS_GEO[loc.room].poly);
+            const list = roomPawns[loc.room]!;
+            const idx = (roomIndex.get(loc.room) ?? -1) + 1;
+            roomIndex.set(loc.room, idx);
+            const n = list.length;
+            cx = b.x + b.w / 2 + (idx - (n - 1) / 2) * 26;
+            cy = b.y + b.h * 0.68;
+            sz = 25;
           } else {
             return null;
           }
           return (
-            <circle
-              key={suspect}
-              data-pawn={suspect}
-              className="clue-pawn"
-              cx={cx}
-              cy={cy}
-              r={CELL / 2 - 3}
-              fill={PAWN_COLORS[suspect]}
-            />
+            <g key={suspect}>
+              {suspect === youSuspect && (
+                <circle
+                  cx={cx} cy={cy} r={sz / 2 + 3} fill="none" stroke="#e6b652" strokeWidth={2}
+                  style={{ filter: "drop-shadow(0 0 3px rgba(230,182,82,.8))" }}
+                />
+              )}
+              <image
+                data-pawn={suspect}
+                href={`assets/checker-${SUSPECT_CHECKER[suspect]}.png`}
+                x={cx - sz / 2} y={cy - sz / 2} width={sz} height={sz}
+                filter="url(#clue-tokShadow)"
+              />
+              <title>{suspect}</title>
+            </g>
           );
         },
       )}
